@@ -17,7 +17,9 @@ ifStmt    -> "if" expression block ( "else" block )? ;
 printStmt -> "print" expression ";" ;
 block     -> "{" declaration* "}" ;
 
-expression     -> equality ;
+expression     -> logic_or ;
+logic_or       -> logic_and ( "||" logic_and )* ;
+logic_and      -> equality ( "&&" equality )* ;
 equality       -> comparison ( ( "!=" | "==" ) comparison )* ;
 comparison     -> addition ( ( ">" | ">=" | "<" | "<=" ) addition )* ;
 addition       -> multiplication ( ( "-" | "+" ) multiplication )* ;

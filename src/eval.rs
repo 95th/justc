@@ -7,19 +7,40 @@ use crate::{
 use std::{collections::HashMap, mem};
 
 macro_rules! bin_op {
-    ($a:expr, $op:tt, $b:expr, $msg:literal) => {
-        match ($a, $b) {
+    ($self:expr, $a:expr, $op:tt, $b:expr, $msg:literal) => {{
+        let left = $self.eval_expr($a)?;
+        let right = $self.eval_expr($b)?;
+        match (left, right) {
             (Lit::Number(a), Lit::Number(b)) => Ok(Lit::Number(a $op b)),
             _ => bail!($msg),
         }
-    };
+    }};
 }
 
 macro_rules! bin_cmp_op {
-    ($a:expr, $op:tt, $b:expr, $msg:literal) => {
-        match ($a, $b) {
+    ($self:expr, $a:expr, $op:tt, $b:expr, $msg:literal) => {{
+        let left = $self.eval_expr($a)?;
+        let right = $self.eval_expr($b)?;
+        match (left, right) {
             (Lit::Number(a), Lit::Number(b)) => Ok(Lit::Bool(a $op b)),
             _ => bail!($msg),
+        }
+    }};
+}
+
+macro_rules! bin_logic_op {
+    ($self:expr, $a:expr, $op:tt, $b:expr) => {
+        Ok(Lit::Bool(
+            get_bool!($self.eval_expr($a)?) $op get_bool!($self.eval_expr($b)?),
+        ))
+    };
+}
+
+macro_rules! get_bool {
+    ($expr:expr) => {
+        match $expr {
+            Lit::Bool(b) => b,
+            _ => bail!("value must be a boolean expression"),
         }
     };
 }
@@ -117,14 +138,10 @@ impl Interpreter {
                 self.execute_block(stmts)?;
             }
             Stmt::If(cond, then, else_branch) => {
-                if let Lit::Bool(b) = self.eval_expr(cond)? {
-                    if b {
-                        self.execute_block(then)?;
-                    } else {
-                        self.execute_block(else_branch)?;
-                    }
+                if get_bool!(self.eval_expr(cond)?) {
+                    self.execute_block(then)?;
                 } else {
-                    bail!("condition must be a boolean expression");
+                    self.execute_block(else_branch)?;
                 }
             }
         }
@@ -133,22 +150,20 @@ impl Interpreter {
 
     pub fn eval_expr(&mut self, expr: &Expr) -> Result<Lit> {
         match expr {
-            Expr::Binary(op, left, right) => {
-                let left = self.eval_expr(left)?;
-                let right = self.eval_expr(right)?;
-                match op {
-                    BinOp::Add => bin_op!(left, +, right, "Can only add numbers"),
-                    BinOp::Sub => bin_op!(left, -, right, "Can only subtract numbers"),
-                    BinOp::Mul => bin_op!(left, *, right, "Can only multiply numbers"),
-                    BinOp::Div => bin_op!(left, /, right, "Can only divide numbers"),
-                    BinOp::Gt => bin_cmp_op!(left, >, right, "Can only compare numbers"),
-                    BinOp::Lt => bin_cmp_op!(left, <, right, "Can only compare numbers"),
-                    BinOp::Ge => bin_cmp_op!(left, >=, right, "Can only compare numbers"),
-                    BinOp::Le => bin_cmp_op!(left, <=, right, "Can only compare numbers"),
-                    BinOp::Ne => bin_cmp_op!(left, !=, right, "Can only compare numbers"),
-                    BinOp::Eq => bin_cmp_op!(left, ==, right, "Can only compare numbers"),
-                }
-            }
+            Expr::Binary(op, left, right) => match op {
+                BinOp::Add => bin_op!(self, left, +, right, "Can only add numbers"),
+                BinOp::Sub => bin_op!(self, left, -, right, "Can only subtract numbers"),
+                BinOp::Mul => bin_op!(self, left, *, right, "Can only multiply numbers"),
+                BinOp::Div => bin_op!(self, left, /, right, "Can only divide numbers"),
+                BinOp::Gt => bin_cmp_op!(self, left, >, right, "Can only compare numbers"),
+                BinOp::Lt => bin_cmp_op!(self, left, <, right, "Can only compare numbers"),
+                BinOp::Ge => bin_cmp_op!(self, left, >=, right, "Can only compare numbers"),
+                BinOp::Le => bin_cmp_op!(self, left, <=, right, "Can only compare numbers"),
+                BinOp::Ne => bin_cmp_op!(self, left, !=, right, "Can only compare numbers"),
+                BinOp::Eq => bin_cmp_op!(self, left, ==, right, "Can only compare numbers"),
+                BinOp::And => bin_logic_op!(self, left, &&, right),
+                BinOp::Or => bin_logic_op!(self, left, ||, right),
+            },
             Expr::Grouping(expr) => self.eval_expr(expr),
             Expr::Literal(lit) => Ok(lit.clone()),
             Expr::Unary(op, expr) => {

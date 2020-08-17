@@ -95,6 +95,22 @@ impl<'a> Scanner<'a> {
             b'\n' => self.line += 1,
             b'"' => self.string(),
             b':' => self.add_token(Colon),
+            b'&' => {
+                if self.eat(b'&') {
+                    self.add_token(TokenKind::And);
+                } else {
+                    self.handler
+                        .error(self.line, format!("unexpected char: {}", c as char));
+                }
+            }
+            b'|' => {
+                if self.eat(b'|') {
+                    self.add_token(TokenKind::Or);
+                } else {
+                    self.handler
+                        .error(self.line, format!("unexpected char: {}", c as char));
+                }
+            }
             c if c.is_ascii_digit() => {
                 self.number();
             }
@@ -208,7 +224,6 @@ impl<'a> Scanner<'a> {
 
 fn keywords() -> HashMap<Symbol, TokenKind> {
     let mut m = HashMap::new();
-    m.insert(Symbol::intern("and"), And);
     m.insert(Symbol::intern("struct"), Struct);
     m.insert(Symbol::intern("else"), Else);
     m.insert(Symbol::intern("false"), False);
@@ -216,7 +231,6 @@ fn keywords() -> HashMap<Symbol, TokenKind> {
     m.insert(Symbol::intern("for"), For);
     m.insert(Symbol::intern("in"), In);
     m.insert(Symbol::intern("if"), If);
-    m.insert(Symbol::intern("or"), Or);
     m.insert(Symbol::intern("return"), Return);
     m.insert(Symbol::intern("self"), This);
     m.insert(Symbol::intern("true"), True);

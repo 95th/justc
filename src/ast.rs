@@ -13,6 +13,8 @@ pub enum BinOp {
     Ge,
     Ne,
     Eq,
+    And,
+    Or,
 }
 
 impl fmt::Display for BinOp {
@@ -28,6 +30,8 @@ impl fmt::Display for BinOp {
             BinOp::Ge => f.write_str(">="),
             BinOp::Ne => f.write_str("!="),
             BinOp::Eq => f.write_str("=="),
+            BinOp::And => f.write_str("&&"),
+            BinOp::Or => f.write_str("||"),
         }
     }
 }

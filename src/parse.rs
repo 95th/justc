@@ -123,7 +123,29 @@ impl<'a> Parser<'a> {
     }
 
     fn expr(&mut self) -> Result<Box<Expr>> {
-        self.equality()
+        self.logic_or()
+    }
+
+    fn logic_or(&mut self) -> Result<Box<Expr>> {
+        let mut expr = self.logic_and()?;
+
+        while self.eat(TokenKind::Or) {
+            let right = self.logic_and()?;
+            expr = Box::new(Expr::Binary(BinOp::Or, expr, right));
+        }
+
+        Ok(expr)
+    }
+
+    fn logic_and(&mut self) -> Result<Box<Expr>> {
+        let mut expr = self.equality()?;
+
+        while self.eat(TokenKind::And) {
+            let right = self.equality()?;
+            expr = Box::new(Expr::Binary(BinOp::And, expr, right));
+        }
+
+        Ok(expr)
     }
 
     fn equality(&mut self) -> Result<Box<Expr>> {
