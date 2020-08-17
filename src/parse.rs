@@ -46,13 +46,28 @@ impl<'a> Parser<'a> {
     }
 
     fn stmt(&mut self) -> Result<Stmt> {
-        if self.eat(TokenKind::Print) {
+        if self.eat(TokenKind::If) {
+            self.if_stmt()
+        } else if self.eat(TokenKind::Print) {
             self.print_stmt()
         } else if self.eat(TokenKind::OpenBrace) {
             Ok(Stmt::Block(self.block()?))
         } else {
             self.expr_stmt()
         }
+    }
+
+    fn if_stmt(&mut self) -> Result<Stmt> {
+        let cond = self.expr()?;
+        self.consume(TokenKind::OpenBrace, "Expect '{' after if condition")?;
+        let then = self.block()?;
+        let else_branch = if self.eat(TokenKind::Else) {
+            self.consume(TokenKind::OpenBrace, "Expect '{' after else")?;
+            self.block()?
+        } else {
+            vec![]
+        };
+        Ok(Stmt::If(cond, then, else_branch))
     }
 
     fn block(&mut self) -> Result<Vec<Stmt>> {

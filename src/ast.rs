@@ -80,4 +80,5 @@ pub enum Stmt {
     Let(Token, Option<Box<Expr>>),
     Assign(Token, Box<Expr>),
     Block(Vec<Stmt>),
+    If(Box<Expr>, Vec<Stmt>, Vec<Stmt>),
 }

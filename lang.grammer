@@ -3,16 +3,19 @@ program     -> declaration* EOF ;
 declaration -> letDecl
             | statement ;
 
+letDecl   -> "let" IDENTIFIER ( "=" expression )? ";" ;
+
 statement   -> assignment
             | exprStmt
+            | ifStmt
             | printStmt
             | block ;
 
-block     -> "{" declaration* "}"
-exprStmt  -> expression ";" ;
-printStmt -> "print" expression ";" ;
-letDecl   -> "let" IDENTIFIER ( "=" expression )? ";" ;
 assignment -> IDENTIFIER "=" expression ";" ;
+exprStmt  -> expression ";" ;
+ifStmt    -> "if" expression block ( "else" block )? ;
+printStmt -> "print" expression ";" ;
+block     -> "{" declaration* "}" ;
 
 expression     -> equality ;
 equality       -> comparison ( ( "!=" | "==" ) comparison )* ;

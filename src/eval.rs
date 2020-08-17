@@ -114,18 +114,17 @@ impl Interpreter {
                 self.env.define(name, value)?;
             }
             Stmt::Block(stmts) => {
-                self.env.enter_scope();
-
-                struct Guard<'a>(&'a mut Interpreter);
-                impl Drop for Guard<'_> {
-                    fn drop(&mut self) {
-                        self.0.env.exit_scope();
+                self.execute_block(stmts)?;
+            }
+            Stmt::If(cond, then, else_branch) => {
+                if let Lit::Bool(b) = self.eval_expr(cond)? {
+                    if b {
+                        self.execute_block(then)?;
+                    } else {
+                        self.execute_block(else_branch)?;
                     }
-                }
-
-                let guard = Guard(self);
-                for s in stmts {
-                    guard.0.eval_stmt(s)?;
+                } else {
+                    bail!("condition must be a boolean expression");
                 }
             }
         }
@@ -173,5 +172,22 @@ impl Interpreter {
             }
             Expr::Variable(name) => self.env.get(name.symbol).map(|t| t.clone()),
         }
+    }
+
+    fn execute_block(&mut self, stmts: &[Stmt]) -> Result<()> {
+        self.env.enter_scope();
+
+        struct Guard<'a>(&'a mut Interpreter);
+        impl Drop for Guard<'_> {
+            fn drop(&mut self) {
+                self.0.env.exit_scope();
+            }
+        }
+
+        let guard = Guard(self);
+        for s in stmts {
+            guard.0.eval_stmt(s)?;
+        }
+        Ok(())
     }
 }
