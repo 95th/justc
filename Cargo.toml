@@ -1,0 +1,10 @@
+[package]
+name = "justc"
+version = "0.1.0"
+authors = ["Gurwinder Singh <vargwin@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+structopt = "0.3.16"
+rustyline = "6.2.0"
+log = "0.4.11"
