@@ -76,5 +76,6 @@ pub enum TokenKind {
     Let,
     While,
     Loop,
+    Print,
     Eof,
 }

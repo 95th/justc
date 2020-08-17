@@ -1,5 +1,5 @@
 use crate::{
-    ast::{BinOp, Expr, Lit, UnOp},
+    ast::{BinOp, Expr, Lit, Stmt, UnOp},
     err::{Handler, Result},
     token::{Token, TokenKind},
 };
@@ -21,17 +21,41 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn parse(&mut self) -> Result<Box<Expr>> {
-        match self.expr() {
-            Ok(t) => Ok(t),
-            Err(e) => {
-                self.synchronize();
-                return Err(e);
+    pub fn parse(&mut self) -> Result<Vec<Stmt>> {
+        let mut stmts = vec![];
+        while !self.eof() {
+            match self.stmt() {
+                Ok(s) => stmts.push(s),
+                Err(e) => {
+                    self.synchronize();
+                    return Err(e);
+                }
             }
+        }
+        Ok(stmts)
+    }
+
+    fn stmt(&mut self) -> Result<Stmt> {
+        if self.eat(TokenKind::Print) {
+            self.print_stmt()
+        } else {
+            self.expr_stmt()
         }
     }
 
-    pub fn expr(&mut self) -> Result<Box<Expr>> {
+    fn print_stmt(&mut self) -> Result<Stmt> {
+        let val = self.expr()?;
+        self.consume(TokenKind::SemiColon, "Expect ';' after value")?;
+        Ok(Stmt::Print(val))
+    }
+
+    fn expr_stmt(&mut self) -> Result<Stmt> {
+        let val = self.expr()?;
+        self.consume(TokenKind::SemiColon, "Expect ';' after value")?;
+        Ok(Stmt::Expr(val))
+    }
+
+    fn expr(&mut self) -> Result<Box<Expr>> {
         self.equality()
     }
 
@@ -197,5 +221,9 @@ impl<'a> Parser<'a> {
 
     fn advance(&mut self) {
         self.pos += 1;
+    }
+
+    fn eof(&self) -> bool {
+        self.pos >= self.tokens.len()
     }
 }

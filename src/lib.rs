@@ -1,4 +1,4 @@
-use self::{err::Handler, eval::eval, parse::Parser, scan::Scanner};
+use self::{err::Handler, parse::Parser, scan::Scanner};
 
 pub mod args;
 mod ast;
@@ -29,12 +29,8 @@ impl Compiler {
             }
         };
 
-        for t in &tokens {
-            println!("{:#?}", t);
-        }
-
         let mut parser = Parser::new(&source, tokens, &mut self.handler);
-        let expr = match parser.parse() {
+        let stmts = match parser.parse() {
             Ok(t) => t,
             Err(e) => {
                 println!("{}", e);
@@ -42,6 +38,8 @@ impl Compiler {
             }
         };
 
-        println!("{:?}", eval(&expr));
+        for s in &stmts {
+            eval::eval_stmt(s);
+        }
     }
 }

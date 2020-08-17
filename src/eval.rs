@@ -1,4 +1,4 @@
-use crate::ast::{BinOp, Expr, Lit, UnOp};
+use crate::ast::{BinOp, Expr, Lit, Stmt, UnOp};
 
 macro_rules! bin_op {
     ($a:expr, $op:tt, $b:expr, $msg:literal) => {
@@ -18,11 +18,23 @@ macro_rules! bin_cmp_op {
     };
 }
 
-pub fn eval(expr: &Expr) -> Lit {
+pub fn eval_stmt(stmt: &Stmt) {
+    match stmt {
+        Stmt::Print(expr) => {
+            let val = eval_expr(expr);
+            println!("{}", val);
+        }
+        Stmt::Expr(expr) => {
+            eval_expr(expr);
+        }
+    }
+}
+
+pub fn eval_expr(expr: &Expr) -> Lit {
     match expr {
         Expr::Binary(op, left, right) => {
-            let left = eval(left);
-            let right = eval(right);
+            let left = eval_expr(left);
+            let right = eval_expr(right);
             match op {
                 BinOp::Add => bin_op!(left, +, right, "Can only add numbers"),
                 BinOp::Sub => bin_op!(left, -, right, "Can only subtract numbers"),
@@ -36,10 +48,10 @@ pub fn eval(expr: &Expr) -> Lit {
                 BinOp::Eq => bin_cmp_op!(left, ==, right, "Can only compare numbers"),
             }
         }
-        Expr::Grouping(expr) => eval(expr),
+        Expr::Grouping(expr) => eval_expr(expr),
         Expr::Literal(lit) => lit.clone(),
         Expr::Unary(op, expr) => {
-            let val = eval(expr);
+            let val = eval_expr(expr);
             match op {
                 UnOp::Not => {
                     if let Lit::Bool(v) = val {

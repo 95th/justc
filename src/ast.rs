@@ -53,10 +53,26 @@ pub enum Lit {
     Bool(bool),
 }
 
+impl fmt::Display for Lit {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Lit::Str(s) => write!(f, "\"{}\"", s),
+            Lit::Number(n) => write!(f, "{}", n),
+            Lit::Bool(b) => write!(f, "{}", b),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum Expr {
     Binary(BinOp, Box<Expr>, Box<Expr>),
     Grouping(Box<Expr>),
     Literal(Lit),
     Unary(UnOp, Box<Expr>),
+}
+
+#[derive(Debug)]
+pub enum Stmt {
+    Expr(Box<Expr>),
+    Print(Box<Expr>),
 }

@@ -5,8 +5,8 @@ use crate::{
 use std::collections::HashMap;
 
 pub struct Scanner<'a> {
-    pub src: &'a str,
-    pub tokens: Vec<Token>,
+    src: &'a str,
+    tokens: Vec<Token>,
     start_pos: usize,
     pos: usize,
     line: usize,
@@ -217,6 +217,7 @@ fn keywords() -> HashMap<&'static str, TokenKind> {
     m.insert("let", Let);
     m.insert("while", While);
     m.insert("loop", Loop);
+    m.insert("print", Print);
     m.insert("eof", Eof);
     m
 }
