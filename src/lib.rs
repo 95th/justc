@@ -1,4 +1,4 @@
-use self::{err::Handler, parse::Parser, scan::Scanner};
+use self::{err::Handler, eval::eval, parse::Parser, scan::Scanner};
 
 pub mod args;
 mod ast;
@@ -42,6 +42,6 @@ impl Compiler {
             }
         };
 
-        println!("{:?}", expr);
+        println!("{:?}", eval(&expr));
     }
 }

@@ -46,7 +46,7 @@ impl fmt::Display for UnOp {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Lit {
     Str(String),
     Number(f64),
