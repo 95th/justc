@@ -1,7 +1,7 @@
 use crate::token::Token;
 use std::fmt::Display;
 
-pub type Result<T> = std::result::Result<T, &'static str>;
+pub type Result<T> = anyhow::Result<T>;
 
 pub struct Handler {
     had_errors: bool,
@@ -19,7 +19,7 @@ impl Handler {
             self.report(0, " at the end", msg);
         }
 
-        Err(msg)
+        bail!(msg)
     }
 
     pub fn error(&mut self, line: usize, err: impl Display) {

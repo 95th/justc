@@ -35,7 +35,7 @@ impl<'a> Scanner<'a> {
         }
 
         if self.handler.has_errors() {
-            Err("Scan failed")
+            bail!("Scan failed")
         } else {
             Ok(self.tokens)
         }

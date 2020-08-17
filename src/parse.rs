@@ -198,7 +198,7 @@ impl<'a> Parser<'a> {
         } else if self.eat(TokenKind::Str) {
             let token = self.prev().unwrap();
             let val = token.symbol.to_string();
-            Lit::Str(val.to_owned())
+            Lit::Str(val.to_owned().into())
         } else if self.eat(TokenKind::Ident) {
             return Ok(Box::new(Expr::Variable(self.prev().unwrap().clone())));
         } else if self.eat(TokenKind::OpenParen) {
@@ -232,7 +232,7 @@ impl<'a> Parser<'a> {
             return Ok(self.prev().unwrap().clone());
         }
 
-        return Err(msg);
+        bail!(msg)
     }
 
     fn eat(&mut self, kind: TokenKind) -> bool {

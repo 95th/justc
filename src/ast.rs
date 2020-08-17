@@ -1,5 +1,5 @@
-use std::fmt;
 use crate::token::Token;
+use std::{fmt, rc::Rc};
 
 #[derive(Debug)]
 pub enum BinOp {
@@ -49,7 +49,7 @@ impl fmt::Display for UnOp {
 
 #[derive(Debug, Clone)]
 pub enum Lit {
-    Str(String),
+    Str(Rc<String>),
     Number(f64),
     Bool(bool),
 }

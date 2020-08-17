@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate anyhow;
+
 use self::{err::Handler, parse::Parser, scan::Scanner};
 use eval::Interpreter;
 
@@ -42,7 +45,10 @@ impl Compiler {
         }
 
         for s in &stmts {
-            self.interpreter.eval_stmt(s);
+            if let Err(e) = self.interpreter.eval_stmt(s) {
+                println!("{}", e);
+                break;
+            }
         }
     }
 }
