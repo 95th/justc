@@ -1,31 +1,15 @@
-use std::ops::Range;
+use crate::symbol::Symbol;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Token {
     pub kind: TokenKind,
-    pub span: Span,
+    pub symbol: Symbol,
     pub line: usize,
 }
 
 impl Token {
-    pub fn new(kind: TokenKind, span: Span, line: usize) -> Self {
-        Self { kind, span, line }
-    }
-}
-
-#[derive(Debug)]
-pub struct Span {
-    pub lo: usize,
-    pub hi: usize,
-}
-
-impl Span {
-    pub fn new(lo: usize, hi: usize) -> Self {
-        Self { lo, hi }
-    }
-
-    pub fn range(&self) -> Range<usize> {
-        self.lo..self.hi
+    pub fn new(kind: TokenKind, symbol: Symbol, line: usize) -> Self {
+        Self { kind, symbol, line }
     }
 }
 

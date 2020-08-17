@@ -1,6 +1,7 @@
 use crate::{
     err::{Handler, Result},
-    token::{Span, Token, TokenKind, TokenKind::*},
+    symbol::Symbol,
+    token::{Token, TokenKind, TokenKind::*},
 };
 use std::collections::HashMap;
 
@@ -10,7 +11,7 @@ pub struct Scanner<'a> {
     start_pos: usize,
     pos: usize,
     line: usize,
-    keywords: HashMap<&'static str, TokenKind>,
+    keywords: HashMap<Symbol, TokenKind>,
     handler: &'a mut Handler,
 }
 
@@ -107,12 +108,13 @@ impl<'a> Scanner<'a> {
     }
 
     fn add_token(&mut self, kind: TokenKind) {
-        let span = self.mk_sp();
-        self.tokens.push(Token::new(kind, span, self.line));
+        let symbol = self.mk_symbol();
+        self.tokens.push(Token::new(kind, symbol, self.line));
     }
 
-    fn mk_sp(&self) -> Span {
-        Span::new(self.start_pos, self.pos)
+    fn mk_symbol(&self) -> Symbol {
+        let s = &self.src[self.start_pos..self.pos];
+        Symbol::intern(s)
     }
 
     fn eat(&mut self, c: u8) -> bool {
@@ -163,9 +165,8 @@ impl<'a> Scanner<'a> {
             self.advance();
         }
 
-        let sp = self.mk_sp();
-        let lexeme = &self.src[sp.lo..sp.hi];
-        let kind = self.keywords.get(lexeme).copied().unwrap_or_else(|| Ident);
+        let symbol = self.mk_symbol();
+        let kind = self.keywords.get(&symbol).copied().unwrap_or_else(|| Ident);
         self.add_token(kind);
     }
 
@@ -200,24 +201,24 @@ impl<'a> Scanner<'a> {
     }
 }
 
-fn keywords() -> HashMap<&'static str, TokenKind> {
+fn keywords() -> HashMap<Symbol, TokenKind> {
     let mut m = HashMap::new();
-    m.insert("and", And);
-    m.insert("struct", Struct);
-    m.insert("else", Else);
-    m.insert("false", False);
-    m.insert("fn", Fn);
-    m.insert("for", For);
-    m.insert("in", In);
-    m.insert("if", If);
-    m.insert("or", Or);
-    m.insert("return", Return);
-    m.insert("self", This);
-    m.insert("true", True);
-    m.insert("let", Let);
-    m.insert("while", While);
-    m.insert("loop", Loop);
-    m.insert("print", Print);
-    m.insert("eof", Eof);
+    m.insert(Symbol::intern("and"), And);
+    m.insert(Symbol::intern("struct"), Struct);
+    m.insert(Symbol::intern("else"), Else);
+    m.insert(Symbol::intern("false"), False);
+    m.insert(Symbol::intern("fn"), Fn);
+    m.insert(Symbol::intern("for"), For);
+    m.insert(Symbol::intern("in"), In);
+    m.insert(Symbol::intern("if"), If);
+    m.insert(Symbol::intern("or"), Or);
+    m.insert(Symbol::intern("return"), Return);
+    m.insert(Symbol::intern("self"), This);
+    m.insert(Symbol::intern("true"), True);
+    m.insert(Symbol::intern("let"), Let);
+    m.insert(Symbol::intern("while"), While);
+    m.insert(Symbol::intern("loop"), Loop);
+    m.insert(Symbol::intern("print"), Print);
+    m.insert(Symbol::intern("eof"), Eof);
     m
 }

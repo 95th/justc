@@ -1,10 +1,16 @@
-program   → statement* EOF ;
+program     → declaration* EOF ;
 
-statement → exprStmt
-          | printStmt ;
+declaration → letDecl
+            | statement ;
+
+statement   → assignment
+            | exprStmt
+            | printStmt;
 
 exprStmt  → expression ";" ;
 printStmt → "print" expression ";" ;
+letDecl   → "let" IDENTIFIER ( "=" expression )? ";" ;
+assignment → IDENTIFIER "=" expression ";" ;
 
 expression     → equality ;
 equality       → comparison ( ( "!=" | "==" ) comparison )* ;

@@ -12,9 +12,9 @@ impl Handler {
         Self { had_errors: false }
     }
 
-    pub fn with_token<T>(&mut self, token: Option<&Token>, src: &str, msg: &'static str) -> Result<T> {
+    pub fn with_token<T>(&mut self, token: Option<&Token>, msg: &'static str) -> Result<T> {
         if let Some(t) = token {
-            self.report(t.line, format!(" at '{}'", &src[t.span.range()]), msg);
+            self.report(t.line, format!(" at '{}'", t.symbol), msg);
         } else {
             self.report(0, " at the end", msg);
         }

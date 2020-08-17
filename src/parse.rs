@@ -5,34 +5,44 @@ use crate::{
 };
 
 pub struct Parser<'a> {
-    src: &'a str,
     tokens: Vec<Token>,
     handler: &'a mut Handler,
     pos: usize,
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(src: &'a str, tokens: Vec<Token>, handler: &'a mut Handler) -> Self {
+    pub fn new(tokens: Vec<Token>, handler: &'a mut Handler) -> Self {
         Self {
-            src,
             tokens,
             handler,
             pos: 0,
         }
     }
 
-    pub fn parse(&mut self) -> Result<Vec<Stmt>> {
+    pub fn parse(&mut self) -> Vec<Stmt> {
         let mut stmts = vec![];
         while !self.eof() {
-            match self.stmt() {
-                Ok(s) => stmts.push(s),
-                Err(e) => {
-                    self.synchronize();
-                    return Err(e);
-                }
+            if let Some(s) = self.decl() {
+                stmts.push(s);
             }
         }
-        Ok(stmts)
+        stmts
+    }
+
+    fn decl(&mut self) -> Option<Stmt> {
+        let stmt = if self.eat(TokenKind::Let) {
+            self.let_decl()
+        } else {
+            self.stmt()
+        };
+        match stmt {
+            Ok(s) => Some(s),
+            Err(e) => {
+                println!("{}", e);
+                self.synchronize();
+                return None;
+            }
+        }
     }
 
     fn stmt(&mut self) -> Result<Stmt> {
@@ -43,6 +53,21 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn let_decl(&mut self) -> Result<Stmt> {
+        let name = self.consume(TokenKind::Ident, "Expect variable name.")?;
+
+        let mut init = None;
+        if self.eat(TokenKind::Eq) {
+            init = Some(self.expr()?);
+        }
+
+        self.consume(
+            TokenKind::SemiColon,
+            "Expect ';' after variable declaration.",
+        )?;
+        Ok(Stmt::Let(name, init))
+    }
+
     fn print_stmt(&mut self) -> Result<Stmt> {
         let val = self.expr()?;
         self.consume(TokenKind::SemiColon, "Expect ';' after value")?;
@@ -50,9 +75,22 @@ impl<'a> Parser<'a> {
     }
 
     fn expr_stmt(&mut self) -> Result<Stmt> {
-        let val = self.expr()?;
+        let expr = self.expr()?;
+
+        if self.eat(TokenKind::Eq) {
+            let eq = self.prev().cloned();
+            let val = self.equality()?;
+
+            if let Expr::Variable(name) = *expr {
+                return Ok(Stmt::Assign(name, val));
+            } else {
+                return self
+                    .handler
+                    .with_token(eq.as_ref(), "Invalid assignment target");
+            }
+        }
         self.consume(TokenKind::SemiColon, "Expect ';' after value")?;
-        Ok(Stmt::Expr(val))
+        Ok(Stmt::Expr(expr))
     }
 
     fn expr(&mut self) -> Result<Box<Expr>> {
@@ -155,23 +193,22 @@ impl<'a> Parser<'a> {
             Lit::Bool(true)
         } else if self.eat(TokenKind::Num) {
             let token = self.prev().unwrap();
-            let s = &self.src[token.span.range()];
-            let val = s.parse().unwrap();
+            let val = token.symbol.parse().unwrap();
             Lit::Number(val)
         } else if self.eat(TokenKind::Str) {
             let token = self.prev().unwrap();
-            let val = &self.src[token.span.lo + 1..token.span.hi - 1];
+            let val = token.symbol.to_string();
             Lit::Str(val.to_owned())
+        } else if self.eat(TokenKind::Ident) {
+            return Ok(Box::new(Expr::Variable(self.prev().unwrap().clone())));
         } else if self.eat(TokenKind::OpenParen) {
             let expr = self.expr()?;
             self.consume(TokenKind::CloseParen, "Expect ')' after expr")?;
             return Ok(Box::new(Expr::Grouping(expr)));
         } else {
-            return self.handler.with_token(
-                self.tokens.get(self.pos),
-                self.src,
-                "Expected expression",
-            );
+            return self
+                .handler
+                .with_token(self.tokens.get(self.pos), "Expected expression");
         };
 
         Ok(Box::new(Expr::Literal(lit)))
@@ -189,10 +226,10 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn consume(&mut self, kind: TokenKind, msg: &'static str) -> Result<()> {
+    fn consume(&mut self, kind: TokenKind, msg: &'static str) -> Result<Token> {
         if self.check(kind) {
             self.advance();
-            return Ok(());
+            return Ok(self.prev().unwrap().clone());
         }
 
         return Err(msg);

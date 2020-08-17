@@ -1,4 +1,5 @@
 use std::fmt;
+use crate::token::Token;
 
 #[derive(Debug)]
 pub enum BinOp {
@@ -69,10 +70,13 @@ pub enum Expr {
     Grouping(Box<Expr>),
     Literal(Lit),
     Unary(UnOp, Box<Expr>),
+    Variable(Token),
 }
 
 #[derive(Debug)]
 pub enum Stmt {
     Expr(Box<Expr>),
     Print(Box<Expr>),
+    Let(Token, Option<Box<Expr>>),
+    Assign(Token, Box<Expr>),
 }
