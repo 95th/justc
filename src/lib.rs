@@ -3,20 +3,24 @@ use self::{err::Handler, parse::Parser, scan::Scanner};
 pub mod args;
 mod ast;
 mod err;
+mod eval;
 mod parse;
 mod scan;
 mod token;
 
-pub struct Compiler {}
+pub struct Compiler {
+    handler: Handler,
+}
 
 impl Compiler {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            handler: Handler::new(),
+        }
     }
 
     pub fn run(&mut self, source: String) {
-        let mut handler = Handler::new();
-        let scanner = Scanner::new(&source, &mut handler);
+        let scanner = Scanner::new(&source, &mut self.handler);
         let tokens = match scanner.scan_tokens() {
             Ok(t) => t,
             Err(e) => {
@@ -29,7 +33,7 @@ impl Compiler {
             println!("{:#?}", t);
         }
 
-        let mut parser = Parser::new(&source, tokens, &mut handler);
+        let mut parser = Parser::new(&source, tokens, &mut self.handler);
         let expr = match parser.parse() {
             Ok(t) => t,
             Err(e) => {
