@@ -79,9 +79,10 @@ impl<'a> Parser<'a> {
 
         if self.eat(TokenKind::Eq) {
             let eq = self.prev().cloned();
-            let val = self.equality()?;
+            let val = self.expr()?;
 
             if let Expr::Variable(name) = *expr {
+                self.consume(TokenKind::SemiColon, "Expect ';' after assignment")?;
                 return Ok(Stmt::Assign(name, val));
             } else {
                 return self

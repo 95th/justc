@@ -109,6 +109,10 @@ impl<'a> Scanner<'a> {
 
     fn add_token(&mut self, kind: TokenKind) {
         let symbol = self.mk_symbol();
+        self.add_token_with_symbol(kind, symbol);
+    }
+
+    fn add_token_with_symbol(&mut self, kind: TokenKind, symbol: Symbol) {
         self.tokens.push(Token::new(kind, symbol, self.line));
     }
 
@@ -141,7 +145,8 @@ impl<'a> Scanner<'a> {
 
         // Eat the closing ".
         self.advance();
-        self.add_token(Str)
+        let symbol = Symbol::intern(&self.src[self.start_pos + 1..self.pos - 1]);
+        self.add_token_with_symbol(Str, symbol)
     }
 
     fn number(&mut self) {
