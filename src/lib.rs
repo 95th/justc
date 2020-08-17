@@ -24,6 +24,7 @@ impl Compiler {
     }
 
     pub fn run(&mut self, source: String) {
+        self.handler.reset();
         let scanner = Scanner::new(&source, &mut self.handler);
         let tokens = match scanner.scan_tokens() {
             Ok(t) => t,

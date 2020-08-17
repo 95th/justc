@@ -34,4 +34,8 @@ impl Handler {
     pub fn has_errors(&self) -> bool {
         self.had_errors
     }
+
+    pub fn reset(&mut self) {
+        self.had_errors = false;
+    }
 }
