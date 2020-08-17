@@ -79,4 +79,5 @@ pub enum Stmt {
     Print(Box<Expr>),
     Let(Token, Option<Box<Expr>>),
     Assign(Token, Box<Expr>),
+    Block(Vec<Stmt>),
 }

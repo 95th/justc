@@ -48,9 +48,22 @@ impl<'a> Parser<'a> {
     fn stmt(&mut self) -> Result<Stmt> {
         if self.eat(TokenKind::Print) {
             self.print_stmt()
+        } else if self.eat(TokenKind::OpenBrace) {
+            Ok(Stmt::Block(self.block()?))
         } else {
             self.expr_stmt()
         }
+    }
+
+    fn block(&mut self) -> Result<Vec<Stmt>> {
+        let mut stmts = vec![];
+        while !self.check(TokenKind::CloseBrace) && !self.eof() {
+            if let Some(s) = self.decl() {
+                stmts.push(s);
+            }
+        }
+        self.consume(TokenKind::CloseBrace, "Expect '}' after block.")?;
+        Ok(stmts)
     }
 
     fn let_decl(&mut self) -> Result<Stmt> {

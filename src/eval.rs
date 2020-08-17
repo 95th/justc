@@ -2,9 +2,9 @@ use crate::{
     ast::{BinOp, Expr, Lit, Stmt, UnOp},
     err::Result,
     symbol::Symbol,
+    token::Token,
 };
-use anyhow::Context;
-use std::collections::HashMap;
+use std::{collections::HashMap, mem};
 
 macro_rules! bin_op {
     ($a:expr, $op:tt, $b:expr, $msg:literal) => {
@@ -24,15 +24,73 @@ macro_rules! bin_cmp_op {
     };
 }
 
+#[derive(Default)]
 pub struct Interpreter {
-    values: HashMap<Symbol, Option<Lit>>,
+    env: Env,
+}
+
+type Scope = HashMap<Symbol, Option<Lit>>;
+
+#[derive(Default)]
+struct Env {
+    current: Scope,
+    outer: Vec<Scope>,
+}
+
+impl Env {
+    fn enter_scope(&mut self) {
+        let c = mem::take(&mut self.current);
+        self.outer.push(c);
+    }
+
+    fn exit_scope(&mut self) {
+        self.current = self.outer.pop().unwrap();
+    }
+
+    fn declare(&mut self, name: &Token) {
+        self.current.insert(name.symbol, None);
+    }
+
+    fn define(&mut self, name: &Token, value: Lit) -> Result<()> {
+        if self.current.contains_key(&name.symbol) {
+            self.current.insert(name.symbol, Some(value));
+            return Ok(());
+        }
+
+        for scope in self.outer.iter_mut().rev() {
+            if scope.contains_key(&name.symbol) {
+                scope.insert(name.symbol, Some(value));
+                return Ok(());
+            }
+        }
+
+        bail!("Undeclared variable {}", name.symbol);
+    }
+
+    fn get(&self, name: Symbol) -> Result<&Lit> {
+        if let Some(val) = self.current.get(&name) {
+            match val {
+                Some(t) => return Ok(t),
+                None => bail!("Uninitialized variable {}", name),
+            }
+        }
+
+        for scope in self.outer.iter().rev() {
+            if let Some(val) = scope.get(&name) {
+                match val {
+                    Some(t) => return Ok(t),
+                    None => bail!("Uninitialized variable {}", name),
+                }
+            }
+        }
+
+        bail!("Undefined variable {}", name)
+    }
 }
 
 impl Interpreter {
     pub fn new() -> Self {
-        Self {
-            values: HashMap::new(),
-        }
+        Self::default()
     }
 
     pub fn eval_stmt(&mut self, stmt: &Stmt) -> Result<()> {
@@ -45,16 +103,30 @@ impl Interpreter {
                 self.eval_expr(expr)?;
             }
             Stmt::Let(name, init) => {
-                let mut value = None;
+                self.env.declare(name);
                 if let Some(init) = init {
-                    value = Some(self.eval_expr(init)?);
+                    let val = self.eval_expr(init)?;
+                    self.env.define(name, val)?;
                 }
-                self.values.insert(name.symbol, value);
             }
             Stmt::Assign(name, expr) => {
                 let value = self.eval_expr(expr)?;
-                let old = self.values.insert(name.symbol, Some(value));
-                ensure!(old.is_some(), "undefined variable {}", name.symbol);
+                self.env.define(name, value)?;
+            }
+            Stmt::Block(stmts) => {
+                self.env.enter_scope();
+
+                struct Guard<'a>(&'a mut Interpreter);
+                impl Drop for Guard<'_> {
+                    fn drop(&mut self) {
+                        self.0.env.exit_scope();
+                    }
+                }
+
+                let guard = Guard(self);
+                for s in stmts {
+                    guard.0.eval_stmt(s)?;
+                }
             }
         }
         Ok(())
@@ -99,13 +171,7 @@ impl Interpreter {
                     }
                 }
             }
-            Expr::Variable(name) => self
-                .values
-                .get(&name.symbol)
-                .context("Undefined variable")?
-                .as_ref()
-                .cloned()
-                .context("Uninitialized variable"),
+            Expr::Variable(name) => self.env.get(name.symbol).map(|t| t.clone()),
         }
     }
 }

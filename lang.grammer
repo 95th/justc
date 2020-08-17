@@ -1,23 +1,25 @@
-program     → declaration* EOF ;
+program     -> declaration* EOF ;
 
-declaration → letDecl
+declaration -> letDecl
             | statement ;
 
-statement   → assignment
+statement   -> assignment
             | exprStmt
-            | printStmt;
+            | printStmt
+            | block ;
 
-exprStmt  → expression ";" ;
-printStmt → "print" expression ";" ;
-letDecl   → "let" IDENTIFIER ( "=" expression )? ";" ;
-assignment → IDENTIFIER "=" expression ";" ;
+block     -> "{" declaration* "}"
+exprStmt  -> expression ";" ;
+printStmt -> "print" expression ";" ;
+letDecl   -> "let" IDENTIFIER ( "=" expression )? ";" ;
+assignment -> IDENTIFIER "=" expression ";" ;
 
-expression     → equality ;
-equality       → comparison ( ( "!=" | "==" ) comparison )* ;
-comparison     → addition ( ( ">" | ">=" | "<" | "<=" ) addition )* ;
-addition       → multiplication ( ( "-" | "+" ) multiplication )* ;
-multiplication → unary ( ( "/" | "*" ) unary )* ;
-unary          → ( "!" | "-" ) unary
+expression     -> equality ;
+equality       -> comparison ( ( "!=" | "==" ) comparison )* ;
+comparison     -> addition ( ( ">" | ">=" | "<" | "<=" ) addition )* ;
+addition       -> multiplication ( ( "-" | "+" ) multiplication )* ;
+multiplication -> unary ( ( "/" | "*" ) unary )* ;
+unary          -> ( "!" | "-" ) unary
                | primary ;
-primary        → NUMBER | STRING | "false" | "true" | "nil"
+primary        -> NUMBER | STRING | "false" | "true" | "nil"
                | "(" expression ")" ;
