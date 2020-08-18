@@ -10,6 +10,7 @@ statement   -> assignment
             | ifStmt
             | printStmt
             | whileStmt
+            | loopStmt
             | block 
             | breakStmt
             | continueStmt ;
@@ -19,6 +20,7 @@ exprStmt  -> expression ";" ;
 ifStmt    -> "if" expression block ( "else" block )? ;
 printStmt -> "print" expression ";" ;
 whileStmt -> "while" expression block ;
+loopStmt  -> "loop" block ;
 block     -> "{" declaration* "}" ;
 breakStmt -> "break" ;
 continueStmt -> "continue" ;
