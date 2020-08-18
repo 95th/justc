@@ -61,7 +61,13 @@ impl<'a> Scanner<'a> {
                     self.add_token(Dot);
                 }
             }
-            b'-' => self.add_token(Minus),
+            b'-' => {
+                if self.eat(b'>') {
+                    self.add_token(Arrow);
+                } else {
+                    self.add_token(Minus);
+                }
+            }
             b'+' => self.add_token(Plus),
             b';' => self.add_token(SemiColon),
             b'*' => self.add_token(Star),

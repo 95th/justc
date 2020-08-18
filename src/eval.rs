@@ -127,7 +127,7 @@ impl Interpreter {
             Stmt::Expr(expr) => {
                 self.eval_expr(expr)?;
             }
-            Stmt::Let(name, init) => {
+            Stmt::Let(name, _ty, init) => {
                 self.env.declare(name);
                 if let Some(init) = init {
                     let val = self.eval_expr(init)?;

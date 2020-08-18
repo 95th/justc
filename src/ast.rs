@@ -93,7 +93,7 @@ pub enum Stmt {
     Expr(Box<Expr>),
     Function(Rc<Function>),
     Print(Box<Expr>),
-    Let(Token, Option<Box<Expr>>),
+    Let(Token, Option<Token>, Option<Box<Expr>>),
     Loop(Vec<Stmt>),
     Assign(Token, Box<Expr>),
     Block(Vec<Stmt>),
@@ -106,6 +106,8 @@ pub enum Stmt {
 pub struct Function {
     pub name: Token,
     pub params: Vec<Token>,
+    pub types: Vec<Token>,
+    pub ret_ty: Option<Token>,
     pub body: Vec<Stmt>,
 }
 

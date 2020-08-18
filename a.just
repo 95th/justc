@@ -1,7 +1,8 @@
-fn foo(i) {
+fn foo(i: i32) {
     print i;
 }
 
-for i in 10..=100 {
+let i: i32 = 100;
+for i in 0..=100 {
     foo(i);
 }

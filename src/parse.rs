@@ -1,7 +1,7 @@
 use crate::{
     ast::{BinOp, Expr, Function, Lit, Stmt, UnOp},
     err::{Handler, Result},
-    token::{Token, TokenKind},
+    token::{Token, TokenKind, TokenKind::*},
 };
 use std::rc::Rc;
 
@@ -31,9 +31,9 @@ impl<'a> Parser<'a> {
     }
 
     fn decl(&mut self) -> Option<Stmt> {
-        let stmt = if self.eat(TokenKind::Let) {
+        let stmt = if self.eat(Let) {
             self.let_decl()
-        } else if self.eat(TokenKind::Fn) {
+        } else if self.eat(Fn) {
             self.fn_decl()
         } else {
             self.stmt()
@@ -49,29 +49,23 @@ impl<'a> Parser<'a> {
     }
 
     fn stmt(&mut self) -> Result<Stmt> {
-        if self.eat(TokenKind::If) {
+        if self.eat(If) {
             self.if_stmt()
-        } else if self.eat(TokenKind::Print) {
+        } else if self.eat(Print) {
             self.print_stmt()
-        } else if self.eat(TokenKind::While) {
+        } else if self.eat(While) {
             self.while_stmt()
-        } else if self.eat(TokenKind::For) {
+        } else if self.eat(For) {
             self.for_stmt()
-        } else if self.eat(TokenKind::Loop) {
+        } else if self.eat(Loop) {
             self.loop_stmt()
-        } else if self.eat(TokenKind::OpenBrace) {
+        } else if self.eat(OpenBrace) {
             Ok(Stmt::Block(self.block()?))
-        } else if self.eat(TokenKind::Break) {
-            self.consume(
-                TokenKind::SemiColon,
-                "Expect ';' after variable declaration.",
-            )?;
+        } else if self.eat(Break) {
+            self.consume(SemiColon, "Expect ';' after variable declaration.")?;
             Ok(Stmt::Break)
-        } else if self.eat(TokenKind::Continue) {
-            self.consume(
-                TokenKind::SemiColon,
-                "Expect ';' after variable declaration.",
-            )?;
+        } else if self.eat(Continue) {
+            self.consume(SemiColon, "Expect ';' after variable declaration.")?;
             Ok(Stmt::Continue)
         } else {
             self.expr_stmt()
@@ -80,10 +74,10 @@ impl<'a> Parser<'a> {
 
     fn if_stmt(&mut self) -> Result<Stmt> {
         let cond = self.expr()?;
-        self.consume(TokenKind::OpenBrace, "Expect '{' after if condition")?;
+        self.consume(OpenBrace, "Expect '{' after if condition.")?;
         let then = self.block()?;
-        let else_branch = if self.eat(TokenKind::Else) {
-            self.consume(TokenKind::OpenBrace, "Expect '{' after else")?;
+        let else_branch = if self.eat(Else) {
+            self.consume(OpenBrace, "Expect '{' after else.")?;
             self.block()?
         } else {
             vec![]
@@ -93,7 +87,7 @@ impl<'a> Parser<'a> {
 
     fn while_stmt(&mut self) -> Result<Stmt> {
         let cond = self.expr()?;
-        self.consume(TokenKind::OpenBrace, "Expect '{' after while condition")?;
+        self.consume(OpenBrace, "Expect '{' after while condition.")?;
         let body = self.block()?;
 
         let mut stmts = vec![];
@@ -104,29 +98,29 @@ impl<'a> Parser<'a> {
     }
 
     fn for_stmt(&mut self) -> Result<Stmt> {
-        let name = self.consume(TokenKind::Ident, "Expect loop variable name")?;
-        self.consume(TokenKind::In, "Expect 'in' after for loop variable")?;
+        let name = self.consume(Ident, "Expect loop variable name.")?;
+        self.consume(In, "Expect 'in' after for loop variable.")?;
         let start = self.expr()?;
 
         let op = self.consume2(
-            TokenKind::Range,
-            TokenKind::RangeClosed,
-            "Expect either '..' or '..=' in 'for' loop expression",
+            Range,
+            RangeClosed,
+            "Expect either '..' or '..=' in 'for' loop expression.",
         )?;
 
         let op = match op.kind {
-            TokenKind::Range => BinOp::Lt,
-            TokenKind::RangeClosed => BinOp::Le,
+            Range => BinOp::Lt,
+            RangeClosed => BinOp::Le,
             _ => unreachable!(),
         };
 
         let end = self.expr()?;
 
-        self.consume(TokenKind::OpenBrace, "Expect '{' after while condition")?;
+        self.consume(OpenBrace, "Expect '{' after while condition")?;
         let body = self.block()?;
 
         let mut block = vec![];
-        block.push(Stmt::Let(name.clone(), Some(start)));
+        block.push(Stmt::Let(name.clone(), None, Some(start)));
 
         let mut loop_body = vec![];
         loop_body.push(Stmt::If(
@@ -153,87 +147,105 @@ impl<'a> Parser<'a> {
     }
 
     fn loop_stmt(&mut self) -> Result<Stmt> {
-        self.consume(TokenKind::OpenBrace, "Expect '{' after while condition")?;
+        self.consume(OpenBrace, "Expect '{' after while condition")?;
         let body = self.block()?;
         Ok(Stmt::Loop(body))
     }
 
     fn block(&mut self) -> Result<Vec<Stmt>> {
         let mut stmts = vec![];
-        while !self.check(TokenKind::CloseBrace) && !self.eof() {
+        while !self.check(CloseBrace) && !self.eof() {
             if let Some(s) = self.decl() {
                 stmts.push(s);
             }
         }
-        self.consume(TokenKind::CloseBrace, "Expect '}' after block.")?;
+        self.consume(CloseBrace, "Expect '}' after block.")?;
         Ok(stmts)
     }
 
     fn let_decl(&mut self) -> Result<Stmt> {
-        let name = self.consume(TokenKind::Ident, "Expect variable name.")?;
+        let name = self.consume(Ident, "Expect variable name.")?;
+
+        let mut ty = None;
+        if self.eat(Colon) {
+            ty = Some(self.consume(Ident, "Expect type name")?);
+        }
 
         let mut init = None;
-        if self.eat(TokenKind::Eq) {
+        if self.eat(Eq) {
             init = Some(self.expr()?);
         }
 
-        self.consume(
-            TokenKind::SemiColon,
-            "Expect ';' after variable declaration.",
-        )?;
-        Ok(Stmt::Let(name, init))
+        self.consume(SemiColon, "Expect ';' after variable declaration.")?;
+        Ok(Stmt::Let(name, ty, init))
     }
 
     fn fn_decl(&mut self) -> Result<Stmt> {
-        let name = self.consume(TokenKind::Ident, "Expect fn name")?;
-        self.consume(TokenKind::OpenParen, "Expect '(' after fn name")?;
+        let name = self.consume(Ident, "Expect fn name.")?;
+        self.consume(OpenParen, "Expect '(' after fn name.")?;
         let mut params = vec![];
+        let mut types = vec![];
 
-        if !self.check(TokenKind::CloseParen) {
+        if !self.check(CloseParen) {
             loop {
                 if params.len() >= 255 {
                     let token = self.peek().cloned();
                     return self
                         .handler
-                        .with_token(token.as_ref(), "Cannot have more than 255 parameters");
+                        .with_token(token.as_ref(), "Cannot have more than 255 parameters.");
                 }
 
-                params.push(self.consume(TokenKind::Ident, "Expect parameter name")?);
-                if !self.eat(TokenKind::Comma) {
+                params.push(self.consume(Ident, "Expect parameter name.")?);
+                self.consume(Colon, "Expect ':' after parameter name.")?;
+                types.push(self.consume(Ident, "Expect parameter type.")?);
+
+                if !self.eat(Comma) {
                     break;
                 }
             }
         }
-        self.consume(TokenKind::CloseParen, "Expect ')' after fn parameters")?;
+        self.consume(CloseParen, "Expect ')' after fn parameters.")?;
 
-        self.consume(TokenKind::OpenBrace, "Expect '{' after while condition")?;
+        let mut ret_ty = None;
+        if self.eat(Arrow) {
+            ret_ty = Some(self.consume(Ident, "Expect return type after '->'.")?);
+        }
+
+        self.consume(OpenBrace, "Expect '{' after while condition.")?;
         let body = self.block()?;
-        Ok(Stmt::Function(Rc::new(Function { name, params, body })))
+
+        Ok(Stmt::Function(Rc::new(Function {
+            name,
+            params,
+            types,
+            ret_ty,
+            body,
+        })))
     }
 
     fn print_stmt(&mut self) -> Result<Stmt> {
         let val = self.expr()?;
-        self.consume(TokenKind::SemiColon, "Expect ';' after value")?;
+        self.consume(SemiColon, "Expect ';' after value.")?;
         Ok(Stmt::Print(val))
     }
 
     fn expr_stmt(&mut self) -> Result<Stmt> {
         let expr = self.expr()?;
 
-        if self.eat(TokenKind::Eq) {
+        if self.eat(Eq) {
             let eq = self.prev().cloned();
             let val = self.expr()?;
 
             if let Expr::Variable(name) = *expr {
-                self.consume(TokenKind::SemiColon, "Expect ';' after assignment")?;
+                self.consume(SemiColon, "Expect ';' after assignment.")?;
                 return Ok(Stmt::Assign(name, val));
             } else {
                 return self
                     .handler
-                    .with_token(eq.as_ref(), "Invalid assignment target");
+                    .with_token(eq.as_ref(), "Invalid assignment target.");
             }
         }
-        self.consume(TokenKind::SemiColon, "Expect ';' after value")?;
+        self.consume(SemiColon, "Expect ';' after value.")?;
         Ok(Stmt::Expr(expr))
     }
 
@@ -244,7 +256,7 @@ impl<'a> Parser<'a> {
     fn logic_or(&mut self) -> Result<Box<Expr>> {
         let mut expr = self.logic_and()?;
 
-        while self.eat(TokenKind::Or) {
+        while self.eat(Or) {
             let right = self.logic_and()?;
             expr = Box::new(Expr::Binary(BinOp::Or, expr, right));
         }
@@ -255,7 +267,7 @@ impl<'a> Parser<'a> {
     fn logic_and(&mut self) -> Result<Box<Expr>> {
         let mut expr = self.equality()?;
 
-        while self.eat(TokenKind::And) {
+        while self.eat(And) {
             let right = self.equality()?;
             expr = Box::new(Expr::Binary(BinOp::And, expr, right));
         }
@@ -267,9 +279,9 @@ impl<'a> Parser<'a> {
         let mut expr = self.comparison()?;
 
         loop {
-            let op = if self.eat(TokenKind::Ne) {
+            let op = if self.eat(Ne) {
                 BinOp::Ne
-            } else if self.eat(TokenKind::EqEq) {
+            } else if self.eat(EqEq) {
                 BinOp::Eq
             } else {
                 break;
@@ -285,13 +297,13 @@ impl<'a> Parser<'a> {
         let mut expr = self.addition()?;
 
         loop {
-            let op = if self.eat(TokenKind::Gt) {
+            let op = if self.eat(Gt) {
                 BinOp::Gt
-            } else if self.eat(TokenKind::Ge) {
+            } else if self.eat(Ge) {
                 BinOp::Ge
-            } else if self.eat(TokenKind::Lt) {
+            } else if self.eat(Lt) {
                 BinOp::Lt
-            } else if self.eat(TokenKind::Le) {
+            } else if self.eat(Le) {
                 BinOp::Le
             } else {
                 break;
@@ -307,9 +319,9 @@ impl<'a> Parser<'a> {
         let mut expr = self.multiplication()?;
 
         loop {
-            let op = if self.eat(TokenKind::Minus) {
+            let op = if self.eat(Minus) {
                 BinOp::Sub
-            } else if self.eat(TokenKind::Plus) {
+            } else if self.eat(Plus) {
                 BinOp::Add
             } else {
                 break;
@@ -325,11 +337,11 @@ impl<'a> Parser<'a> {
         let mut expr = self.unary()?;
 
         loop {
-            let op = if self.eat(TokenKind::Slash) {
+            let op = if self.eat(Slash) {
                 BinOp::Div
-            } else if self.eat(TokenKind::Star) {
+            } else if self.eat(Star) {
                 BinOp::Mul
-            } else if self.eat(TokenKind::Percent) {
+            } else if self.eat(Percent) {
                 BinOp::Rem
             } else {
                 break;
@@ -342,9 +354,9 @@ impl<'a> Parser<'a> {
     }
 
     fn unary(&mut self) -> Result<Box<Expr>> {
-        let op = if self.eat(TokenKind::Not) {
+        let op = if self.eat(Not) {
             UnOp::Not
-        } else if self.eat(TokenKind::Minus) {
+        } else if self.eat(Minus) {
             UnOp::Neg
         } else {
             return self.call();
@@ -358,7 +370,7 @@ impl<'a> Parser<'a> {
         let mut expr = self.primary()?;
 
         loop {
-            if self.eat(TokenKind::OpenParen) {
+            if self.eat(OpenParen) {
                 expr = self.finish_call(expr)?;
             } else {
                 break;
@@ -370,7 +382,7 @@ impl<'a> Parser<'a> {
 
     fn finish_call(&mut self, expr: Box<Expr>) -> Result<Box<Expr>> {
         let mut args = vec![];
-        if !self.check(TokenKind::CloseParen) {
+        if !self.check(CloseParen) {
             loop {
                 if args.len() >= 255 {
                     let token = self.peek().cloned();
@@ -380,34 +392,34 @@ impl<'a> Parser<'a> {
                 }
 
                 args.push(*self.expr()?);
-                if !self.eat(TokenKind::Comma) {
+                if !self.eat(Comma) {
                     break;
                 }
             }
         }
 
-        let paren = self.consume(TokenKind::CloseParen, "Expect ')' after arguments.")?;
+        let paren = self.consume(CloseParen, "Expect ')' after arguments.")?;
         Ok(Box::new(Expr::Call(expr, paren, args)))
     }
 
     fn primary(&mut self) -> Result<Box<Expr>> {
-        let lit = if self.eat(TokenKind::False) {
+        let lit = if self.eat(False) {
             Lit::Bool(false)
-        } else if self.eat(TokenKind::True) {
+        } else if self.eat(True) {
             Lit::Bool(true)
-        } else if self.eat(TokenKind::Num) {
+        } else if self.eat(Num) {
             let token = self.prev().unwrap();
             let val = token.symbol.parse().unwrap();
             Lit::Number(val)
-        } else if self.eat(TokenKind::Str) {
+        } else if self.eat(Str) {
             let token = self.prev().unwrap();
             let val = token.symbol.to_string();
             Lit::Str(val.to_owned().into())
-        } else if self.eat(TokenKind::Ident) {
+        } else if self.eat(Ident) {
             return Ok(Box::new(Expr::Variable(self.prev().unwrap().clone())));
-        } else if self.eat(TokenKind::OpenParen) {
+        } else if self.eat(OpenParen) {
             let expr = self.expr()?;
-            self.consume(TokenKind::CloseParen, "Expect ')' after expr")?;
+            self.consume(CloseParen, "Expect ')' after expr")?;
             return Ok(Box::new(Expr::Grouping(expr)));
         } else {
             return self
@@ -419,9 +431,8 @@ impl<'a> Parser<'a> {
     }
 
     fn synchronize(&mut self) {
-        use TokenKind::*;
         self.advance();
-        while let Some(t) = self.peek() {
+        while let Some(t) = self.prev() {
             match t.kind {
                 SemiColon => return,
                 Struct | Fn | Let | For | If | While | Return => return,

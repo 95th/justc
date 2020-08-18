@@ -31,6 +31,7 @@ pub enum TokenKind {
     Percent,
     Range,
     RangeClosed,
+    Arrow,
 
     // One or two character tokens.
     Not,

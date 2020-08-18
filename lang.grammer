@@ -5,10 +5,10 @@ declaration -> fnDecl
             | statement ;
 
 fnDecl    -> "fn" function;
-function  -> IDENTIFIER "(" parameters? ")" block ;
-parameters → IDENTIFIER ( "," IDENTIFIER )* ;
+function  -> IDENTIFIER "(" parameters? ")" ( "->" TYPE )? block ;
+parameters → IDENTIFIER ":" TYPE ( "," IDENTIFIER ":" TYPE )* ;
 
-letDecl   -> "let" IDENTIFIER ( "=" expression )? ";" ;
+letDecl   -> "let" IDENTIFIER ( ":" TYPE )? ( "=" expression )? ";" ;
 
 statement   -> assignment
             | exprStmt
