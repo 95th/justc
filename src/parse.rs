@@ -52,6 +52,8 @@ impl<'a> Parser<'a> {
             self.print_stmt()
         } else if self.eat(TokenKind::While) {
             self.while_stmt()
+        } else if self.eat(TokenKind::For) {
+            self.for_stmt()
         } else if self.eat(TokenKind::Loop) {
             self.loop_stmt()
         } else if self.eat(TokenKind::OpenBrace) {
@@ -96,6 +98,55 @@ impl<'a> Parser<'a> {
         stmts.extend(body);
 
         Ok(Stmt::Loop(stmts))
+    }
+
+    fn for_stmt(&mut self) -> Result<Stmt> {
+        let name = self.consume(TokenKind::Ident, "Expect loop variable name")?;
+        self.consume(TokenKind::In, "Expect 'in' after for loop variable")?;
+        let start = self.expr()?;
+
+        let op = self.consume2(
+            TokenKind::Range,
+            TokenKind::RangeClosed,
+            "Expect either '..' or '..=' in 'for' loop expression",
+        )?;
+
+        let op = match op.kind {
+            TokenKind::Range => BinOp::Lt,
+            TokenKind::RangeClosed => BinOp::Le,
+            _ => unreachable!(),
+        };
+
+        let end = self.expr()?;
+
+        self.consume(TokenKind::OpenBrace, "Expect '{' after while condition")?;
+        let body = self.block()?;
+
+        let mut block = vec![];
+        block.push(Stmt::Let(name.clone(), Some(start)));
+
+        let mut loop_body = vec![];
+        loop_body.push(Stmt::If(
+            Box::new(Expr::Binary(
+                op,
+                Box::new(Expr::Variable(name.clone())),
+                end,
+            )),
+            vec![],
+            vec![Stmt::Break],
+        ));
+        loop_body.extend(body);
+        loop_body.push(Stmt::Assign(
+            name.clone(),
+            Box::new(Expr::Binary(
+                BinOp::Add,
+                Box::new(Expr::Variable(name)),
+                Box::new(Expr::Literal(Lit::Number(1.0))),
+            )),
+        ));
+
+        block.push(Stmt::Loop(loop_body));
+        Ok(Stmt::Block(block))
     }
 
     fn loop_stmt(&mut self) -> Result<Stmt> {
@@ -315,6 +366,15 @@ impl<'a> Parser<'a> {
 
     fn consume(&mut self, kind: TokenKind, msg: &'static str) -> Result<Token> {
         if self.check(kind) {
+            self.advance();
+            return Ok(self.prev().unwrap().clone());
+        }
+
+        bail!(msg)
+    }
+
+    fn consume2(&mut self, kind: TokenKind, kind2: TokenKind, msg: &'static str) -> Result<Token> {
+        if self.check(kind) || self.check(kind2) {
             self.advance();
             return Ok(self.prev().unwrap().clone());
         }

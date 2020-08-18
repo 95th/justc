@@ -50,7 +50,17 @@ impl<'a> Scanner<'a> {
             b'{' => self.add_token(OpenBrace),
             b'}' => self.add_token(CloseBrace),
             b',' => self.add_token(Comma),
-            b'.' => self.add_token(Dot),
+            b'.' => {
+                if self.eat(b'.') {
+                    if self.eat(b'=') {
+                        self.add_token(RangeClosed);
+                    } else {
+                        self.add_token(Range);
+                    }
+                } else {
+                    self.add_token(Dot);
+                }
+            }
             b'-' => self.add_token(Minus),
             b'+' => self.add_token(Plus),
             b';' => self.add_token(SemiColon),

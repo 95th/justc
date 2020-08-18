@@ -10,6 +10,7 @@ statement   -> assignment
             | ifStmt
             | printStmt
             | whileStmt
+            | forStmt
             | loopStmt
             | block 
             | breakStmt
@@ -20,6 +21,7 @@ exprStmt  -> expression ";" ;
 ifStmt    -> "if" expression block ( "else" block )? ;
 printStmt -> "print" expression ";" ;
 whileStmt -> "while" expression block ;
+forStmt   -> "for" IDENTIFIER "in" RANGE | RANGECLOSED block ;
 loopStmt  -> "loop" block ;
 block     -> "{" declaration* "}" ;
 breakStmt -> "break" ;

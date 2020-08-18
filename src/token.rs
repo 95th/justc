@@ -29,6 +29,8 @@ pub enum TokenKind {
     Slash,
     Star,
     Percent,
+    Range,
+    RangeClosed,
 
     // One or two character tokens.
     Not,
