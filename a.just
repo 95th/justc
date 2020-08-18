@@ -1,6 +1,6 @@
-let a = 1;
-if a == 2 && b == 1 {
-    print "hello";
-} else {
-    print "bye";
+let a = 0;
+
+while a < 100 {
+    print a;
+    a = a + 1;
 }

@@ -130,6 +130,11 @@ impl Interpreter {
                     self.env.define(name, val)?;
                 }
             }
+            Stmt::While(cond, body) => {
+                while get!(self.eval_expr(cond)?, Bool) {
+                    self.execute_block(body)?;
+                }
+            }
             Stmt::Assign(name, expr) => {
                 let value = self.eval_expr(expr)?;
                 self.env.define(name, value)?;

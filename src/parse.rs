@@ -50,6 +50,8 @@ impl<'a> Parser<'a> {
             self.if_stmt()
         } else if self.eat(TokenKind::Print) {
             self.print_stmt()
+        } else if self.eat(TokenKind::While) {
+            self.while_stmt()
         } else if self.eat(TokenKind::OpenBrace) {
             Ok(Stmt::Block(self.block()?))
         } else {
@@ -68,6 +70,13 @@ impl<'a> Parser<'a> {
             vec![]
         };
         Ok(Stmt::If(cond, then, else_branch))
+    }
+
+    fn while_stmt(&mut self) -> Result<Stmt> {
+        let cond = self.expr()?;
+        self.consume(TokenKind::OpenBrace, "Expect '{' after while condition")?;
+        let body = self.block()?;
+        Ok(Stmt::While(cond, body))
     }
 
     fn block(&mut self) -> Result<Vec<Stmt>> {

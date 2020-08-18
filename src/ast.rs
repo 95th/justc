@@ -82,6 +82,7 @@ pub enum Stmt {
     Expr(Box<Expr>),
     Print(Box<Expr>),
     Let(Token, Option<Box<Expr>>),
+    While(Box<Expr>, Vec<Stmt>),
     Assign(Token, Box<Expr>),
     Block(Vec<Stmt>),
     If(Box<Expr>, Vec<Stmt>, Vec<Stmt>),

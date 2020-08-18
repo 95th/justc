@@ -9,12 +9,14 @@ statement   -> assignment
             | exprStmt
             | ifStmt
             | printStmt
+            | whileStmt
             | block ;
 
 assignment -> IDENTIFIER "=" expression ";" ;
 exprStmt  -> expression ";" ;
 ifStmt    -> "if" expression block ( "else" block )? ;
 printStmt -> "print" expression ";" ;
+whileStmt -> "while" expression block ;
 block     -> "{" declaration* "}" ;
 
 expression     -> logic_or ;
