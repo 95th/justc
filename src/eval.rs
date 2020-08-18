@@ -127,7 +127,11 @@ impl Interpreter {
             Stmt::Expr(expr) => {
                 self.eval_expr(expr)?;
             }
-            Stmt::Let(name, _ty, init) => {
+            Stmt::Let {
+                name,
+                ty: _ty,
+                init,
+            } => {
                 self.env.declare(name);
                 if let Some(init) = init {
                     let val = self.eval_expr(init)?;
@@ -143,18 +147,22 @@ impl Interpreter {
                     }
                 }
             },
-            Stmt::Assign(name, expr) => {
-                let value = self.eval_expr(expr)?;
-                self.env.define(name, value)?;
+            Stmt::Assign { name, val } => {
+                let val = self.eval_expr(val)?;
+                self.env.define(name, val)?;
             }
             Stmt::Block(stmts) => {
                 self.execute_block(stmts)?;
             }
             Stmt::Break => bail!("break"),
             Stmt::Continue => bail!("continue"),
-            Stmt::If(cond, then, else_branch) => {
+            Stmt::If {
+                cond,
+                then_branch,
+                else_branch,
+            } => {
                 if get!(self.eval_expr(cond)?, Bool) {
-                    self.execute_block(then)?;
+                    self.execute_block(then_branch)?;
                 } else {
                     self.execute_block(else_branch)?;
                 }
@@ -165,7 +173,7 @@ impl Interpreter {
 
     pub fn eval_expr(&mut self, expr: &Expr) -> Result<Lit> {
         match expr {
-            Expr::Binary(op, left, right) => match op {
+            Expr::Binary { op, left, right } => match op {
                 BinOp::Add => bin_op!(self, left, +, right, "Can only add numbers"),
                 BinOp::Sub => bin_op!(self, left, -, right, "Can only subtract numbers"),
                 BinOp::Mul => bin_op!(self, left, *, right, "Can only multiply numbers"),
@@ -182,7 +190,7 @@ impl Interpreter {
             },
             Expr::Grouping(expr) => self.eval_expr(expr),
             Expr::Literal(lit) => Ok(lit.clone()),
-            Expr::Unary(op, expr) => {
+            Expr::Unary { op, expr } => {
                 let val = self.eval_expr(expr)?;
                 match op {
                     UnOp::Not => Ok(Lit::Bool(!get!(val, Bool))),
@@ -190,7 +198,11 @@ impl Interpreter {
                 }
             }
             Expr::Variable(name) => self.env.get(name.symbol).map(|t| t.clone()),
-            Expr::Call(callee, _paren, args) => {
+            Expr::Call {
+                callee,
+                paren: _paren,
+                args,
+            } => {
                 let callee = get!(self.eval_expr(callee)?, Callable);
                 ensure!(
                     callee.arity() == args.len(),

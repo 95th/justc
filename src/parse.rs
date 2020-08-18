@@ -75,14 +75,18 @@ impl<'a> Parser<'a> {
     fn if_stmt(&mut self) -> Result<Stmt> {
         let cond = self.expr()?;
         self.consume(OpenBrace, "Expect '{' after if condition.")?;
-        let then = self.block()?;
+        let then_branch = self.block()?;
         let else_branch = if self.eat(Else) {
             self.consume(OpenBrace, "Expect '{' after else.")?;
             self.block()?
         } else {
             vec![]
         };
-        Ok(Stmt::If(cond, then, else_branch))
+        Ok(Stmt::If {
+            cond,
+            then_branch,
+            else_branch,
+        })
     }
 
     fn while_stmt(&mut self) -> Result<Stmt> {
@@ -91,7 +95,11 @@ impl<'a> Parser<'a> {
         let body = self.block()?;
 
         let mut stmts = vec![];
-        stmts.push(Stmt::If(cond, vec![], vec![Stmt::Break]));
+        stmts.push(Stmt::If {
+            cond,
+            then_branch: vec![],
+            else_branch: vec![Stmt::Break],
+        });
         stmts.extend(body);
 
         Ok(Stmt::Loop(stmts))
@@ -120,27 +128,31 @@ impl<'a> Parser<'a> {
         let body = self.block()?;
 
         let mut block = vec![];
-        block.push(Stmt::Let(name.clone(), None, Some(start)));
+        block.push(Stmt::Let {
+            name: name.clone(),
+            ty: None,
+            init: Some(start),
+        });
 
         let mut loop_body = vec![];
-        loop_body.push(Stmt::If(
-            Box::new(Expr::Binary(
+        loop_body.push(Stmt::If {
+            cond: Box::new(Expr::Binary {
                 op,
-                Box::new(Expr::Variable(name.clone())),
-                end,
-            )),
-            vec![],
-            vec![Stmt::Break],
-        ));
+                left: Box::new(Expr::Variable(name.clone())),
+                right: end,
+            }),
+            then_branch: vec![],
+            else_branch: vec![Stmt::Break],
+        });
         loop_body.extend(body);
-        loop_body.push(Stmt::Assign(
-            name.clone(),
-            Box::new(Expr::Binary(
-                BinOp::Add,
-                Box::new(Expr::Variable(name)),
-                Box::new(Expr::Literal(Lit::Number(1.0))),
-            )),
-        ));
+        loop_body.push(Stmt::Assign {
+            name: name.clone(),
+            val: Box::new(Expr::Binary {
+                op: BinOp::Add,
+                left: Box::new(Expr::Variable(name)),
+                right: Box::new(Expr::Literal(Lit::Number(1.0))),
+            }),
+        });
 
         block.push(Stmt::Loop(loop_body));
         Ok(Stmt::Block(block))
@@ -177,7 +189,7 @@ impl<'a> Parser<'a> {
         }
 
         self.consume(SemiColon, "Expect ';' after variable declaration.")?;
-        Ok(Stmt::Let(name, ty, init))
+        Ok(Stmt::Let { name, ty, init })
     }
 
     fn fn_decl(&mut self) -> Result<Stmt> {
@@ -238,7 +250,7 @@ impl<'a> Parser<'a> {
 
             if let Expr::Variable(name) = *expr {
                 self.consume(SemiColon, "Expect ';' after assignment.")?;
-                return Ok(Stmt::Assign(name, val));
+                return Ok(Stmt::Assign { name, val });
             } else {
                 return self
                     .handler
@@ -254,29 +266,37 @@ impl<'a> Parser<'a> {
     }
 
     fn logic_or(&mut self) -> Result<Box<Expr>> {
-        let mut expr = self.logic_and()?;
+        let mut left = self.logic_and()?;
 
         while self.eat(Or) {
             let right = self.logic_and()?;
-            expr = Box::new(Expr::Binary(BinOp::Or, expr, right));
+            left = Box::new(Expr::Binary {
+                op: BinOp::Or,
+                left,
+                right,
+            });
         }
 
-        Ok(expr)
+        Ok(left)
     }
 
     fn logic_and(&mut self) -> Result<Box<Expr>> {
-        let mut expr = self.equality()?;
+        let mut left = self.equality()?;
 
         while self.eat(And) {
             let right = self.equality()?;
-            expr = Box::new(Expr::Binary(BinOp::And, expr, right));
+            left = Box::new(Expr::Binary {
+                op: BinOp::And,
+                left,
+                right,
+            });
         }
 
-        Ok(expr)
+        Ok(left)
     }
 
     fn equality(&mut self) -> Result<Box<Expr>> {
-        let mut expr = self.comparison()?;
+        let mut left = self.comparison()?;
 
         loop {
             let op = if self.eat(Ne) {
@@ -287,14 +307,14 @@ impl<'a> Parser<'a> {
                 break;
             };
             let right = self.comparison()?;
-            expr = Box::new(Expr::Binary(op, expr, right));
+            left = Box::new(Expr::Binary { op, left, right });
         }
 
-        Ok(expr)
+        Ok(left)
     }
 
     fn comparison(&mut self) -> Result<Box<Expr>> {
-        let mut expr = self.addition()?;
+        let mut left = self.addition()?;
 
         loop {
             let op = if self.eat(Gt) {
@@ -309,14 +329,14 @@ impl<'a> Parser<'a> {
                 break;
             };
             let right = self.addition()?;
-            expr = Box::new(Expr::Binary(op, expr, right));
+            left = Box::new(Expr::Binary { op, left, right });
         }
 
-        Ok(expr)
+        Ok(left)
     }
 
     fn addition(&mut self) -> Result<Box<Expr>> {
-        let mut expr = self.multiplication()?;
+        let mut left = self.multiplication()?;
 
         loop {
             let op = if self.eat(Minus) {
@@ -327,14 +347,14 @@ impl<'a> Parser<'a> {
                 break;
             };
             let right = self.multiplication()?;
-            expr = Box::new(Expr::Binary(op, expr, right));
+            left = Box::new(Expr::Binary { op, left, right });
         }
 
-        Ok(expr)
+        Ok(left)
     }
 
     fn multiplication(&mut self) -> Result<Box<Expr>> {
-        let mut expr = self.unary()?;
+        let mut left = self.unary()?;
 
         loop {
             let op = if self.eat(Slash) {
@@ -347,10 +367,10 @@ impl<'a> Parser<'a> {
                 break;
             };
             let right = self.unary()?;
-            expr = Box::new(Expr::Binary(op, expr, right));
+            left = Box::new(Expr::Binary { op, left, right });
         }
 
-        Ok(expr)
+        Ok(left)
     }
 
     fn unary(&mut self) -> Result<Box<Expr>> {
@@ -363,7 +383,7 @@ impl<'a> Parser<'a> {
         };
 
         let expr = self.unary()?;
-        Ok(Box::new(Expr::Unary(op, expr)))
+        Ok(Box::new(Expr::Unary { op, expr }))
     }
 
     fn call(&mut self) -> Result<Box<Expr>> {
@@ -380,7 +400,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn finish_call(&mut self, expr: Box<Expr>) -> Result<Box<Expr>> {
+    fn finish_call(&mut self, callee: Box<Expr>) -> Result<Box<Expr>> {
         let mut args = vec![];
         if !self.check(CloseParen) {
             loop {
@@ -399,7 +419,11 @@ impl<'a> Parser<'a> {
         }
 
         let paren = self.consume(CloseParen, "Expect ')' after arguments.")?;
-        Ok(Box::new(Expr::Call(expr, paren, args)))
+        Ok(Box::new(Expr::Call {
+            callee,
+            paren,
+            args,
+        }))
     }
 
     fn primary(&mut self) -> Result<Box<Expr>> {

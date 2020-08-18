@@ -80,11 +80,22 @@ impl fmt::Display for Lit {
 
 #[derive(Debug)]
 pub enum Expr {
-    Binary(BinOp, Box<Expr>, Box<Expr>),
-    Call(Box<Expr>, Token, Vec<Expr>),
+    Binary {
+        op: BinOp,
+        left: Box<Expr>,
+        right: Box<Expr>,
+    },
+    Call {
+        callee: Box<Expr>,
+        paren: Token,
+        args: Vec<Expr>,
+    },
     Grouping(Box<Expr>),
     Literal(Lit),
-    Unary(UnOp, Box<Expr>),
+    Unary {
+        op: UnOp,
+        expr: Box<Expr>,
+    },
     Variable(Token),
 }
 
@@ -93,11 +104,22 @@ pub enum Stmt {
     Expr(Box<Expr>),
     Function(Rc<Function>),
     Print(Box<Expr>),
-    Let(Token, Option<Token>, Option<Box<Expr>>),
+    Let {
+        name: Token,
+        ty: Option<Token>,
+        init: Option<Box<Expr>>,
+    },
     Loop(Vec<Stmt>),
-    Assign(Token, Box<Expr>),
+    Assign {
+        name: Token,
+        val: Box<Expr>,
+    },
     Block(Vec<Stmt>),
-    If(Box<Expr>, Vec<Stmt>, Vec<Stmt>),
+    If {
+        cond: Box<Expr>,
+        then_branch: Vec<Stmt>,
+        else_branch: Vec<Stmt>,
+    },
     Break,
     Continue,
 }
