@@ -85,14 +85,14 @@ impl Env {
             }
         }
 
-        bail!("Undeclared variable {}", name.symbol);
+        bail!("Undeclared variable '{}'", name.symbol);
     }
 
     fn get(&self, name: Symbol) -> Result<&Lit> {
         if let Some(val) = self.current.get(&name) {
             match val {
                 Some(t) => return Ok(t),
-                None => bail!("Uninitialized variable {}", name),
+                None => bail!("Uninitialized variable '{}'", name),
             }
         }
 
@@ -100,12 +100,12 @@ impl Env {
             if let Some(val) = scope.get(&name) {
                 match val {
                     Some(t) => return Ok(t),
-                    None => bail!("Uninitialized variable {}", name),
+                    None => bail!("Uninitialized variable '{}'", name),
                 }
             }
         }
 
-        bail!("Undefined variable {}", name)
+        bail!("Undefined variable '{}'", name)
     }
 }
 
