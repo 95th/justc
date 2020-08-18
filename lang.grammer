@@ -1,7 +1,12 @@
 program     -> declaration* EOF ;
 
-declaration -> letDecl
+declaration -> fnDecl
+            | letDecl
             | statement ;
+
+fnDecl    -> "fn" function;
+function  -> IDENTIFIER "(" parameters? ")" block ;
+parameters → IDENTIFIER ( "," IDENTIFIER )* ;
 
 letDecl   -> "let" IDENTIFIER ( "=" expression )? ";" ;
 
@@ -34,7 +39,8 @@ equality       -> comparison ( ( "!=" | "==" ) comparison )* ;
 comparison     -> addition ( ( ">" | ">=" | "<" | "<=" ) addition )* ;
 addition       -> multiplication ( ( "-" | "+" ) multiplication )* ;
 multiplication -> unary ( ( "/" | "*" ) unary )* ;
-unary          -> ( "!" | "-" ) unary
-               | primary ;
+unary          -> ( "!" | "-" ) unary | call ;
+call           -> primary ( "(" arguments? ")" )* ;
+arguments      -> expression ( "," expression )* ;
 primary        -> NUMBER | STRING | "false" | "true" | "nil"
                | "(" expression ")" ;

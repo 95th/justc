@@ -53,7 +53,7 @@ pub struct Interpreter {
 type Scope = HashMap<Symbol, Option<Lit>>;
 
 #[derive(Default)]
-struct Env {
+pub struct Env {
     current: Scope,
     outer: Vec<Scope>,
 }
@@ -68,11 +68,11 @@ impl Env {
         self.current = self.outer.pop().unwrap();
     }
 
-    fn declare(&mut self, name: &Token) {
+    pub fn declare(&mut self, name: &Token) {
         self.current.insert(name.symbol, None);
     }
 
-    fn define(&mut self, name: &Token, value: Lit) -> Result<()> {
+    pub fn define(&mut self, name: &Token, value: Lit) -> Result<()> {
         if self.current.contains_key(&name.symbol) {
             self.current.insert(name.symbol, Some(value));
             return Ok(());
@@ -119,6 +119,10 @@ impl Interpreter {
             Stmt::Print(expr) => {
                 let val = self.eval_expr(expr)?;
                 println!("{}", val);
+            }
+            Stmt::Function(fun) => {
+                self.env.declare(&fun.name);
+                self.env.define(&fun.name, Lit::Callable(fun.clone()))?;
             }
             Stmt::Expr(expr) => {
                 self.eval_expr(expr)?;
@@ -186,10 +190,32 @@ impl Interpreter {
                 }
             }
             Expr::Variable(name) => self.env.get(name.symbol).map(|t| t.clone()),
+            Expr::Call(callee, _paren, args) => {
+                let callee = get!(self.eval_expr(callee)?, Callable);
+                ensure!(
+                    callee.arity() == args.len(),
+                    "Expected {} arguments but got {}.",
+                    callee.arity(),
+                    args.len()
+                );
+
+                let mut actual_args = vec![];
+                for arg in args {
+                    actual_args.push(self.eval_expr(arg)?);
+                }
+                callee.call(self, actual_args)
+            }
         }
     }
 
-    fn execute_block(&mut self, stmts: &[Stmt]) -> Result<()> {
+    pub fn execute_block(&mut self, stmts: &[Stmt]) -> Result<()> {
+        self.execute_block_with(stmts, |_| Ok(()))
+    }
+
+    pub fn execute_block_with<F>(&mut self, stmts: &[Stmt], mut f: F) -> Result<()>
+    where
+        F: FnMut(&mut Env) -> Result<()>,
+    {
         self.env.enter_scope();
 
         struct Guard<'a>(&'a mut Interpreter);
@@ -198,8 +224,9 @@ impl Interpreter {
                 self.0.env.exit_scope();
             }
         }
-
         let guard = Guard(self);
+        f(&mut guard.0.env)?;
+
         for s in stmts {
             guard.0.eval_stmt(s)?;
         }

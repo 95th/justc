@@ -1,4 +1,4 @@
-use crate::token::Token;
+use crate::{err::Result, eval::Interpreter, token::Token};
 use std::{fmt, rc::Rc};
 
 #[derive(Debug)]
@@ -58,6 +58,13 @@ pub enum Lit {
     Str(Rc<String>),
     Number(f64),
     Bool(bool),
+    Callable(Rc<dyn Callable>),
+}
+
+pub trait Callable: std::fmt::Debug {
+    fn call(&self, interpreter: &mut Interpreter, args: Vec<Lit>) -> Result<Lit>;
+
+    fn arity(&self) -> usize;
 }
 
 impl fmt::Display for Lit {
@@ -66,6 +73,7 @@ impl fmt::Display for Lit {
             Lit::Str(s) => write!(f, "\"{}\"", s),
             Lit::Number(n) => write!(f, "{}", n),
             Lit::Bool(b) => write!(f, "{}", b),
+            Lit::Callable(c) => write!(f, "{:?}", c),
         }
     }
 }
@@ -73,6 +81,7 @@ impl fmt::Display for Lit {
 #[derive(Debug)]
 pub enum Expr {
     Binary(BinOp, Box<Expr>, Box<Expr>),
+    Call(Box<Expr>, Token, Vec<Expr>),
     Grouping(Box<Expr>),
     Literal(Lit),
     Unary(UnOp, Box<Expr>),
@@ -82,6 +91,7 @@ pub enum Expr {
 #[derive(Debug)]
 pub enum Stmt {
     Expr(Box<Expr>),
+    Function(Rc<Function>),
     Print(Box<Expr>),
     Let(Token, Option<Box<Expr>>),
     Loop(Vec<Stmt>),
@@ -90,4 +100,28 @@ pub enum Stmt {
     If(Box<Expr>, Vec<Stmt>, Vec<Stmt>),
     Break,
     Continue,
+}
+
+#[derive(Debug)]
+pub struct Function {
+    pub name: Token,
+    pub params: Vec<Token>,
+    pub body: Vec<Stmt>,
+}
+
+impl Callable for Function {
+    fn call(&self, interpreter: &mut Interpreter, args: Vec<Lit>) -> Result<Lit> {
+        interpreter.execute_block_with(&self.body, |env| {
+            for i in 0..self.params.len() {
+                env.declare(&self.params[i]);
+                env.define(&self.params[i], args[i].clone())?;
+            }
+            Ok(())
+        })?;
+        Ok(Lit::Bool(false))
+    }
+
+    fn arity(&self) -> usize {
+        self.params.len()
+    }
 }

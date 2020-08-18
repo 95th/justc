@@ -1,8 +1,9 @@
 use crate::{
-    ast::{BinOp, Expr, Lit, Stmt, UnOp},
+    ast::{BinOp, Expr, Function, Lit, Stmt, UnOp},
     err::{Handler, Result},
     token::{Token, TokenKind},
 };
+use std::rc::Rc;
 
 pub struct Parser<'a> {
     tokens: Vec<Token>,
@@ -32,6 +33,8 @@ impl<'a> Parser<'a> {
     fn decl(&mut self) -> Option<Stmt> {
         let stmt = if self.eat(TokenKind::Let) {
             self.let_decl()
+        } else if self.eat(TokenKind::Fn) {
+            self.fn_decl()
         } else {
             self.stmt()
         };
@@ -181,6 +184,33 @@ impl<'a> Parser<'a> {
         Ok(Stmt::Let(name, init))
     }
 
+    fn fn_decl(&mut self) -> Result<Stmt> {
+        let name = self.consume(TokenKind::Ident, "Expect fn name")?;
+        self.consume(TokenKind::OpenParen, "Expect '(' after fn name")?;
+        let mut params = vec![];
+
+        if !self.check(TokenKind::CloseParen) {
+            loop {
+                if params.len() >= 255 {
+                    let token = self.peek().cloned();
+                    return self
+                        .handler
+                        .with_token(token.as_ref(), "Cannot have more than 255 parameters");
+                }
+
+                params.push(self.consume(TokenKind::Ident, "Expect parameter name")?);
+                if !self.eat(TokenKind::Comma) {
+                    break;
+                }
+            }
+        }
+        self.consume(TokenKind::CloseParen, "Expect ')' after fn parameters")?;
+
+        self.consume(TokenKind::OpenBrace, "Expect '{' after while condition")?;
+        let body = self.block()?;
+        Ok(Stmt::Function(Rc::new(Function { name, params, body })))
+    }
+
     fn print_stmt(&mut self) -> Result<Stmt> {
         let val = self.expr()?;
         self.consume(TokenKind::SemiColon, "Expect ';' after value")?;
@@ -317,11 +347,47 @@ impl<'a> Parser<'a> {
         } else if self.eat(TokenKind::Minus) {
             UnOp::Neg
         } else {
-            return self.primary();
+            return self.call();
         };
 
         let expr = self.unary()?;
         Ok(Box::new(Expr::Unary(op, expr)))
+    }
+
+    fn call(&mut self) -> Result<Box<Expr>> {
+        let mut expr = self.primary()?;
+
+        loop {
+            if self.eat(TokenKind::OpenParen) {
+                expr = self.finish_call(expr)?;
+            } else {
+                break;
+            }
+        }
+
+        Ok(expr)
+    }
+
+    fn finish_call(&mut self, expr: Box<Expr>) -> Result<Box<Expr>> {
+        let mut args = vec![];
+        if !self.check(TokenKind::CloseParen) {
+            loop {
+                if args.len() >= 255 {
+                    let token = self.peek().cloned();
+                    return self
+                        .handler
+                        .with_token(token.as_ref(), "Cannot have more than 255 arguments");
+                }
+
+                args.push(*self.expr()?);
+                if !self.eat(TokenKind::Comma) {
+                    break;
+                }
+            }
+        }
+
+        let paren = self.consume(TokenKind::CloseParen, "Expect ')' after arguments.")?;
+        Ok(Box::new(Expr::Call(expr, paren, args)))
     }
 
     fn primary(&mut self) -> Result<Box<Expr>> {
