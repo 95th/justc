@@ -233,7 +233,7 @@ impl<'a> Parser<'a> {
         let expr = self.expr()?;
 
         if self.eat(Eq) {
-            let eq = self.prev().cloned();
+            let eq = self.prev().clone();
             let val = self.expr()?;
 
             if let Expr::Variable(name) = *expr {
@@ -242,7 +242,7 @@ impl<'a> Parser<'a> {
             } else {
                 return self
                     .handler
-                    .with_token(eq.as_ref(), "Invalid assignment target.");
+                    .with_token(Some(&eq), "Invalid assignment target.");
             }
         }
         self.consume(SemiColon, "Expect ';' after value.")?;
@@ -408,15 +408,15 @@ impl<'a> Parser<'a> {
         } else if self.eat(True) {
             Lit::Bool(true)
         } else if self.eat(Num) {
-            let token = self.prev().unwrap();
+            let token = self.prev();
             let val = token.symbol.parse().unwrap();
             Lit::Number(val)
         } else if self.eat(Str) {
-            let token = self.prev().unwrap();
+            let token = self.prev();
             let val = token.symbol.to_string();
             Lit::Str(val.to_owned().into())
         } else if self.eat(Ident) {
-            return Ok(Box::new(Expr::Variable(self.prev().unwrap().clone())));
+            return Ok(Box::new(Expr::Variable(self.prev().clone())));
         } else if self.eat(OpenParen) {
             let expr = self.expr()?;
             self.consume(CloseParen, "Expect ')' after expr")?;
@@ -432,8 +432,8 @@ impl<'a> Parser<'a> {
 
     fn synchronize(&mut self) {
         self.advance();
-        while let Some(t) = self.prev() {
-            match t.kind {
+        while !self.eof() {
+            match self.prev().kind {
                 SemiColon => return,
                 Struct | Fn | Let | For | If | While | Return => return,
                 _ => self.advance(),
@@ -444,7 +444,7 @@ impl<'a> Parser<'a> {
     fn consume(&mut self, kind: TokenKind, msg: &'static str) -> Result<Token> {
         if self.check(kind) {
             self.advance();
-            return Ok(self.prev().unwrap().clone());
+            return Ok(self.prev().clone());
         }
 
         bail!(msg)
@@ -453,7 +453,7 @@ impl<'a> Parser<'a> {
     fn consume2(&mut self, kind: TokenKind, kind2: TokenKind, msg: &'static str) -> Result<Token> {
         if self.check(kind) || self.check(kind2) {
             self.advance();
-            return Ok(self.prev().unwrap().clone());
+            return Ok(self.prev().clone());
         }
 
         bail!(msg)
@@ -476,8 +476,8 @@ impl<'a> Parser<'a> {
         self.tokens.get(self.pos)
     }
 
-    fn prev(&self) -> Option<&Token> {
-        self.tokens.get(self.pos - 1)
+    fn prev(&self) -> &Token {
+        &self.tokens[self.pos - 1]
     }
 
     fn advance(&mut self) {
