@@ -31,16 +31,16 @@ macro_rules! bin_cmp_op {
 macro_rules! bin_logic_op {
     ($self:expr, $a:expr, $op:tt, $b:expr) => {
         Ok(Lit::Bool(
-            get_bool!($self.eval_expr($a)?) $op get_bool!($self.eval_expr($b)?),
+            get!($self.eval_expr($a)?, Bool) $op get!($self.eval_expr($b)?, Bool),
         ))
     };
 }
 
-macro_rules! get_bool {
-    ($expr:expr) => {
+macro_rules! get {
+    ($expr:expr, $pat:ident) => {
         match $expr {
-            Lit::Bool(b) => b,
-            _ => bail!("value must be a boolean expression"),
+            Lit::$pat(b) => b,
+            _ => bail!("value must be a {} expression", stringify!($pat)),
         }
     };
 }
@@ -138,7 +138,7 @@ impl Interpreter {
                 self.execute_block(stmts)?;
             }
             Stmt::If(cond, then, else_branch) => {
-                if get_bool!(self.eval_expr(cond)?) {
+                if get!(self.eval_expr(cond)?, Bool) {
                     self.execute_block(then)?;
                 } else {
                     self.execute_block(else_branch)?;
@@ -169,20 +169,8 @@ impl Interpreter {
             Expr::Unary(op, expr) => {
                 let val = self.eval_expr(expr)?;
                 match op {
-                    UnOp::Not => {
-                        if let Lit::Bool(v) = val {
-                            Ok(Lit::Bool(!v))
-                        } else {
-                            bail!("Not a boolean")
-                        }
-                    }
-                    UnOp::Neg => {
-                        if let Lit::Number(n) = val {
-                            Ok(Lit::Number(-n))
-                        } else {
-                            bail!("Not a number")
-                        }
-                    }
+                    UnOp::Not => Ok(Lit::Bool(!get!(val, Bool))),
+                    UnOp::Neg => Ok(Lit::Number(-get!(val, Number))),
                 }
             }
             Expr::Variable(name) => self.env.get(name.symbol).map(|t| t.clone()),
