@@ -28,6 +28,7 @@ pub enum TokenKind {
     Colon,
     Slash,
     Star,
+    Percent,
 
     // One or two character tokens.
     Not,
@@ -60,6 +61,8 @@ pub enum TokenKind {
     Let,
     While,
     Loop,
+    Break,
+    Continue,
     Print,
     Eof,
 }

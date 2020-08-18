@@ -10,7 +10,9 @@ statement   -> assignment
             | ifStmt
             | printStmt
             | whileStmt
-            | block ;
+            | block 
+            | breakStmt
+            | continueStmt ;
 
 assignment -> IDENTIFIER "=" expression ";" ;
 exprStmt  -> expression ";" ;
@@ -18,6 +20,8 @@ ifStmt    -> "if" expression block ( "else" block )? ;
 printStmt -> "print" expression ";" ;
 whileStmt -> "while" expression block ;
 block     -> "{" declaration* "}" ;
+breakStmt -> "break" ;
+continueStmt -> "continue" ;
 
 expression     -> logic_or ;
 logic_or       -> logic_and ( "||" logic_and )* ;

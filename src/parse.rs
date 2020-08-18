@@ -54,6 +54,18 @@ impl<'a> Parser<'a> {
             self.while_stmt()
         } else if self.eat(TokenKind::OpenBrace) {
             Ok(Stmt::Block(self.block()?))
+        } else if self.eat(TokenKind::Break) {
+            self.consume(
+                TokenKind::SemiColon,
+                "Expect ';' after variable declaration.",
+            )?;
+            Ok(Stmt::Break)
+        } else if self.eat(TokenKind::Continue) {
+            self.consume(
+                TokenKind::SemiColon,
+                "Expect ';' after variable declaration.",
+            )?;
+            Ok(Stmt::Continue)
         } else {
             self.expr_stmt()
         }
@@ -223,6 +235,8 @@ impl<'a> Parser<'a> {
                 BinOp::Div
             } else if self.eat(TokenKind::Star) {
                 BinOp::Mul
+            } else if self.eat(TokenKind::Percent) {
+                BinOp::Rem
             } else {
                 break;
             };

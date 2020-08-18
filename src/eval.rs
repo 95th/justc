@@ -132,7 +132,13 @@ impl Interpreter {
             }
             Stmt::While(cond, body) => {
                 while get!(self.eval_expr(cond)?, Bool) {
-                    self.execute_block(body)?;
+                    if let Err(e) = self.execute_block(body) {
+                        match &e.to_string()[..] {
+                            "break" => break,
+                            "continue" => continue,
+                            _ => return Err(e),
+                        }
+                    }
                 }
             }
             Stmt::Assign(name, expr) => {
@@ -142,6 +148,8 @@ impl Interpreter {
             Stmt::Block(stmts) => {
                 self.execute_block(stmts)?;
             }
+            Stmt::Break => bail!("break"),
+            Stmt::Continue => bail!("continue"),
             Stmt::If(cond, then, else_branch) => {
                 if get!(self.eval_expr(cond)?, Bool) {
                     self.execute_block(then)?;
@@ -160,6 +168,7 @@ impl Interpreter {
                 BinOp::Sub => bin_op!(self, left, -, right, "Can only subtract numbers"),
                 BinOp::Mul => bin_op!(self, left, *, right, "Can only multiply numbers"),
                 BinOp::Div => bin_op!(self, left, /, right, "Can only divide numbers"),
+                BinOp::Rem => bin_op!(self, left, %, right, "Can only divide numbers"),
                 BinOp::Gt => bin_cmp_op!(self, left, >, right, "Can only compare numbers"),
                 BinOp::Lt => bin_cmp_op!(self, left, <, right, "Can only compare numbers"),
                 BinOp::Ge => bin_cmp_op!(self, left, >=, right, "Can only compare numbers"),

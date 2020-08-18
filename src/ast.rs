@@ -7,6 +7,7 @@ pub enum BinOp {
     Sub,
     Mul,
     Div,
+    Rem,
     Lt,
     Gt,
     Le,
@@ -24,6 +25,7 @@ impl fmt::Display for BinOp {
             BinOp::Sub => f.write_str("-"),
             BinOp::Mul => f.write_str("*"),
             BinOp::Div => f.write_str("/"),
+            BinOp::Rem => f.write_str("%"),
             BinOp::Lt => f.write_str("<"),
             BinOp::Gt => f.write_str(">"),
             BinOp::Le => f.write_str("<="),
@@ -86,4 +88,6 @@ pub enum Stmt {
     Assign(Token, Box<Expr>),
     Block(Vec<Stmt>),
     If(Box<Expr>, Vec<Stmt>, Vec<Stmt>),
+    Break,
+    Continue,
 }

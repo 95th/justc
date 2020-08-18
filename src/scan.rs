@@ -55,6 +55,7 @@ impl<'a> Scanner<'a> {
             b'+' => self.add_token(Plus),
             b';' => self.add_token(SemiColon),
             b'*' => self.add_token(Star),
+            b'%' => self.add_token(Percent),
             b'!' => {
                 if self.eat(b'=') {
                     self.add_token(Ne)
@@ -237,6 +238,8 @@ fn keywords() -> HashMap<Symbol, TokenKind> {
     m.insert(Symbol::intern("let"), Let);
     m.insert(Symbol::intern("while"), While);
     m.insert(Symbol::intern("loop"), Loop);
+    m.insert(Symbol::intern("break"), Break);
+    m.insert(Symbol::intern("continue"), Continue);
     m.insert(Symbol::intern("print"), Print);
     m.insert(Symbol::intern("eof"), Eof);
     m
