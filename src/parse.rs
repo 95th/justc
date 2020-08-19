@@ -1,5 +1,5 @@
 use crate::{
-    ast::{BinOp, Expr, Function, Lit, Stmt, Ty, UnOp},
+    ast::{BinOp, Expr, Function, Lit, Param, Stmt, Ty, UnOp},
     err::{Handler, Result},
     token::{Token, TokenKind, TokenKind::*},
 };
@@ -197,7 +197,6 @@ impl<'a> Parser<'a> {
         let name = self.consume(Ident, "Expect fn name.")?;
         self.consume(OpenParen, "Expect '(' after fn name.")?;
         let mut params = vec![];
-        let mut types = vec![];
 
         if !self.check(CloseParen) {
             loop {
@@ -208,9 +207,10 @@ impl<'a> Parser<'a> {
                         .with_token(token.as_ref(), "Cannot have more than 255 parameters.");
                 }
 
-                params.push(self.consume(Ident, "Expect parameter name.")?);
+                let name = self.consume(Ident, "Expect parameter name.")?;
                 self.consume(Colon, "Expect ':' after parameter name.")?;
-                types.push(self.parse_ty()?);
+                let ty = self.parse_ty()?;
+                params.push(Param { name, ty });
 
                 if !self.eat(Comma) {
                     break;
@@ -230,7 +230,6 @@ impl<'a> Parser<'a> {
         Ok(Stmt::Function(Rc::new(Function {
             name,
             params,
-            types,
             ret_ty,
             body,
         })))

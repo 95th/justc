@@ -125,10 +125,15 @@ pub enum Stmt {
 }
 
 #[derive(Debug)]
+pub struct Param {
+    pub name: Token,
+    pub ty: Ty,
+}
+
+#[derive(Debug)]
 pub struct Function {
     pub name: Token,
-    pub params: Vec<Token>,
-    pub types: Vec<Ty>,
+    pub params: Vec<Param>,
     pub ret_ty: Ty,
     pub body: Vec<Stmt>,
 }
@@ -137,8 +142,8 @@ impl Callable for Function {
     fn call(&self, interpreter: &mut Interpreter, args: Vec<Lit>) -> Result<Lit> {
         interpreter.execute_block_with(&self.body, |env| {
             for i in 0..self.params.len() {
-                env.declare(&self.params[i]);
-                env.define(&self.params[i], args[i].clone())?;
+                env.declare(&self.params[i].name);
+                env.define(&self.params[i].name, args[i].clone())?;
             }
             Ok(())
         })?;
