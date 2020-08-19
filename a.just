@@ -1,4 +1,4 @@
-fn foo(i: i32) {
+fn foo(i: (i32, u32, abc::def::Ghi)) {
     print i;
 }
 

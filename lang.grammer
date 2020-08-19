@@ -5,10 +5,10 @@ declaration -> fnDecl
             | statement ;
 
 fnDecl    -> "fn" function;
-function  -> IDENTIFIER "(" parameters? ")" ( "->" TYPE )? block ;
-parameters → IDENTIFIER ":" TYPE ( "," IDENTIFIER ":" TYPE )* ;
+function  -> IDENTIFIER "(" parameters? ")" ( "->" type )? block ;
+parameters → IDENTIFIER ":" type ( "," IDENTIFIER ":" type )* ;
 
-letDecl   -> "let" IDENTIFIER ( ":" TYPE )? ( "=" expression )? ";" ;
+letDecl   -> "let" IDENTIFIER ( ":" type )? ( "=" expression )? ";" ;
 
 statement   -> assignment
             | exprStmt
@@ -44,3 +44,10 @@ call           -> primary ( "(" arguments? ")" )* ;
 arguments      -> expression ( "," expression )* ;
 primary        -> NUMBER | STRING | "false" | "true" | "nil"
                | "(" expression ")" ;
+
+
+type  -> "(" ( type ( "," type )* )? ")"     // Tuples
+        | IDENTIFIER
+        | path
+
+path -> IDENTIFIER ( "::" IDENTIFIER )*

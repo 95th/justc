@@ -106,7 +106,7 @@ pub enum Stmt {
     Print(Box<Expr>),
     Let {
         name: Token,
-        ty: Option<Token>,
+        ty: Ty,
         init: Option<Box<Expr>>,
     },
     Loop(Vec<Stmt>),
@@ -128,8 +128,8 @@ pub enum Stmt {
 pub struct Function {
     pub name: Token,
     pub params: Vec<Token>,
-    pub types: Vec<Token>,
-    pub ret_ty: Option<Token>,
+    pub types: Vec<Ty>,
+    pub ret_ty: Ty,
     pub body: Vec<Stmt>,
 }
 
@@ -148,4 +148,12 @@ impl Callable for Function {
     fn arity(&self) -> usize {
         self.params.len()
     }
+}
+
+#[derive(Debug)]
+pub enum Ty {
+    Unit,
+    Tuple(Vec<Ty>),
+    Path(Vec<Token>),
+    Infer,
 }

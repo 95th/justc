@@ -74,30 +74,30 @@ impl<'a> Scanner<'a> {
             b'%' => self.add_token(Percent),
             b'!' => {
                 if self.eat(b'=') {
-                    self.add_token(Ne)
+                    self.add_token(Ne);
                 } else {
-                    self.add_token(Not)
+                    self.add_token(Not);
                 }
             }
             b'=' => {
                 if self.eat(b'=') {
-                    self.add_token(EqEq)
+                    self.add_token(EqEq);
                 } else {
-                    self.add_token(Eq)
+                    self.add_token(Eq);
                 }
             }
             b'<' => {
                 if self.eat(b'=') {
-                    self.add_token(Le)
+                    self.add_token(Le);
                 } else {
-                    self.add_token(Lt)
+                    self.add_token(Lt);
                 }
             }
             b'>' => {
                 if self.eat(b'=') {
-                    self.add_token(Ge)
+                    self.add_token(Ge);
                 } else {
-                    self.add_token(Gt)
+                    self.add_token(Gt);
                 }
             }
 
@@ -105,13 +105,19 @@ impl<'a> Scanner<'a> {
                 if self.eat(b'/') {
                     self.comment();
                 } else {
-                    self.add_token(Slash)
+                    self.add_token(Slash);
                 }
             }
             b' ' | b'\r' | b'\t' => {}
             b'\n' => self.line += 1,
             b'"' => self.string(),
-            b':' => self.add_token(Colon),
+            b':' => {
+                if self.eat(b':') {
+                    self.add_token(TokenKind::ColonColon);
+                } else {
+                    self.add_token(Colon);
+                }
+            }
             b'&' => {
                 if self.eat(b'&') {
                     self.add_token(TokenKind::And);

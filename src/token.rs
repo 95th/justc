@@ -26,6 +26,7 @@ pub enum TokenKind {
     Plus,
     SemiColon,
     Colon,
+    ColonColon,
     Slash,
     Star,
     Percent,

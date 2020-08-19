@@ -1,5 +1,5 @@
 use crate::{
-    ast::{BinOp, Expr, Function, Lit, Stmt, UnOp},
+    ast::{BinOp, Expr, Function, Lit, Stmt, Ty, UnOp},
     err::{Handler, Result},
     token::{Token, TokenKind, TokenKind::*},
 };
@@ -130,7 +130,7 @@ impl<'a> Parser<'a> {
         let mut block = vec![];
         block.push(Stmt::Let {
             name: name.clone(),
-            ty: None,
+            ty: Ty::Infer,
             init: Some(start),
         });
 
@@ -178,10 +178,11 @@ impl<'a> Parser<'a> {
     fn let_decl(&mut self) -> Result<Stmt> {
         let name = self.consume(Ident, "Expect variable name.")?;
 
-        let mut ty = None;
-        if self.eat(Colon) {
-            ty = Some(self.consume(Ident, "Expect type name")?);
-        }
+        let ty = if self.eat(Colon) {
+            self.parse_ty()?
+        } else {
+            Ty::Infer
+        };
 
         let mut init = None;
         if self.eat(Eq) {
@@ -209,7 +210,7 @@ impl<'a> Parser<'a> {
 
                 params.push(self.consume(Ident, "Expect parameter name.")?);
                 self.consume(Colon, "Expect ':' after parameter name.")?;
-                types.push(self.consume(Ident, "Expect parameter type.")?);
+                types.push(self.parse_ty()?);
 
                 if !self.eat(Comma) {
                     break;
@@ -218,9 +219,9 @@ impl<'a> Parser<'a> {
         }
         self.consume(CloseParen, "Expect ')' after fn parameters.")?;
 
-        let mut ret_ty = None;
+        let mut ret_ty = Ty::Unit;
         if self.eat(Arrow) {
-            ret_ty = Some(self.consume(Ident, "Expect return type after '->'.")?);
+            ret_ty = self.parse_ty()?;
         }
 
         self.consume(OpenBrace, "Expect '{' after while condition.")?;
@@ -452,6 +453,36 @@ impl<'a> Parser<'a> {
         };
 
         Ok(Box::new(Expr::Literal(lit)))
+    }
+
+    fn parse_ty(&mut self) -> Result<Ty> {
+        if self.eat(OpenParen) {
+            self.parse_tuple()
+        } else {
+            let start = self.consume(Ident, "Expect Type name")?;
+            let mut path = vec![start];
+            while self.eat(ColonColon) {
+                let frag = self.consume(Ident, "Expect Type name")?;
+                path.push(frag);
+            }
+            Ok(Ty::Path(path))
+        }
+    }
+
+    fn parse_tuple(&mut self) -> Result<Ty> {
+        if self.eat(CloseParen) {
+            return Ok(Ty::Unit);
+        }
+
+        let mut types = vec![];
+        loop {
+            types.push(self.parse_ty()?);
+            if !self.eat(Comma) {
+                break;
+            }
+        }
+        self.consume(CloseParen, "Expect ')' at tuple end")?;
+        Ok(Ty::Tuple(types))
     }
 
     fn synchronize(&mut self) {
