@@ -1,5 +1,5 @@
 use crate::{
-    ast::{BinOp, Expr, Function, Lit, Param, Stmt, Ty, UnOp},
+    ast::{BinOp, Expr, FloatTy, Function, IntTy, Lit, Param, Stmt, Ty, UnOp},
     err::{Handler, Result},
     token::{Token, TokenKind, TokenKind::*},
 };
@@ -130,7 +130,7 @@ impl<'a> Parser<'a> {
         let mut block = vec![];
         block.push(Stmt::Let {
             name: name.clone(),
-            ty: Ty::Infer,
+            ty: None,
             init: Some(start),
         });
 
@@ -179,9 +179,9 @@ impl<'a> Parser<'a> {
         let name = self.consume(Ident, "Expect variable name.")?;
 
         let ty = if self.eat(Colon) {
-            self.parse_ty()?
+            Some(self.parse_ty()?)
         } else {
-            Ty::Infer
+            None
         };
 
         let mut init = None;
@@ -455,33 +455,18 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_ty(&mut self) -> Result<Ty> {
-        if self.eat(OpenParen) {
-            self.parse_tuple()
-        } else {
-            let start = self.consume(Ident, "Expect Type name")?;
-            let mut path = vec![start];
-            while self.eat(ColonColon) {
-                let frag = self.consume(Ident, "Expect Type name")?;
-                path.push(frag);
-            }
-            Ok(Ty::Path(path))
-        }
-    }
+        let start = self.consume(Ident, "Expect Type name")?;
 
-    fn parse_tuple(&mut self) -> Result<Ty> {
-        if self.eat(CloseParen) {
-            return Ok(Ty::Unit);
+        match &start.symbol.to_string()[..] {
+            "i8" => Ok(Ty::Int(IntTy::I8)),
+            "i16" => Ok(Ty::Int(IntTy::I16)),
+            "i32" => Ok(Ty::Int(IntTy::I32)),
+            "i64" => Ok(Ty::Int(IntTy::I64)),
+            "f32" => Ok(Ty::Float(FloatTy::F32)),
+            "f64" => Ok(Ty::Float(FloatTy::F64)),
+            "String" => Ok(Ty::String),
+            t => bail!("Invalid type: {}", t),
         }
-
-        let mut types = vec![];
-        loop {
-            types.push(self.parse_ty()?);
-            if !self.eat(Comma) {
-                break;
-            }
-        }
-        self.consume(CloseParen, "Expect ')' at tuple end")?;
-        Ok(Ty::Tuple(types))
     }
 
     fn synchronize(&mut self) {

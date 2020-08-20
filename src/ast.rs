@@ -106,7 +106,7 @@ pub enum Stmt {
     Print(Box<Expr>),
     Let {
         name: Token,
-        ty: Ty,
+        ty: Option<Ty>,
         init: Option<Box<Expr>>,
     },
     Loop(Vec<Stmt>),
@@ -155,10 +155,25 @@ impl Callable for Function {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum Ty {
     Unit,
-    Tuple(Vec<Ty>),
-    Path(Vec<Token>),
-    Infer,
+    Bool,
+    Int(IntTy),
+    Float(FloatTy),
+    String,
+}
+
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+pub enum IntTy {
+    I8,
+    I16,
+    I32,
+    I64,
+}
+
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+pub enum FloatTy {
+    F32,
+    F64,
 }
