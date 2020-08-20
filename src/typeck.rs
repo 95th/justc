@@ -6,12 +6,12 @@ use crate::{
 use std::collections::HashMap;
 
 #[derive(Default)]
-pub struct TyEnv {
+pub struct TyContext {
     vars: HashMap<Symbol, Ty>,
     outer: Vec<HashMap<Symbol, Ty>>,
 }
 
-impl TyEnv {
+impl TyContext {
     fn enter_scope(&mut self) {
         let old = std::mem::take(&mut self.vars);
         self.outer.push(old);

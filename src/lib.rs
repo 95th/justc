@@ -3,7 +3,7 @@ extern crate anyhow;
 
 use self::{err::Handler, parse::Parser, scan::Scanner};
 use eval::Interpreter;
-use typeck::TyEnv;
+use typeck::TyContext;
 
 pub mod args;
 mod ast;
@@ -42,9 +42,9 @@ impl Compiler {
         let mut parser = Parser::new(tokens, &mut self.handler);
         let stmts = parser.parse();
 
-        let mut env = TyEnv::default();
+        let mut ctx = TyContext::default();
         for s in &stmts {
-            if let Err(e) = env.type_check_stmt(s) {
+            if let Err(e) = ctx.type_check_stmt(s) {
                 println!("{}", e);
                 return;
             }
