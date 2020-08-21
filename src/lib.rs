@@ -1,8 +1,8 @@
 #[macro_use]
 extern crate anyhow;
 
-use self::{err::Handler, parse::Parser, scan::Scanner};
-use eval::Interpreter;
+use self::{err::Handler, parse::Parser};
+use std::rc::Rc;
 use typeck::TyContext;
 
 pub mod args;
@@ -15,32 +15,21 @@ mod symbol;
 mod token;
 mod typeck;
 
-pub struct Compiler {
-    handler: Handler,
-    interpreter: Interpreter,
-}
+pub struct Compiler {}
 
 impl Compiler {
     pub fn new() -> Self {
-        Self {
-            handler: Handler::new(),
-            interpreter: Interpreter::new(),
-        }
+        Self {}
     }
 
-    pub fn run(&mut self, source: String) {
-        self.handler.reset();
-        let scanner = Scanner::new(&source, &mut self.handler);
-        let tokens = match scanner.scan_tokens() {
-            Ok(t) => t,
-            Err(e) => {
-                println!("{}", e);
-                return;
-            }
+    pub fn run(&mut self, src: String) {
+        let src = Rc::new(src);
+        let handler = Rc::new(Handler::new(&src));
+        let mut parser = Parser::new(src, &handler);
+        let stmts = match parser.parse() {
+            Some(t) => t,
+            None => return,
         };
-
-        let mut parser = Parser::new(tokens, &mut self.handler);
-        let stmts = parser.parse();
 
         let mut ctx = TyContext::default();
         for s in &stmts {
@@ -50,15 +39,8 @@ impl Compiler {
             }
         }
 
-        if self.handler.has_errors() {
+        if handler.has_errors() {
             return;
-        }
-
-        for s in &stmts {
-            if let Err(e) = self.interpreter.eval_stmt(s) {
-                println!("{}", e);
-                break;
-            }
         }
     }
 }
