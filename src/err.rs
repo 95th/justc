@@ -38,18 +38,16 @@ impl Handler {
     }
 
     fn line_start(&self, span: Span) -> usize {
-        let mut i = span.lo();
-        while i > 0 && self.src.as_bytes()[i] != b'\n' {
-            i -= 1;
-        }
-        i
+        self.src[..span.lo()]
+            .rfind('\n')
+            .map(|i| i + 1)
+            .unwrap_or(0)
     }
 
     fn line_end(&self, span: Span) -> usize {
-        let mut i = span.lo();
-        while i < self.src.len() && self.src.as_bytes()[i] != b'\n' {
-            i += 1;
-        }
-        i
+        self.src[span.lo()..]
+            .find('\n')
+            .map(|i| span.lo() + i)
+            .unwrap_or(self.src.len())
     }
 }

@@ -128,5 +128,4 @@ pub struct Ty {
 pub enum TyKind {
     Ident(Token),
     Infer,
-    Err,
 }

@@ -334,11 +334,7 @@ impl Parser {
 
         let kind = symbol.as_str_with(|s| match s {
             "_" => TyKind::Infer,
-            "i16" => TyKind::Ident(token),
-            _ => {
-                self.handler.report(token.span, "Unknown type");
-                TyKind::Err
-            }
+            _ => TyKind::Ident(token),
         });
 
         Some(Ty {
