@@ -1,26 +1,16 @@
 use crate::{
     ast::{BinOp, Expr, FloatTy, Lit, Stmt, Ty, UnOp},
     err::Result,
-    symbol::Symbol,
+    ondrop::OnDrop,
+    table::SymbolTable,
 };
-use std::collections::HashMap;
 
 #[derive(Default)]
 pub struct TyContext {
-    vars: HashMap<Symbol, Ty>,
-    outer: Vec<HashMap<Symbol, Ty>>,
+    table: SymbolTable<Ty>,
 }
 
 impl TyContext {
-    fn enter_scope(&mut self) {
-        let old = std::mem::take(&mut self.vars);
-        self.outer.push(old);
-    }
-
-    fn exit_scope(&mut self) {
-        self.vars = self.outer.pop().unwrap();
-    }
-
     pub fn type_check_stmt(&mut self, stmt: &Stmt) -> Result<()> {
         match stmt {
             Stmt::Expr(expr) => {
@@ -38,7 +28,7 @@ impl TyContext {
                     if let Some(ty) = ty {
                         ensure!(t == *ty, "Type mismatch in let");
                     }
-                    self.vars.insert(name.symbol, t);
+                    self.table.add(name.symbol, t);
                 }
             }
             Stmt::Loop(body) | Stmt::Block(body) => {
@@ -46,7 +36,7 @@ impl TyContext {
             }
             Stmt::Assign { name, val } => {
                 let t = self.type_check(val)?;
-                if let Some(ty) = self.vars.get(&name.symbol) {
+                if let Some(ty) = self.table.find(&name.symbol) {
                     ensure!(ty == &t, "Type mismatch in assignment");
                 } else {
                     bail!("Undeclared variable '{}'", name.symbol);
@@ -68,14 +58,11 @@ impl TyContext {
     }
 
     fn execute_block(&mut self, stmts: &[Stmt]) -> Result<()> {
-        self.enter_scope();
+        let mut this = OnDrop::new(self, |this| this.table.exit_scope());
+        this.table.enter_scope();
         for s in stmts {
-            if let Err(e) = self.type_check_stmt(s) {
-                self.exit_scope();
-                return Err(e);
-            }
+            this.type_check_stmt(s)?;
         }
-        self.exit_scope();
         Ok(())
     }
 

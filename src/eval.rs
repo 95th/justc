@@ -1,6 +1,7 @@
 use crate::{
     ast::{BinOp, Expr, Lit, Stmt, UnOp},
     err::Result,
+    ondrop::OnDrop,
     symbol::Symbol,
     token::Token,
 };
@@ -228,19 +229,13 @@ impl Interpreter {
     where
         F: FnMut(&mut Env) -> Result<()>,
     {
-        self.env.enter_scope();
+        let mut this = OnDrop::new(self, |this| this.env.exit_scope());
+        this.env.enter_scope();
 
-        struct Guard<'a>(&'a mut Interpreter);
-        impl Drop for Guard<'_> {
-            fn drop(&mut self) {
-                self.0.env.exit_scope();
-            }
-        }
-        let guard = Guard(self);
-        f(&mut guard.0.env)?;
+        f(&mut this.env)?;
 
         for s in stmts {
-            guard.0.eval_stmt(s)?;
+            this.eval_stmt(s)?;
         }
         Ok(())
     }

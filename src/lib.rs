@@ -9,9 +9,11 @@ pub mod args;
 mod ast;
 mod err;
 mod eval;
+mod ondrop;
 mod parse;
 mod scan;
 mod symbol;
+mod table;
 mod token;
 mod typeck;
 
