@@ -11,12 +11,19 @@ impl Span {
         Self { lo, hi }
     }
 
-    pub const fn lo(&self) -> usize {
+    pub fn lo(&self) -> usize {
         self.lo
     }
 
-    pub const fn hi(&self) -> usize {
+    pub fn hi(&self) -> usize {
         self.hi
+    }
+
+    pub fn to(self, other: Span) -> Self {
+        Self {
+            lo: self.lo.min(other.lo),
+            hi: self.hi.max(other.hi),
+        }
     }
 }
 

@@ -12,6 +12,10 @@ impl Symbol {
     pub fn parse<T: FromStr>(&self) -> Result<T, T::Err> {
         with_interner(|interner| interner.lookup(self.0).parse())
     }
+
+    pub fn as_str_with<T>(&self, f: impl FnOnce(&str) -> T) -> T {
+        with_interner(|interner| f(interner.lookup(self.0)))
+    }
 }
 
 impl fmt::Debug for Symbol {

@@ -4,7 +4,7 @@ use crate::{
     err::Handler,
     lex::{Lexer, LiteralKind, Token, TokenKind, TokenKind::*},
 };
-use ast::{BinOp, Block, Expr, Lit, LitKind, Stmt, Ty, TyKind, UnOp};
+use ast::{BinOp, Block, Expr, ExprKind, Lit, Stmt, Ty, TyKind, UnOp};
 use std::rc::Rc;
 
 pub struct Parser {
@@ -51,8 +51,15 @@ impl Parser {
 
     fn stmt(&mut self) -> Option<Stmt> {
         if self.eat(OpenBrace) {
+            let lo = self.prev.span;
             let block = self.block()?;
-            Some(Stmt::Expr(Box::new(Expr::Block(block))))
+
+            let block = Expr {
+                kind: ExprKind::Block(block),
+                span: lo.to(self.prev.span),
+            };
+
+            Some(Stmt::Expr(Box::new(block)))
         } else {
             self.expr_stmt()
         }
@@ -91,14 +98,12 @@ impl Parser {
         let expr = self.expr()?;
 
         if self.eat(Eq) {
-            let eq = self.prev().clone();
-            let val = self.expr()?;
-
-            if let Expr::Variable(name) = *expr {
+            if let ExprKind::Variable(name) = expr.kind {
+                let val = self.expr()?;
                 self.consume(SemiColon, "Expect ';' after assignment.")?;
                 return Some(Stmt::Assign { name, val });
             } else {
-                self.handler.report(eq.span, "Invalid assignment target.");
+                self.handler.report(expr.span, "Invalid assignment target.");
                 return None;
             }
         }
@@ -115,10 +120,15 @@ impl Parser {
 
         while self.eat(Or) {
             let right = self.logic_and()?;
-            left = Box::new(Expr::Binary {
-                op: BinOp::Or,
-                left,
-                right,
+
+            let span = left.span.to(right.span);
+            left = Box::new(Expr {
+                kind: ExprKind::Binary {
+                    op: BinOp::Or,
+                    left,
+                    right,
+                },
+                span,
             });
         }
 
@@ -130,10 +140,15 @@ impl Parser {
 
         while self.eat(And) {
             let right = self.equality()?;
-            left = Box::new(Expr::Binary {
-                op: BinOp::And,
-                left,
-                right,
+            let span = left.span.to(right.span);
+
+            left = Box::new(Expr {
+                kind: ExprKind::Binary {
+                    op: BinOp::And,
+                    left,
+                    right,
+                },
+                span,
             });
         }
 
@@ -152,7 +167,12 @@ impl Parser {
                 break;
             };
             let right = self.comparison()?;
-            left = Box::new(Expr::Binary { op, left, right });
+            let span = left.span.to(right.span);
+
+            left = Box::new(Expr {
+                kind: ExprKind::Binary { op, left, right },
+                span,
+            });
         }
 
         Some(left)
@@ -174,7 +194,12 @@ impl Parser {
                 break;
             };
             let right = self.addition()?;
-            left = Box::new(Expr::Binary { op, left, right });
+            let span = left.span.to(right.span);
+
+            left = Box::new(Expr {
+                kind: ExprKind::Binary { op, left, right },
+                span,
+            });
         }
 
         Some(left)
@@ -192,7 +217,12 @@ impl Parser {
                 break;
             };
             let right = self.multiplication()?;
-            left = Box::new(Expr::Binary { op, left, right });
+            let span = left.span.to(right.span);
+
+            left = Box::new(Expr {
+                kind: ExprKind::Binary { op, left, right },
+                span,
+            });
         }
 
         Some(left)
@@ -212,7 +242,12 @@ impl Parser {
                 break;
             };
             let right = self.unary()?;
-            left = Box::new(Expr::Binary { op, left, right });
+            let span = left.span.to(right.span);
+
+            left = Box::new(Expr {
+                kind: ExprKind::Binary { op, left, right },
+                span,
+            });
         }
 
         Some(left)
@@ -226,88 +261,96 @@ impl Parser {
         } else {
             return self.primary();
         };
+        let lo = self.prev.span;
 
         let expr = self.unary()?;
-        Some(Box::new(Expr::Unary { op, expr }))
+        let span = lo.to(self.prev.span);
+
+        Some(Box::new(Expr {
+            kind: ExprKind::Unary { op, expr },
+            span,
+        }))
     }
 
     fn primary(&mut self) -> Option<Box<Expr>> {
         let lit = if self.eat(False) {
-            Lit {
-                kind: LitKind::Bool(false),
-                span: self.prev().span,
-            }
+            Lit::Bool(false)
         } else if self.eat(True) {
-            Lit {
-                kind: LitKind::Bool(true),
-                span: self.prev().span,
-            }
+            Lit::Bool(true)
         } else if self.eat(Literal {
             kind: LiteralKind::Int,
         }) {
-            let token = self.prev();
-            let kind = token
+            self.prev
                 .symbol
                 .parse()
-                .map(LitKind::Integer)
-                .unwrap_or(LitKind::Err);
-            Lit {
-                kind,
-                span: token.span,
-            }
+                .map(Lit::Integer)
+                .unwrap_or(Lit::Err)
         } else if self.eat(Literal {
             kind: LiteralKind::Float,
         }) {
-            let token = self.prev();
-            Lit {
-                kind: LitKind::Float(token.symbol),
-                span: token.span,
-            }
+            Lit::Float(self.prev.symbol)
         } else if self.eat(Literal {
             kind: LiteralKind::Str,
         }) {
-            let token = self.prev();
-            Lit {
-                kind: LitKind::Str(token.symbol),
-                span: token.span,
-            }
+            Lit::Str(self.prev.symbol)
         } else if self.eat(Ident) {
-            return Some(Box::new(Expr::Variable(self.prev().clone())));
+            return Some(Box::new(Expr {
+                kind: ExprKind::Variable(self.prev.clone()),
+                span: self.prev.span,
+            }));
         } else if self.eat(OpenParen) {
+            let lo = self.prev.span;
             let expr = self.expr()?;
             self.consume(CloseParen, "Expect ')' after expr")?;
-            return Some(Box::new(Expr::Grouping(expr)));
+            let span = lo.to(self.prev.span);
+
+            return Some(Box::new(Expr {
+                kind: ExprKind::Grouping(expr),
+                span,
+            }));
         } else if self.eat(OpenBrace) {
+            let lo = self.prev.span;
             let block = self.block()?;
-            return Some(Box::new(Expr::Block(block)));
+            let span = lo.to(self.prev.span);
+
+            return Some(Box::new(Expr {
+                kind: ExprKind::Block(block),
+                span,
+            }));
         } else {
-            self.handler.report(self.peek().span, "Expected expression");
+            self.handler.report(self.curr.span, "Expected expression");
             return None;
         };
 
-        Some(Box::new(Expr::Literal(lit)))
+        Some(Box::new(Expr {
+            kind: ExprKind::Literal(lit),
+            span: self.prev.span,
+        }))
     }
 
     fn parse_ty(&mut self) -> Option<Ty> {
         let token = self.consume(Ident, "Expect Type name")?;
-        let span = token.span;
+        let symbol = token.symbol;
 
-        let kind = match &token.symbol.to_string()[..] {
+        let kind = symbol.as_str_with(|s| match s {
             "_" => TyKind::Infer,
             "i16" => TyKind::Ident(token),
             _ => {
                 self.handler.report(token.span, "Unknown type");
                 TyKind::Err
             }
-        };
+        });
 
-        Some(Ty { span, kind })
+        Some(Ty {
+            span: self.prev.span,
+            kind,
+        })
     }
 
     fn synchronize(&mut self) {
         self.advance();
         while !self.eof() {
-            match self.prev().kind {
+            match self.prev.kind {
                 SemiColon => return,
                 Struct | Fn | Let | For | If | While | Return => return,
                 _ => self.advance(),
@@ -318,10 +361,10 @@ impl Parser {
     fn consume(&mut self, kind: TokenKind, msg: &'static str) -> Option<Token> {
         if self.check(kind) {
             self.advance();
-            return Some(self.prev().clone());
+            return Some(self.prev.clone());
         }
 
-        self.handler.report(self.peek().span, msg);
+        self.handler.report(self.curr.span, msg);
         None
     }
 
@@ -335,15 +378,7 @@ impl Parser {
     }
 
     fn check(&self, kind: TokenKind) -> bool {
-        self.peek().kind == kind
-    }
-
-    fn peek(&self) -> &Token {
-        &self.curr
-    }
-
-    fn prev(&self) -> &Token {
-        &self.prev
+        self.curr.kind == kind
     }
 
     fn advance(&mut self) {
@@ -351,6 +386,6 @@ impl Parser {
     }
 
     fn eof(&self) -> bool {
-        self.peek().kind == Eof
+        self.curr.kind == Eof
     }
 }

@@ -62,13 +62,7 @@ impl fmt::Display for UnOp {
 }
 
 #[derive(Debug, Clone)]
-pub struct Lit {
-    pub kind: LitKind,
-    pub span: Span,
-}
-
-#[derive(Debug, Clone)]
-pub enum LitKind {
+pub enum Lit {
     Str(Symbol),
     Integer(i64),
     Float(Symbol),
@@ -77,7 +71,13 @@ pub enum LitKind {
 }
 
 #[derive(Debug)]
-pub enum Expr {
+pub struct Expr {
+    pub kind: ExprKind,
+    pub span: Span,
+}
+
+#[derive(Debug)]
+pub enum ExprKind {
     Binary {
         op: BinOp,
         left: Box<Expr>,
