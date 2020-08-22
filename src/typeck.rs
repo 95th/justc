@@ -107,7 +107,6 @@ impl TyContext {
                 Lit::Str(_) => Ok(Ty::String),
                 Lit::Number(_) => Ok(Ty::Float(FloatTy::F64)),
                 Lit::Bool(_) => Ok(Ty::Bool),
-                Lit::Callable(_) => bail!("Callable unsupported as of now"),
             },
             _ => todo!(),
         }

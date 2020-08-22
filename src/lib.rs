@@ -7,7 +7,6 @@ use typeck::TyContext;
 pub use util::Args;
 
 mod err;
-mod eval;
 mod lex;
 mod parse;
 mod symbol;

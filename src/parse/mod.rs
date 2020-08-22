@@ -436,9 +436,7 @@ impl Parser {
             let val = token.symbol.parse().unwrap();
             Lit::Number(val)
         } else if self.eat(Str) {
-            let token = self.prev();
-            let val = token.symbol.to_string();
-            Lit::Str(val.to_owned().into())
+            Lit::Str(self.prev().symbol)
         } else if self.eat(Ident) {
             return Some(Box::new(Expr::Variable(self.prev().clone())));
         } else if self.eat(OpenParen) {

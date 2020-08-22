@@ -1,4 +1,4 @@
-use crate::{err::Result, eval::Interpreter, lex::Token};
+use crate::{lex::Token, symbol::Symbol};
 use std::{fmt, rc::Rc};
 
 #[derive(Debug)]
@@ -60,16 +60,9 @@ impl fmt::Display for UnOp {
 
 #[derive(Debug, Clone)]
 pub enum Lit {
-    Str(Rc<String>),
+    Str(Symbol),
     Number(f64),
     Bool(bool),
-    Callable(Rc<dyn Callable>),
-}
-
-pub trait Callable: std::fmt::Debug {
-    fn call(&self, interpreter: &mut Interpreter, args: Vec<Lit>) -> Result<Lit>;
-
-    fn arity(&self) -> usize;
 }
 
 impl fmt::Display for Lit {
@@ -78,7 +71,6 @@ impl fmt::Display for Lit {
             Lit::Str(s) => write!(f, "\"{}\"", s),
             Lit::Number(n) => write!(f, "{}", n),
             Lit::Bool(b) => write!(f, "{}", b),
-            Lit::Callable(c) => write!(f, "{:?}", c),
         }
     }
 }
@@ -141,23 +133,6 @@ pub struct Function {
     pub params: Vec<Param>,
     pub ret_ty: Ty,
     pub body: Vec<Stmt>,
-}
-
-impl Callable for Function {
-    fn call(&self, interpreter: &mut Interpreter, args: Vec<Lit>) -> Result<Lit> {
-        interpreter.execute_block_with(&self.body, |env| {
-            for i in 0..self.params.len() {
-                env.declare(&self.params[i].name);
-                env.define(&self.params[i].name, args[i].clone())?;
-            }
-            Ok(())
-        })?;
-        Ok(Lit::Bool(false))
-    }
-
-    fn arity(&self) -> usize {
-        self.params.len()
-    }
 }
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
