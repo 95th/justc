@@ -1,16 +1,11 @@
-#[macro_use]
-extern crate anyhow;
-
 use self::{err::Handler, parse::Parser};
 use std::rc::Rc;
-use typeck::TyContext;
 pub use util::Args;
 
 mod err;
 mod lex;
 mod parse;
 mod symbol;
-mod typeck;
 mod util;
 
 pub struct Compiler {}
@@ -29,13 +24,7 @@ impl Compiler {
             None => return,
         };
 
-        let mut ctx = TyContext::default();
-        for s in &stmts {
-            if let Err(e) = ctx.type_check_stmt(s) {
-                println!("{}", e);
-                return;
-            }
-        }
+        dbg!(stmts);
 
         if handler.has_errors() {
             return;

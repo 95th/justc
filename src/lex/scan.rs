@@ -1,3 +1,4 @@
+use super::token::LiteralKind;
 use crate::{
     err::Handler,
     lex::{Span, Token, TokenKind, TokenKind::*},
@@ -180,7 +181,12 @@ impl Lexer {
         self.advance();
 
         let symbol = Symbol::intern(&self.src[self.start_pos + 1..self.pos - 1]);
-        Some(self.add_token_with_symbol(Str, symbol))
+        Some(self.add_token_with_symbol(
+            Literal {
+                kind: LiteralKind::Str,
+            },
+            symbol,
+        ))
     }
 
     fn number(&mut self) -> Token {
@@ -188,15 +194,19 @@ impl Lexer {
             self.advance();
         }
 
-        if self.peek() == b'.' && self.peek_next().is_ascii_digit() {
+        let kind = if self.peek() == b'.' && self.peek_next().is_ascii_digit() {
             self.advance();
 
             while self.peek().is_ascii_digit() {
                 self.advance();
             }
-        }
 
-        self.add_token(Num)
+            LiteralKind::Float
+        } else {
+            LiteralKind::Int
+        };
+
+        self.add_token(Literal { kind })
     }
 
     fn ident(&mut self) -> Token {

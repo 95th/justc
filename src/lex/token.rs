@@ -55,8 +55,7 @@ pub enum TokenKind {
 
     // Literals.
     Ident,
-    Str,
-    Num,
+    Literal { kind: LiteralKind },
 
     // Keywords
     And,
@@ -78,4 +77,11 @@ pub enum TokenKind {
     Continue,
     Print,
     Eof,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum LiteralKind {
+    Str,
+    Int,
+    Float,
 }

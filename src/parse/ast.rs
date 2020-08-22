@@ -1,5 +1,8 @@
-use crate::{lex::Token, symbol::Symbol};
-use std::{fmt, rc::Rc};
+use crate::{
+    lex::{Span, Token},
+    symbol::Symbol,
+};
+use std::fmt;
 
 #[derive(Debug)]
 pub enum BinOp {
@@ -59,20 +62,18 @@ impl fmt::Display for UnOp {
 }
 
 #[derive(Debug, Clone)]
-pub enum Lit {
-    Str(Symbol),
-    Number(f64),
-    Bool(bool),
+pub struct Lit {
+    pub kind: LitKind,
+    pub span: Span,
 }
 
-impl fmt::Display for Lit {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Lit::Str(s) => write!(f, "\"{}\"", s),
-            Lit::Number(n) => write!(f, "{}", n),
-            Lit::Bool(b) => write!(f, "{}", b),
-        }
-    }
+#[derive(Debug, Clone)]
+pub enum LitKind {
+    Str(Symbol),
+    Integer(i64),
+    Float(Symbol),
+    Bool(bool),
+    Err,
 }
 
 #[derive(Debug)]
@@ -82,11 +83,6 @@ pub enum Expr {
         left: Box<Expr>,
         right: Box<Expr>,
     },
-    Call {
-        callee: Box<Expr>,
-        paren: Token,
-        args: Vec<Expr>,
-    },
     Grouping(Box<Expr>),
     Literal(Lit),
     Unary {
@@ -94,66 +90,43 @@ pub enum Expr {
         expr: Box<Expr>,
     },
     Variable(Token),
+    Block(Block),
 }
 
 #[derive(Debug)]
 pub enum Stmt {
     Expr(Box<Expr>),
-    Function(Rc<Function>),
-    Print(Box<Expr>),
     Let {
         name: Token,
         ty: Option<Ty>,
         init: Option<Box<Expr>>,
     },
-    Loop(Vec<Stmt>),
     Assign {
         name: Token,
         val: Box<Expr>,
     },
-    Block(Vec<Stmt>),
-    If {
-        cond: Box<Expr>,
-        then_branch: Vec<Stmt>,
-        else_branch: Vec<Stmt>,
-    },
-    Break,
-    Continue,
 }
 
-#[derive(Debug)]
-pub struct Param {
-    pub name: Token,
-    pub ty: Ty,
+#[derive(Default, Debug)]
+pub struct Block {
+    pub stmts: Vec<Stmt>,
 }
 
-#[derive(Debug)]
-pub struct Function {
-    pub name: Token,
-    pub params: Vec<Param>,
-    pub ret_ty: Ty,
-    pub body: Vec<Stmt>,
+impl From<Stmt> for Block {
+    fn from(stmt: Stmt) -> Self {
+        Self { stmts: vec![stmt] }
+    }
 }
 
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub enum Ty {
-    Unit,
-    Bool,
-    Int(IntTy),
-    Float(FloatTy),
-    String,
+#[derive(Debug, Clone)]
+pub struct Ty {
+    pub kind: TyKind,
+    pub span: Span,
 }
 
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub enum IntTy {
-    I8,
-    I16,
-    I32,
-    I64,
-}
-
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub enum FloatTy {
-    F32,
-    F64,
+#[derive(Debug, Clone)]
+pub enum TyKind {
+    Ident(Token),
+    Infer,
+    Err,
 }

@@ -2,9 +2,9 @@ pub mod ast;
 
 use crate::{
     err::Handler,
-    lex::{Lexer, Token, TokenKind, TokenKind::*},
+    lex::{Lexer, LiteralKind, Token, TokenKind, TokenKind::*},
 };
-use ast::{BinOp, Expr, FloatTy, Function, IntTy, Lit, Param, Stmt, Ty, UnOp};
+use ast::{BinOp, Block, Expr, Lit, LitKind, Stmt, Ty, TyKind, UnOp};
 use std::rc::Rc;
 
 pub struct Parser {
@@ -37,8 +37,6 @@ impl Parser {
     fn decl(&mut self) -> Option<Stmt> {
         let stmt = if self.eat(Let) {
             self.let_decl()
-        } else if self.eat(Fn) {
-            self.fn_decl()
         } else {
             self.stmt()
         };
@@ -52,122 +50,15 @@ impl Parser {
     }
 
     fn stmt(&mut self) -> Option<Stmt> {
-        if self.eat(If) {
-            self.if_stmt()
-        } else if self.eat(Print) {
-            self.print_stmt()
-        } else if self.eat(While) {
-            self.while_stmt()
-        } else if self.eat(For) {
-            self.for_stmt()
-        } else if self.eat(Loop) {
-            self.loop_stmt()
-        } else if self.eat(OpenBrace) {
-            Some(Stmt::Block(self.block()?))
-        } else if self.eat(Break) {
-            self.consume(SemiColon, "Expect ';' after variable declaration.")?;
-            Some(Stmt::Break)
-        } else if self.eat(Continue) {
-            self.consume(SemiColon, "Expect ';' after variable declaration.")?;
-            Some(Stmt::Continue)
+        if self.eat(OpenBrace) {
+            let block = self.block()?;
+            Some(Stmt::Expr(Box::new(Expr::Block(block))))
         } else {
             self.expr_stmt()
         }
     }
 
-    fn if_stmt(&mut self) -> Option<Stmt> {
-        let cond = self.expr()?;
-        self.consume(OpenBrace, "Expect '{' after if condition.")?;
-        let then_branch = self.block()?;
-        let else_branch = if self.eat(Else) {
-            self.consume(OpenBrace, "Expect '{' after else.")?;
-            self.block()?
-        } else {
-            vec![]
-        };
-        Some(Stmt::If {
-            cond,
-            then_branch,
-            else_branch,
-        })
-    }
-
-    fn while_stmt(&mut self) -> Option<Stmt> {
-        let cond = self.expr()?;
-        self.consume(OpenBrace, "Expect '{' after while condition.")?;
-        let body = self.block()?;
-
-        let mut stmts = vec![];
-        stmts.push(Stmt::If {
-            cond,
-            then_branch: vec![],
-            else_branch: vec![Stmt::Break],
-        });
-        stmts.extend(body);
-
-        Some(Stmt::Loop(stmts))
-    }
-
-    fn for_stmt(&mut self) -> Option<Stmt> {
-        let name = self.consume(Ident, "Expect loop variable name.")?;
-        self.consume(In, "Expect 'in' after for loop variable.")?;
-        let start = self.expr()?;
-
-        let op = self.consume2(
-            Range,
-            RangeClosed,
-            "Expect either '..' or '..=' in 'for' loop expression.",
-        )?;
-
-        let op = match op.kind {
-            Range => BinOp::Lt,
-            RangeClosed => BinOp::Le,
-            _ => unreachable!(),
-        };
-
-        let end = self.expr()?;
-
-        self.consume(OpenBrace, "Expect '{' after while condition")?;
-        let body = self.block()?;
-
-        let mut block = vec![];
-        block.push(Stmt::Let {
-            name: name.clone(),
-            ty: None,
-            init: Some(start),
-        });
-
-        let mut loop_body = vec![];
-        loop_body.push(Stmt::If {
-            cond: Box::new(Expr::Binary {
-                op,
-                left: Box::new(Expr::Variable(name.clone())),
-                right: end,
-            }),
-            then_branch: vec![],
-            else_branch: vec![Stmt::Break],
-        });
-        loop_body.extend(body);
-        loop_body.push(Stmt::Assign {
-            name: name.clone(),
-            val: Box::new(Expr::Binary {
-                op: BinOp::Add,
-                left: Box::new(Expr::Variable(name)),
-                right: Box::new(Expr::Literal(Lit::Number(1.0))),
-            }),
-        });
-
-        block.push(Stmt::Loop(loop_body));
-        Some(Stmt::Block(block))
-    }
-
-    fn loop_stmt(&mut self) -> Option<Stmt> {
-        self.consume(OpenBrace, "Expect '{' after while condition")?;
-        let body = self.block()?;
-        Some(Stmt::Loop(body))
-    }
-
-    fn block(&mut self) -> Option<Vec<Stmt>> {
+    fn block(&mut self) -> Option<Block> {
         let mut stmts = vec![];
         while !self.check(CloseBrace) && !self.eof() {
             if let Some(s) = self.decl() {
@@ -175,7 +66,7 @@ impl Parser {
             }
         }
         self.consume(CloseBrace, "Expect '}' after block.")?;
-        Some(stmts)
+        Some(Block { stmts })
     }
 
     fn let_decl(&mut self) -> Option<Stmt> {
@@ -194,53 +85,6 @@ impl Parser {
 
         self.consume(SemiColon, "Expect ';' after variable declaration.")?;
         Some(Stmt::Let { name, ty, init })
-    }
-
-    fn fn_decl(&mut self) -> Option<Stmt> {
-        let name = self.consume(Ident, "Expect fn name.")?;
-        self.consume(OpenParen, "Expect '(' after fn name.")?;
-        let mut params = vec![];
-
-        if !self.check(CloseParen) {
-            loop {
-                if params.len() >= 255 {
-                    self.handler
-                        .report(self.peek().span, "Cannot have more than 255 parameters.");
-                    return None;
-                }
-
-                let name = self.consume(Ident, "Expect parameter name.")?;
-                self.consume(Colon, "Expect ':' after parameter name.")?;
-                let ty = self.parse_ty()?;
-                params.push(Param { name, ty });
-
-                if !self.eat(Comma) {
-                    break;
-                }
-            }
-        }
-        self.consume(CloseParen, "Expect ')' after fn parameters.")?;
-
-        let mut ret_ty = Ty::Unit;
-        if self.eat(Arrow) {
-            ret_ty = self.parse_ty()?;
-        }
-
-        self.consume(OpenBrace, "Expect '{' after while condition.")?;
-        let body = self.block()?;
-
-        Some(Stmt::Function(Rc::new(Function {
-            name,
-            params,
-            ret_ty,
-            body,
-        })))
-    }
-
-    fn print_stmt(&mut self) -> Option<Stmt> {
-        let val = self.expr()?;
-        self.consume(SemiColon, "Expect ';' after value.")?;
-        Some(Stmt::Print(val))
     }
 
     fn expr_stmt(&mut self) -> Option<Stmt> {
@@ -380,69 +224,62 @@ impl Parser {
         } else if self.eat(Minus) {
             UnOp::Neg
         } else {
-            return self.call();
+            return self.primary();
         };
 
         let expr = self.unary()?;
         Some(Box::new(Expr::Unary { op, expr }))
     }
 
-    fn call(&mut self) -> Option<Box<Expr>> {
-        let mut expr = self.primary()?;
-
-        loop {
-            if self.eat(OpenParen) {
-                expr = self.finish_call(expr)?;
-            } else {
-                break;
-            }
-        }
-
-        Some(expr)
-    }
-
-    fn finish_call(&mut self, callee: Box<Expr>) -> Option<Box<Expr>> {
-        let mut args = vec![];
-        if !self.check(CloseParen) {
-            loop {
-                if args.len() >= 255 {
-                    self.handler
-                        .report(self.peek().span, "Cannot have more than 255 arguments");
-                    return None;
-                }
-
-                args.push(*self.expr()?);
-                if !self.eat(Comma) {
-                    break;
-                }
-            }
-        }
-
-        let paren = self.consume(CloseParen, "Expect ')' after arguments.")?;
-        Some(Box::new(Expr::Call {
-            callee,
-            paren,
-            args,
-        }))
-    }
-
     fn primary(&mut self) -> Option<Box<Expr>> {
         let lit = if self.eat(False) {
-            Lit::Bool(false)
+            Lit {
+                kind: LitKind::Bool(false),
+                span: self.prev().span,
+            }
         } else if self.eat(True) {
-            Lit::Bool(true)
-        } else if self.eat(Num) {
+            Lit {
+                kind: LitKind::Bool(true),
+                span: self.prev().span,
+            }
+        } else if self.eat(Literal {
+            kind: LiteralKind::Int,
+        }) {
             let token = self.prev();
-            let val = token.symbol.parse().unwrap();
-            Lit::Number(val)
-        } else if self.eat(Str) {
-            Lit::Str(self.prev().symbol)
+            let kind = token
+                .symbol
+                .parse()
+                .map(LitKind::Integer)
+                .unwrap_or(LitKind::Err);
+            Lit {
+                kind,
+                span: token.span,
+            }
+        } else if self.eat(Literal {
+            kind: LiteralKind::Float,
+        }) {
+            let token = self.prev();
+            Lit {
+                kind: LitKind::Float(token.symbol),
+                span: token.span,
+            }
+        } else if self.eat(Literal {
+            kind: LiteralKind::Str,
+        }) {
+            let token = self.prev();
+            Lit {
+                kind: LitKind::Str(token.symbol),
+                span: token.span,
+            }
         } else if self.eat(Ident) {
             return Some(Box::new(Expr::Variable(self.prev().clone())));
         } else if self.eat(OpenParen) {
             let expr = self.expr()?;
             self.consume(CloseParen, "Expect ')' after expr")?;
             return Some(Box::new(Expr::Grouping(expr)));
+        } else if self.eat(OpenBrace) {
+            let block = self.block()?;
+            return Some(Box::new(Expr::Block(block)));
         } else {
             self.handler.report(self.peek().span, "Expected expression");
             return None;
@@ -452,21 +289,19 @@ impl Parser {
     }
 
     fn parse_ty(&mut self) -> Option<Ty> {
-        let start = self.consume(Ident, "Expect Type name")?;
+        let token = self.consume(Ident, "Expect Type name")?;
+        let span = token.span;
 
-        match &start.symbol.to_string()[..] {
-            "i8" => Some(Ty::Int(IntTy::I8)),
-            "i16" => Some(Ty::Int(IntTy::I16)),
-            "i32" => Some(Ty::Int(IntTy::I32)),
-            "i64" => Some(Ty::Int(IntTy::I64)),
-            "f32" => Some(Ty::Float(FloatTy::F32)),
-            "f64" => Some(Ty::Float(FloatTy::F64)),
-            "String" => Some(Ty::String),
+        let kind = match &token.symbol.to_string()[..] {
+            "_" => TyKind::Infer,
+            "i16" => TyKind::Ident(token),
             _ => {
-                self.handler.report(start.span, "Unknown type");
-                None
+                self.handler.report(token.span, "Unknown type");
+                TyKind::Err
             }
-        }
+        };
+
+        Some(Ty { span, kind })
     }
 
     fn synchronize(&mut self) {
@@ -482,16 +317,6 @@ impl Parser {
 
     fn consume(&mut self, kind: TokenKind, msg: &'static str) -> Option<Token> {
         if self.check(kind) {
-            self.advance();
-            return Some(self.prev().clone());
-        }
-
-        self.handler.report(self.peek().span, msg);
-        None
-    }
-
-    fn consume2(&mut self, kind: TokenKind, kind2: TokenKind, msg: &'static str) -> Option<Token> {
-        if self.check(kind) || self.check(kind2) {
             self.advance();
             return Some(self.prev().clone());
         }

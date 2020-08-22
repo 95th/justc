@@ -1,8 +1,6 @@
 use crate::lex::Span;
 use std::{cell::Cell, rc::Rc};
 
-pub type Result<T> = anyhow::Result<T>;
-
 pub struct Handler {
     src: Rc<String>,
     had_errors: Cell<bool>,
