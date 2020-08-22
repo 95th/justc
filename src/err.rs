@@ -19,11 +19,8 @@ impl Handler {
     pub fn report(&self, mut span: Span, msg: &str) {
         self.had_errors.set(true);
 
-        if span.hi >= self.src.len() {
-            span = Span {
-                lo: self.src.len() - 1,
-                hi: self.src.len(),
-            };
+        if span.hi() >= self.src.len() {
+            span = Span::new(self.src.len() - 1, self.src.len());
         }
 
         let lo = self.line_start(span);
@@ -32,8 +29,8 @@ impl Handler {
         println!("{}", line);
         println!(
             "{}{} {}",
-            " ".repeat(span.lo - lo),
-            "^".repeat(span.hi.min(hi) - span.lo),
+            " ".repeat(span.lo() - lo),
+            "^".repeat(span.hi().min(hi) - span.lo()),
             msg
         );
     }
@@ -43,7 +40,7 @@ impl Handler {
     }
 
     fn line_start(&self, span: Span) -> usize {
-        let mut i = span.lo;
+        let mut i = span.lo();
         while i > 0 && self.src.as_bytes()[i] != b'\n' {
             i -= 1;
         }
@@ -51,7 +48,7 @@ impl Handler {
     }
 
     fn line_end(&self, span: Span) -> usize {
-        let mut i = span.lo;
+        let mut i = span.lo();
         while i < self.src.len() && self.src.as_bytes()[i] != b'\n' {
             i += 1;
         }

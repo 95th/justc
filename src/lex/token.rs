@@ -1,10 +1,5 @@
+use crate::lex::Span;
 use crate::symbol::Symbol;
-
-#[derive(Debug, Default, Copy, Clone)]
-pub struct Span {
-    pub lo: usize,
-    pub hi: usize,
-}
 
 #[derive(Debug, Clone)]
 pub struct Token {
@@ -22,7 +17,7 @@ impl Token {
         Self {
             kind: TokenKind::Eof,
             symbol: Symbol::intern(""),
-            span: Span { lo: 0, hi: 0 },
+            span: Span::DUMMY,
         }
     }
 }

@@ -149,10 +149,7 @@ impl Lexer {
     }
 
     fn mk_span(&self) -> Span {
-        Span {
-            lo: self.start_pos,
-            hi: self.pos,
-        }
+        Span::new(self.start_pos, self.pos)
     }
 
     fn mk_symbol(&self) -> Symbol {

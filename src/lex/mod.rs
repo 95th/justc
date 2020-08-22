@@ -1,5 +1,7 @@
 mod scan;
+mod span;
 mod token;
 
 pub use scan::Lexer;
-pub use token::{Span, Token, TokenKind};
+pub use span::Span;
+pub use token::{Token, TokenKind};

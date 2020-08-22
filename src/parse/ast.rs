@@ -3,17 +3,22 @@ use std::{fmt, rc::Rc};
 
 #[derive(Debug)]
 pub enum BinOp {
+    // Math
     Add,
     Sub,
     Mul,
     Div,
     Rem,
+
+    // Comparisons
     Lt,
     Gt,
     Le,
     Ge,
     Ne,
     Eq,
+
+    // Logical
     And,
     Or,
 }
