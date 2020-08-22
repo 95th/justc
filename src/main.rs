@@ -1,4 +1,4 @@
-use justc::{args::Args, Compiler};
+use justc::{Args, Compiler};
 use rustyline::Editor;
 use std::{fs, path::PathBuf};
 

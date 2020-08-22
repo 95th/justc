@@ -4,18 +4,15 @@ extern crate anyhow;
 use self::{err::Handler, parse::Parser};
 use std::rc::Rc;
 use typeck::TyContext;
+pub use util::Args;
 
-pub mod args;
-mod ast;
 mod err;
 mod eval;
-mod ondrop;
+mod lex;
 mod parse;
-mod scan;
 mod symbol;
-mod table;
-mod token;
 mod typeck;
+mod util;
 
 pub struct Compiler {}
 

@@ -1,4 +1,4 @@
-use crate::token::Span;
+use crate::lex::Span;
 use std::{cell::Cell, rc::Rc};
 
 pub type Result<T> = anyhow::Result<T>;

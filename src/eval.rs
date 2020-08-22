@@ -1,9 +1,9 @@
 use crate::{
-    ast::{BinOp, Expr, Lit, Stmt, UnOp},
     err::Result,
-    ondrop::OnDrop,
+    lex::Token,
+    parse::ast::{BinOp, Expr, Lit, Stmt, UnOp},
     symbol::Symbol,
-    token::Token,
+    util::OnDrop,
 };
 use std::{collections::HashMap, mem};
 

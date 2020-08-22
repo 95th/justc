@@ -1,8 +1,8 @@
 use crate::{
-    ast::{BinOp, Expr, FloatTy, Lit, Stmt, Ty, UnOp},
     err::Result,
-    ondrop::OnDrop,
-    table::SymbolTable,
+    parse::ast::{BinOp, Expr, FloatTy, Lit, Stmt, Ty, UnOp},
+    symbol::SymbolTable,
+    util::OnDrop,
 };
 
 #[derive(Default)]

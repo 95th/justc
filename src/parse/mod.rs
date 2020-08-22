@@ -1,9 +1,10 @@
+pub mod ast;
+
 use crate::{
-    ast::{BinOp, Expr, FloatTy, Function, IntTy, Lit, Param, Stmt, Ty, UnOp},
     err::Handler,
-    scan::Lexer,
-    token::{Token, TokenKind, TokenKind::*},
+    lex::{Lexer, Token, TokenKind, TokenKind::*},
 };
+use ast::{BinOp, Expr, FloatTy, Function, IntTy, Lit, Param, Stmt, Ty, UnOp};
 use std::rc::Rc;
 
 pub struct Parser {

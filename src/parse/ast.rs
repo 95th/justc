@@ -1,4 +1,4 @@
-use crate::{err::Result, eval::Interpreter, token::Token};
+use crate::{err::Result, eval::Interpreter, lex::Token};
 use std::{fmt, rc::Rc};
 
 #[derive(Debug)]

@@ -1,7 +1,7 @@
 use crate::{
     err::Handler,
+    lex::{Span, Token, TokenKind, TokenKind::*},
     symbol::Symbol,
-    token::{Span, Token, TokenKind, TokenKind::*},
 };
 use std::{collections::HashMap, rc::Rc};
 
