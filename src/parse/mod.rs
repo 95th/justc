@@ -29,18 +29,13 @@ impl Parser {
     pub fn parse(&mut self) -> Option<Vec<Stmt>> {
         let mut stmts = vec![];
         while !self.eof() {
-            stmts.push(self.decl()?);
+            stmts.push(self.stmt()?);
         }
         Some(stmts)
     }
 
-    fn decl(&mut self) -> Option<Stmt> {
-        let stmt = if self.eat(Let) {
-            self.let_decl()
-        } else {
-            self.stmt()
-        };
-        match stmt {
+    fn stmt(&mut self) -> Option<Stmt> {
+        match self.full_stmt_without_recovery() {
             Some(s) => Some(s),
             None => {
                 self.synchronize();
@@ -49,8 +44,10 @@ impl Parser {
         }
     }
 
-    fn stmt(&mut self) -> Option<Stmt> {
-        if self.eat(OpenBrace) {
+    fn full_stmt_without_recovery(&mut self) -> Option<Stmt> {
+        if self.eat(Let) {
+            self.let_decl()
+        } else if self.eat(OpenBrace) {
             let lo = self.prev.span;
             let block = self.block()?;
 
@@ -68,8 +65,14 @@ impl Parser {
     fn block(&mut self) -> Option<Block> {
         let mut stmts = vec![];
         while !self.check(CloseBrace) && !self.eof() {
-            if let Some(s) = self.decl() {
-                stmts.push(s);
+            let s = self.full_stmt_without_recovery()?;
+            let last_stmt = matches!(s, Stmt::Expr(_));
+            stmts.push(s);
+
+            // If statement was an expression without ';',
+            // then it must be the last one in this block
+            if last_stmt {
+                break;
             }
         }
         self.consume(CloseBrace, "Expect '}' after block.")?;
@@ -107,8 +110,11 @@ impl Parser {
                 return None;
             }
         }
-        self.consume(SemiColon, "Expect ';' after value.")?;
-        Some(Stmt::Expr(expr))
+        if self.eat(SemiColon) {
+            Some(Stmt::SemiExpr(expr))
+        } else {
+            Some(Stmt::Expr(expr))
+        }
     }
 
     fn expr(&mut self) -> Option<Box<Expr>> {
@@ -315,6 +321,25 @@ impl Parser {
 
             return Some(Box::new(Expr {
                 kind: ExprKind::Block(block),
+                span,
+            }));
+        } else if self.eat(If) {
+            let lo = self.prev.span;
+            let cond = self.expr()?;
+            self.consume(OpenBrace, "Expect '{' after if condition")?;
+            let then_clause = self.block()?;
+            let mut else_clause = None;
+            if self.eat(Else) {
+                self.consume(OpenBrace, "Expect '{' after else")?;
+                else_clause = Some(self.block()?);
+            }
+            let span = lo.to(self.prev.span);
+            return Some(Box::new(Expr {
+                kind: ExprKind::If {
+                    cond,
+                    then_clause,
+                    else_clause,
+                },
                 span,
             }));
         } else {

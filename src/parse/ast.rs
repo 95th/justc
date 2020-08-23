@@ -91,11 +91,18 @@ pub enum ExprKind {
     },
     Variable(Token),
     Block(Block),
+    If {
+        cond: Box<Expr>,
+        then_clause: Block,
+        else_clause: Option<Block>,
+    },
 }
 
 #[derive(Debug)]
 pub enum Stmt {
     Expr(Box<Expr>),
+    // Semicolon terminated Expr statement
+    SemiExpr(Box<Expr>),
     Let {
         name: Token,
         ty: Option<Ty>,
