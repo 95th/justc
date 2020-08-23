@@ -1,7 +1,7 @@
 use crate::lex::Span;
 use crate::symbol::Symbol;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Token {
     pub kind: TokenKind,
     pub symbol: Symbol,

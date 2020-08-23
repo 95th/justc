@@ -4,7 +4,7 @@ use crate::{
 };
 use std::fmt;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum BinOp {
     // Math
     Add,
@@ -46,7 +46,7 @@ impl fmt::Display for BinOp {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum UnOp {
     Not,
     Neg,
@@ -61,7 +61,7 @@ impl fmt::Display for UnOp {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Lit {
     Str(Symbol),
     Integer(i64),
@@ -70,13 +70,13 @@ pub enum Lit {
     Err,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Expr {
     pub kind: ExprKind,
     pub span: Span,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ExprKind {
     Binary {
         op: BinOp,
@@ -98,7 +98,7 @@ pub enum ExprKind {
     },
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Stmt {
     Expr(Box<Expr>),
     // Semicolon terminated Expr statement
@@ -114,7 +114,7 @@ pub enum Stmt {
     },
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, PartialEq)]
 pub struct Block {
     pub stmts: Vec<Stmt>,
 }
@@ -125,13 +125,13 @@ impl From<Stmt> for Block {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Ty {
     pub kind: TyKind,
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TyKind {
     Ident(Token),
     Infer,

@@ -410,3 +410,75 @@ impl Parser {
         self.curr.kind == Eof
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lex::Span;
+
+    fn parse(src: &str) -> Vec<Stmt> {
+        let src = Rc::new(String::from(src));
+        let handler = Rc::new(Handler::new(&src));
+        let mut parser = Parser::new(src, &handler);
+        parser.parse().unwrap()
+    }
+
+    macro_rules! expr {
+        ($kind:expr, ($lo:expr, $hi:expr)) => {
+            Box::new(Expr {
+                kind: $kind,
+                span: Span::new($lo, $hi),
+            })
+        };
+    }
+
+    macro_rules! litint {
+        ($val:literal, ($lo:expr, $hi:expr)) => {
+            expr!(ExprKind::Literal(Lit::Integer($val)), ($lo, $hi))
+        };
+    }
+
+    macro_rules! binop {
+        ($op:ident, $left:expr, $right:expr, ($lo:expr, $hi:expr)) => {
+            expr!(
+                ExprKind::Binary {
+                    op: BinOp::$op,
+                    left: $left,
+                    right: $right,
+                },
+                ($lo, $hi)
+            )
+        };
+    }
+
+    #[test]
+    fn add() {
+        assert_eq!(
+            parse("1 + 1"),
+            vec![Stmt::Expr(binop!(
+                Add,
+                litint!(1, (0, 1)),
+                litint!(1, (4, 5)),
+                (0, 5)
+            ))]
+        );
+    }
+
+    #[test]
+    fn combine() {
+        assert_eq!(
+            parse("1 * 1 - 1 / 1 + 1"),
+            vec![Stmt::Expr(binop!(
+                Add,
+                binop!(
+                    Sub,
+                    binop!(Mul, litint!(1, (0, 1)), litint!(1, (4, 5)), (0, 5)),
+                    binop!(Div, litint!(1, (8, 9)), litint!(1, (12, 13)), (8, 13)),
+                    (0, 13)
+                ),
+                litint!(1, (16, 17)),
+                (0, 17)
+            ))]
+        );
+    }
+}
