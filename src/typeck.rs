@@ -52,6 +52,7 @@ impl TyCtxt {
         }
     }
 
+    #[allow(unused)]
     pub fn new_ty(&mut self, kind: TyKind) -> Ty {
         let idx = self.types.len();
         self.types.push(kind);
@@ -75,41 +76,42 @@ impl TyCtxt {
                 self.check_expr(e, bindings)?;
             }
             Stmt::Let { name, ty, init } => {
+                let init_ty = init.as_ref().map(|init| self.check_expr(init, bindings))?;
+
                 let ty = match ty.as_ref() {
-                    Some(ty) => ty,
-                    None => {
-                        self.handler
-                            .report(name.span, "Inference is not implemented yet");
-                        return None;
-                    }
-                };
+                    Some(ast::Ty {
+                        kind: ast::TyKind::Ident(token),
+                        ..
+                    }) => {
+                        let ty = token.symbol.as_str_with(|s| match s {
+                            "bool" => Some(self.common.boolean),
+                            "int" => Some(self.common.int),
+                            "str" => Some(self.common.str),
+                            "float" => Some(self.common.float),
+                            _ => {
+                                self.handler.report(token.span, "Unknown type");
+                                None
+                            }
+                        })?;
 
-                let ty = match &ty.kind {
-                    ast::TyKind::Ident(token) => token.symbol.as_str_with(|s| match s {
-                        "bool" => Some(self.common.boolean),
-                        "int" => Some(self.common.int),
-                        "str" => Some(self.common.str),
-                        "float" => Some(self.common.float),
-                        _ => {
-                            self.handler.report(token.span, "Unknown type");
-                            None
+                        if let Some(init_ty) = init_ty {
+                            if ty != init_ty {
+                                self.handler.report(name.span, "Type mismatch in let");
+                                return None;
+                            }
                         }
-                    })?,
-                    ast::TyKind::Infer => {
-                        self.handler
-                            .report(name.span, "Inference is not implemented yet");
-                        return None;
+
+                        Some(ty)
                     }
+                    _ => init_ty,
                 };
 
-                if let Some(init) = init {
-                    let init_ty = self.check_expr(init, bindings)?;
-                    if init_ty != ty {
-                        self.handler.report(init.span, "Type mismatch in let");
-                        return None;
-                    }
+                if let Some(ty) = ty {
+                    bindings.insert(name.symbol, ty);
+                } else {
+                    self.handler.report(name.span, "Cannot infer type");
+                    return None;
                 }
-                bindings.insert(name.symbol, ty);
             }
             Stmt::Assign { name, val } => {
                 let val_ty = self.check_expr(val, bindings)?;
