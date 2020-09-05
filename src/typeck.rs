@@ -76,7 +76,10 @@ impl TyCtxt {
                 self.check_expr(e, bindings)?;
             }
             Stmt::Let { name, ty, init } => {
-                let init_ty = init.as_ref().map(|init| self.check_expr(init, bindings))?;
+                let init_ty = match init.as_ref() {
+                    Some(init) => Some(self.check_expr(init, bindings)?),
+                    None => None,
+                };
 
                 let ty = match ty.as_ref() {
                     Some(ast::Ty {
