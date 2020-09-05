@@ -89,6 +89,7 @@ impl TyCtxt {
                         "bool" => Some(self.common.boolean),
                         "int" => Some(self.common.int),
                         "str" => Some(self.common.str),
+                        "float" => Some(self.common.float),
                         _ => {
                             self.handler.report(token.span, "Unknown type");
                             None

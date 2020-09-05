@@ -1,7 +1,5 @@
-let a: int = {
-    let b: int = 10;
-    b = if b > 1 { b + 1 } else { 1 };
+let a: float = {
+    let b: float = 10.0;
+    b = if b > 1.0 { b + 1.0 } else { 1.0 };
     b
 };
-
-a = b + 1;
