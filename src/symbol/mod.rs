@@ -1,5 +1,3 @@
-#![allow(unused)]
-
 mod symbol;
 mod table;
 

@@ -1,7 +1,7 @@
 use crate::{
     err::Handler,
     parse::ast::{self, BinOp, Block, Expr, ExprKind, Lit, Stmt},
-    scope::Bindings,
+    symbol::SymbolTable,
 };
 use std::rc::Rc;
 
@@ -63,14 +63,14 @@ impl TyCtxt {
         &self.types[t]
     }
 
-    pub fn check_stmts(&mut self, stmts: &[Stmt], bindings: &mut Bindings) -> Option<()> {
+    pub fn check_stmts(&mut self, stmts: &[Stmt], bindings: &mut SymbolTable<Ty>) -> Option<()> {
         for stmt in stmts {
             self.check_stmt(stmt, bindings)?;
         }
         Some(())
     }
 
-    fn check_stmt(&mut self, stmt: &Stmt, bindings: &mut Bindings) -> Option<()> {
+    fn check_stmt(&mut self, stmt: &Stmt, bindings: &mut SymbolTable<Ty>) -> Option<()> {
         match stmt {
             Stmt::Expr(e) | Stmt::SemiExpr(e) => {
                 self.check_expr(e, bindings)?;
@@ -119,7 +119,7 @@ impl TyCtxt {
             Stmt::Assign { name, val } => {
                 let val_ty = self.check_expr(val, bindings)?;
                 let name_ty = match bindings.get(&name.symbol) {
-                    Some(t) => t,
+                    Some(t) => *t,
                     None => {
                         self.handler.report(name.span, "Undefined variable");
                         return None;
@@ -135,7 +135,7 @@ impl TyCtxt {
         Some(())
     }
 
-    fn check_expr(&mut self, expr: &Expr, bindings: &mut Bindings) -> Option<Ty> {
+    fn check_expr(&mut self, expr: &Expr, bindings: &mut SymbolTable<Ty>) -> Option<Ty> {
         match &expr.kind {
             ExprKind::Binary { op, left, right } => match op {
                 BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Rem => {
@@ -234,7 +234,7 @@ impl TyCtxt {
             },
             ExprKind::Unary { expr, .. } => self.check_expr(expr, bindings),
             ExprKind::Variable(token) => match bindings.get(&token.symbol) {
-                Some(t) => Some(t),
+                Some(t) => Some(*t),
                 None => {
                     self.handler.report(token.span, "Undefined variable");
                     None
@@ -269,7 +269,7 @@ impl TyCtxt {
         }
     }
 
-    fn check_block(&mut self, block: &Block, bindings: &mut Bindings) -> Option<Ty> {
+    fn check_block(&mut self, block: &Block, bindings: &mut SymbolTable<Ty>) -> Option<Ty> {
         bindings.enter(|bindings| match &block.stmts[..] {
             [] => Some(self.common.unit),
             [rest @ .., last] => {

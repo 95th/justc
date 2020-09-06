@@ -1,13 +1,12 @@
 use self::{err::Handler, parse::Parser};
-use scope::Bindings;
 use std::rc::Rc;
+use symbol::SymbolTable;
 use typeck::TyCtxt;
 pub use util::Args;
 
 mod err;
 mod lex;
 mod parse;
-mod scope;
 mod symbol;
 mod typeck;
 mod util;
@@ -28,7 +27,7 @@ impl Compiler {
             None => return,
         };
 
-        let bindings = &mut Bindings::new();
+        let bindings = &mut SymbolTable::new();
         let tcx = &mut TyCtxt::new(&handler);
         tcx.check_stmts(&stmts, bindings);
 
