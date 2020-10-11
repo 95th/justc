@@ -17,7 +17,7 @@ impl Handler {
     pub fn report(&self, mut span: Span, msg: &str) {
         self.had_errors.set(true);
 
-        if span.hi() >= self.src.len() {
+        if span.lo() >= self.src.len() {
             span = Span::new(self.src.len() - 1, self.src.len());
         }
 

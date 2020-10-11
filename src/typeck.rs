@@ -276,7 +276,10 @@ impl TyCtxt {
                 self.check_stmts(rest, bindings)?;
                 match last {
                     Stmt::Expr(e) => self.check_expr(e, bindings),
-                    _ => Some(self.common.unit),
+                    _ => {
+                        self.check_stmt(last, bindings)?;
+                        Some(self.common.unit)
+                    }
                 }
             }
         })

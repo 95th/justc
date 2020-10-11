@@ -1,3 +1,4 @@
-let b;
-b = 1;
-b = true;
+{
+    let a = 10;
+    a = false;
+}
