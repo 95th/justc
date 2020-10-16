@@ -109,7 +109,7 @@ pub enum Stmt {
         init: Option<Box<Expr>>,
     },
     Assign {
-        name: Token,
+        name: Box<Expr>,
         val: Box<Expr>,
     },
 }

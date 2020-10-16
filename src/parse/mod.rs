@@ -101,10 +101,10 @@ impl Parser {
         let expr = self.expr()?;
 
         if self.eat(Eq) {
-            if let ExprKind::Variable(name) = expr.kind {
+            if let ExprKind::Variable(_) = expr.kind {
                 let val = self.expr()?;
                 self.consume(SemiColon, "Expect ';' after assignment.")?;
-                return Some(Stmt::Assign { name, val });
+                return Some(Stmt::Assign { name: expr, val });
             } else {
                 self.handler.report(expr.span, "Invalid assignment target.");
                 return None;

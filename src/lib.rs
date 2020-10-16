@@ -1,7 +1,5 @@
 use self::{err::Handler, parse::Parser};
 use std::rc::Rc;
-use symbol::SymbolTable;
-use typeck::TyCtxt;
 pub use util::Args;
 
 mod err;
@@ -27,9 +25,21 @@ impl Compiler {
             None => return,
         };
 
-        let bindings = &mut SymbolTable::new();
-        let tcx = &mut TyCtxt::new(&handler);
-        tcx.check_stmts(&stmts, bindings);
+        // let bindings = &mut SymbolTable::new();
+        // let tcx = &mut TyCtxt::new(&handler);
+        // tcx.check_stmts(&stmts, bindings);
+
+        let mut stmts = crate::typeck::annotate::annotate(stmts);
+
+        let mut constraints = crate::typeck::constraints::collect(&mut stmts)
+            .into_iter()
+            .collect::<Vec<_>>();
+
+        let subst = crate::typeck::unify::unify(&mut constraints);
+        dbg!(&subst);
+
+        subst.fill_ast(&mut stmts);
+        dbg!(&stmts);
 
         if handler.has_errors() {
             return;
