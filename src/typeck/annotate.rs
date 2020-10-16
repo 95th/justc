@@ -1,4 +1,4 @@
-use crate::parse::ast::{Block, Expr, ExprKind, Lit, Stmt};
+use crate::parse::ast::{self, Block, Expr, ExprKind, Lit, Stmt};
 
 use super::{
     ty::Ty, ty::TyEnv, typed_ast::TypedBlock, typed_ast::TypedExpr, typed_ast::TypedExprKind,
@@ -18,13 +18,29 @@ fn annotate_stmt(stmt: Stmt, env: &mut TyEnv) -> TypedStmt {
     match stmt {
         Stmt::Expr(e) => TypedStmt::Expr(annotate_expr(e, env)),
         Stmt::SemiExpr(e) => TypedStmt::SemiExpr(annotate_expr(e, env)),
-        Stmt::Let { name, init, .. } => {
+        Stmt::Let { name, init, ty } => {
             let init = init.map(|e| annotate_expr(e, env));
-            let new_ty = env.new_var();
-            env.define(name.symbol, new_ty.clone());
+
+            let let_ty = if let Some(ty) = ty {
+                match ty.kind {
+                    ast::TyKind::Ident(t) => t.symbol.as_str_with(|s| match s {
+                        "bool" => Ty::Bool,
+                        "int" => Ty::Int,
+                        "str" => Ty::Str,
+                        "float" => Ty::Float,
+                        _ => panic!("Unknown type: {}", s),
+                    }),
+                    ast::TyKind::Infer => env.new_var(),
+                }
+            } else {
+                env.new_var()
+            };
+
+            env.define(name.symbol, let_ty.clone());
+
             TypedStmt::Let {
                 name,
-                ty: new_ty,
+                ty: let_ty,
                 init,
             }
         }

@@ -25,10 +25,6 @@ impl Compiler {
             None => return,
         };
 
-        // let bindings = &mut SymbolTable::new();
-        // let tcx = &mut TyCtxt::new(&handler);
-        // tcx.check_stmts(&stmts, bindings);
-
         let mut stmts = crate::typeck::annotate::annotate(stmts);
 
         let mut constraints = crate::typeck::constraints::collect(&mut stmts)
