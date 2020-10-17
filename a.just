@@ -1,5 +1,8 @@
-let a = {
-    let a = 10;
-    let b = 20;
-    if a > b { a } else { a + b }
-};
+let a = 10;
+let b = true;
+let c = "hello";
+if b {
+    c
+} else {
+    a
+}

@@ -1,25 +1,36 @@
-use crate::parse::ast::{self, Block, Expr, ExprKind, Lit, Stmt};
+use crate::{
+    parse::ast::{self, Block, Expr, ExprKind, Lit, Stmt},
+    symbol::SymbolTable,
+};
 
 use super::{
-    ty::Ty, ty::TyEnv, typed_ast::TypedBlock, typed_ast::TypedExpr, typed_ast::TypedExprKind,
+    ty::Ty, ty::TyContext, typed_ast::TypedBlock, typed_ast::TypedExpr, typed_ast::TypedExprKind,
     typed_ast::TypedStmt,
 };
 
 pub fn annotate(ast: Vec<Stmt>) -> Vec<TypedStmt> {
-    let mut env = TyEnv::new();
-    annotate_stmts(ast, &mut env)
+    let mut env = TyContext::new();
+    let mut bindings = SymbolTable::new();
+    annotate_stmts(ast, &mut env, &mut bindings)
 }
 
-fn annotate_stmts(stmts: Vec<Stmt>, env: &mut TyEnv) -> Vec<TypedStmt> {
-    stmts.into_iter().map(|s| annotate_stmt(s, env)).collect()
+fn annotate_stmts(
+    stmts: Vec<Stmt>,
+    env: &mut TyContext,
+    bindings: &mut SymbolTable<Ty>,
+) -> Vec<TypedStmt> {
+    stmts
+        .into_iter()
+        .map(|s| annotate_stmt(s, env, bindings))
+        .collect()
 }
 
-fn annotate_stmt(stmt: Stmt, env: &mut TyEnv) -> TypedStmt {
+fn annotate_stmt(stmt: Stmt, env: &mut TyContext, bindings: &mut SymbolTable<Ty>) -> TypedStmt {
     match stmt {
-        Stmt::Expr(e) => TypedStmt::Expr(annotate_expr(e, env)),
-        Stmt::SemiExpr(e) => TypedStmt::SemiExpr(annotate_expr(e, env)),
+        Stmt::Expr(e) => TypedStmt::Expr(annotate_expr(e, env, bindings)),
+        Stmt::SemiExpr(e) => TypedStmt::SemiExpr(annotate_expr(e, env, bindings)),
         Stmt::Let { name, init, ty } => {
-            let init = init.map(|e| annotate_expr(e, env));
+            let init = init.map(|e| annotate_expr(e, env, bindings));
 
             let let_ty = if let Some(ty) = ty {
                 match ty.kind {
@@ -36,7 +47,7 @@ fn annotate_stmt(stmt: Stmt, env: &mut TyEnv) -> TypedStmt {
                 env.new_var()
             };
 
-            env.define(name.symbol, let_ty.clone());
+            bindings.insert(name.symbol, let_ty.clone());
 
             TypedStmt::Let {
                 name,
@@ -45,21 +56,25 @@ fn annotate_stmt(stmt: Stmt, env: &mut TyEnv) -> TypedStmt {
             }
         }
         Stmt::Assign { name, val } => TypedStmt::Assign {
-            name: annotate_expr(name, env),
-            val: annotate_expr(val, env),
+            name: annotate_expr(name, env, bindings),
+            val: annotate_expr(val, env, bindings),
         },
     }
 }
 
-fn annotate_expr(expr: Box<Expr>, env: &mut TyEnv) -> Box<TypedExpr> {
+fn annotate_expr(
+    expr: Box<Expr>,
+    env: &mut TyContext,
+    bindings: &mut SymbolTable<Ty>,
+) -> Box<TypedExpr> {
     let (kind, span) = (expr.kind, expr.span);
     let kind = match kind {
         ExprKind::Binary { op, left, right } => TypedExprKind::Binary {
             op,
-            left: annotate_expr(left, env),
-            right: annotate_expr(right, env),
+            left: annotate_expr(left, env, bindings),
+            right: annotate_expr(right, env, bindings),
         },
-        ExprKind::Grouping(e) => TypedExprKind::Grouping(annotate_expr(e, env)),
+        ExprKind::Grouping(e) => TypedExprKind::Grouping(annotate_expr(e, env, bindings)),
         ExprKind::Literal(lit) => {
             let ty = match &lit {
                 Lit::Str(_) => Ty::Str,
@@ -72,21 +87,21 @@ fn annotate_expr(expr: Box<Expr>, env: &mut TyEnv) -> Box<TypedExpr> {
         }
         ExprKind::Unary { op, expr } => TypedExprKind::Unary {
             op,
-            expr: annotate_expr(expr, env),
+            expr: annotate_expr(expr, env, bindings),
         },
-        ExprKind::Variable(t) => match env.lookup(t.symbol) {
+        ExprKind::Variable(t) => match bindings.get(&t.symbol) {
             Some(ty) => TypedExprKind::Variable(t, ty.clone()),
             None => panic!("Undefined variable: {}", t.symbol),
         },
-        ExprKind::Block(block) => TypedExprKind::Block(annotate_block(block, env)),
+        ExprKind::Block(block) => TypedExprKind::Block(annotate_block(block, env, bindings)),
         ExprKind::If {
             cond,
             then_clause,
             else_clause,
         } => TypedExprKind::If {
-            cond: annotate_expr(cond, env),
-            then_clause: annotate_block(then_clause, env),
-            else_clause: else_clause.map(|e| annotate_block(e, env)),
+            cond: annotate_expr(cond, env, bindings),
+            then_clause: annotate_block(then_clause, env, bindings),
+            else_clause: else_clause.map(|e| annotate_block(e, env, bindings)),
         },
     };
     Box::new(TypedExpr {
@@ -96,9 +111,9 @@ fn annotate_expr(expr: Box<Expr>, env: &mut TyEnv) -> Box<TypedExpr> {
     })
 }
 
-fn annotate_block(block: Block, env: &mut TyEnv) -> TypedBlock {
-    env.in_scope(|env| TypedBlock {
-        stmts: annotate_stmts(block.stmts, env),
+fn annotate_block(block: Block, env: &mut TyContext, bindings: &mut SymbolTable<Ty>) -> TypedBlock {
+    bindings.enter(|bindings| TypedBlock {
+        stmts: annotate_stmts(block.stmts, env, bindings),
         ty: env.new_var(),
     })
 }
