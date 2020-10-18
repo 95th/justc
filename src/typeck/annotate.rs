@@ -93,7 +93,7 @@ impl<'a> Annotate<'a> {
                 right: self.annotate_expr(right)?,
             },
             ExprKind::Grouping(e) => TypedExprKind::Grouping(self.annotate_expr(e)?),
-            ExprKind::Literal(lit) => {
+            ExprKind::Literal(lit, span) => {
                 let ty = match &lit {
                     Lit::Str(_) => Ty::Str,
                     Lit::Integer(_) => Ty::Int,
@@ -101,7 +101,7 @@ impl<'a> Annotate<'a> {
                     Lit::Bool(_) => Ty::Bool,
                     Lit::Err => self.env.new_var(),
                 };
-                TypedExprKind::Literal(lit, ty)
+                TypedExprKind::Literal(lit, ty, span)
             }
             ExprKind::Unary { op, expr } => TypedExprKind::Unary {
                 op,
@@ -143,6 +143,7 @@ impl<'a> Annotate<'a> {
             Some(TypedBlock {
                 stmts: annotate.annotate_stmts(block.stmts)?,
                 ty: env.new_var(),
+                span: block.span,
             })
         })
     }

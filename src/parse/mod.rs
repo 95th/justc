@@ -63,6 +63,7 @@ impl Parser {
     }
 
     fn block(&mut self) -> Option<Block> {
+        let lo = self.prev.span;
         let mut stmts = vec![];
         while !self.check(CloseBrace) && !self.eof() {
             let s = self.full_stmt_without_recovery()?;
@@ -76,7 +77,8 @@ impl Parser {
             }
         }
         self.consume(CloseBrace, "Expect '}' after block.")?;
-        Some(Block { stmts })
+        let span = lo.to(self.prev.span);
+        Some(Block { stmts, span })
     }
 
     fn let_decl(&mut self) -> Option<Stmt> {
@@ -348,7 +350,7 @@ impl Parser {
         };
 
         Some(Box::new(Expr {
-            kind: ExprKind::Literal(lit),
+            kind: ExprKind::Literal(lit, self.prev.span),
             span: self.prev.span,
         }))
     }
@@ -434,7 +436,10 @@ mod tests {
 
     macro_rules! litint {
         ($val:literal, ($lo:expr, $hi:expr)) => {
-            expr!(ExprKind::Literal(Lit::Integer($val)), ($lo, $hi))
+            expr!(
+                ExprKind::Literal(Lit::Integer($val), Span::DUMMY),
+                ($lo, $hi)
+            )
         };
     }
 

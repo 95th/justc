@@ -1,46 +1,74 @@
 use std::collections::HashMap;
 
+use crate::{err::Handler, lex::Span};
+
 use super::{
     constraints::Constraint, ty::Ty, typed_ast::TypedBlock, typed_ast::TypedExpr,
     typed_ast::TypedExprKind, typed_ast::TypedStmt,
 };
 
-pub fn unify(constraints: &mut [Constraint]) -> Substitution {
-    match constraints {
-        [] => Substitution::new(),
-        [head, tail @ ..] => {
-            let mut subst = unify_one(head);
-            subst.apply(tail);
-            let subst_tail = unify(tail);
-            subst.compose(subst_tail);
-            subst
-        }
-    }
+pub fn unify(constraints: &mut [Constraint], handler: &Handler) -> Option<Substitution> {
+    Unify::new(handler).unify(constraints)
 }
 
-fn unify_one(constraint: &mut Constraint) -> Substitution {
-    match constraint {
-        Constraint(Ty::Int, Ty::Int)
-        | Constraint(Ty::Bool, Ty::Bool)
-        | Constraint(Ty::Float, Ty::Float)
-        | Constraint(Ty::Unit, Ty::Unit)
-        | Constraint(Ty::Str, Ty::Str) => Substitution::new(),
-        Constraint(Ty::Var(tvar), ty) | Constraint(ty, Ty::Var(tvar)) => unify_var(*tvar, ty),
-        Constraint(a, b) => panic!("Cannot unify type {:?} with {:?}", a, b),
-    }
+struct Unify<'a> {
+    handler: &'a Handler,
 }
 
-fn unify_var(tvar: u64, ty: &Ty) -> Substitution {
-    match ty {
-        Ty::Var(tvar2) => {
-            if tvar == *tvar2 {
-                Substitution::new()
-            } else {
-                Substitution::from_pair(tvar, ty)
+impl<'a> Unify<'a> {
+    fn new(handler: &'a Handler) -> Self {
+        Self { handler }
+    }
+
+    fn unify(&self, constraints: &mut [Constraint]) -> Option<Substitution> {
+        match constraints {
+            [] => Some(Substitution::new()),
+            [head, tail @ ..] => {
+                let mut subst = self.unify_one(head)?;
+                subst.apply(tail);
+                let subst_tail = self.unify(tail)?;
+                subst.compose(subst_tail);
+                Some(subst)
             }
         }
-        ty if occurs(tvar, ty) => panic!("Circular use: {} occurs in {:?}", tvar, ty),
-        ty => Substitution::from_pair(tvar, ty),
+    }
+
+    fn unify_one(&self, constraint: &mut Constraint) -> Option<Substitution> {
+        let Constraint { a, b, .. } = constraint;
+        match (a, b) {
+            (Ty::Int, Ty::Int)
+            | (Ty::Bool, Ty::Bool)
+            | (Ty::Float, Ty::Float)
+            | (Ty::Unit, Ty::Unit)
+            | (Ty::Str, Ty::Str) => Some(Substitution::new()),
+            (Ty::Var(tvar), ref mut ty) => self.unify_var(*tvar, ty, constraint.span_b),
+            (ref mut ty, Ty::Var(tvar)) => self.unify_var(*tvar, ty, constraint.span_a),
+            (a, b) => {
+                self.handler.report(
+                    constraint.span_b,
+                    &format!("Type mismatch: Expected: {:?}, Actual: {:?}", a, b),
+                );
+                None
+            }
+        }
+    }
+
+    fn unify_var(&self, tvar: u64, ty: &Ty, span: Span) -> Option<Substitution> {
+        match ty {
+            Ty::Var(tvar2) => {
+                if tvar == *tvar2 {
+                    Some(Substitution::new())
+                } else {
+                    Some(Substitution::from_pair(tvar, ty))
+                }
+            }
+            ty if occurs(tvar, ty) => {
+                self.handler
+                    .report(span, &format!("Type is of infinite size: {:?}", ty));
+                None
+            }
+            ty => Some(Substitution::from_pair(tvar, ty)),
+        }
     }
 }
 
@@ -82,9 +110,8 @@ impl Substitution {
     }
 
     fn apply_one(&self, constraint: &mut Constraint) {
-        let Constraint(a, b) = constraint;
-        self.apply_ty(a);
-        self.apply_ty(b);
+        self.apply_ty(&mut constraint.a);
+        self.apply_ty(&mut constraint.b);
     }
 
     fn apply_ty(&self, ty: &mut Ty) {
@@ -124,7 +151,7 @@ impl Substitution {
             TypedExprKind::Grouping(expr) | TypedExprKind::Unary { expr, .. } => {
                 self.fill_expr(expr)
             }
-            TypedExprKind::Literal(_, ty) | TypedExprKind::Variable(_, ty) => self.fill_ty(ty),
+            TypedExprKind::Literal(_, ty, _) | TypedExprKind::Variable(_, ty) => self.fill_ty(ty),
             TypedExprKind::Block(block) => self.fill_block(block),
             TypedExprKind::If {
                 cond,

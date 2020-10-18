@@ -33,7 +33,7 @@ pub enum TypedExprKind {
         right: Box<TypedExpr>,
     },
     Grouping(Box<TypedExpr>),
-    Literal(Lit, Ty),
+    Literal(Lit, Ty, Span),
     Unary {
         op: UnOp,
         expr: Box<TypedExpr>,
@@ -51,4 +51,5 @@ pub enum TypedExprKind {
 pub struct TypedBlock {
     pub stmts: Vec<TypedStmt>,
     pub ty: Ty,
+    pub span: Span,
 }

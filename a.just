@@ -1,1 +1,2 @@
-let a = lol_var + 1;
+let a = 10;
+let b: int = if a { true } else { false };

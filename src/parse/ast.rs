@@ -84,7 +84,7 @@ pub enum ExprKind {
         right: Box<Expr>,
     },
     Grouping(Box<Expr>),
-    Literal(Lit),
+    Literal(Lit, Span),
     Unary {
         op: UnOp,
         expr: Box<Expr>,
@@ -117,13 +117,17 @@ pub enum Stmt {
 #[derive(Default, Debug, PartialEq)]
 pub struct Block {
     pub stmts: Vec<Stmt>,
+    pub span: Span,
 }
 
-impl From<Stmt> for Block {
-    fn from(stmt: Stmt) -> Self {
-        Self { stmts: vec![stmt] }
-    }
-}
+// impl From<Stmt> for Block {
+//     fn from(stmt: Stmt) -> Self {
+//         Self {
+//             stmts: vec![stmt],
+//             span: Span::DUMMY,
+//         }
+//     }
+// }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Ty {

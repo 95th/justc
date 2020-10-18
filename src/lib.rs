@@ -33,7 +33,10 @@ impl Compiler {
         let constraints = crate::typeck::constraints::collect(&mut stmts);
         let mut constraints = constraints.into_iter().collect::<Vec<_>>();
 
-        let subst = crate::typeck::unify::unify(&mut constraints);
+        let subst = match crate::typeck::unify::unify(&mut constraints, &handler) {
+            Some(s) => s,
+            None => return,
+        };
         dbg!(&subst);
 
         subst.fill_ast(&mut stmts);
