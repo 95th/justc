@@ -22,7 +22,7 @@ impl<'a> Unify<'a> {
 
     fn unify(&self, constraints: &mut [Constraint]) -> Option<Subst> {
         match constraints {
-            [] => Some(Subst::new()),
+            [] => Some(Subst::empty()),
             [head, tail @ ..] => {
                 let mut subst = self.unify_one(head)?;
                 subst.apply(tail);
@@ -40,7 +40,7 @@ impl<'a> Unify<'a> {
             | (Ty::Bool, Ty::Bool)
             | (Ty::Float, Ty::Float)
             | (Ty::Unit, Ty::Unit)
-            | (Ty::Str, Ty::Str) => Some(Subst::new()),
+            | (Ty::Str, Ty::Str) => Some(Subst::empty()),
             (Ty::Var(tvar), ref mut ty) => self.unify_var(*tvar, ty, constraint.span_b),
             (ref mut ty, Ty::Var(tvar)) => self.unify_var(*tvar, ty, constraint.span_a),
             (a, b) => {
@@ -57,9 +57,9 @@ impl<'a> Unify<'a> {
         match ty {
             Ty::Var(tvar2) => {
                 if tvar == *tvar2 {
-                    Some(Subst::new())
+                    Some(Subst::empty())
                 } else {
-                    Some(Subst::from_pair(tvar, ty))
+                    Some(Subst::new(tvar, ty))
                 }
             }
             ty if occurs(tvar, ty) => {
@@ -67,7 +67,7 @@ impl<'a> Unify<'a> {
                     .report(span, &format!("Type is of infinite size: {:?}", ty));
                 None
             }
-            ty => Some(Subst::from_pair(tvar, ty)),
+            ty => Some(Subst::new(tvar, ty)),
         }
     }
 }
@@ -86,13 +86,13 @@ pub struct Subst {
 }
 
 impl Subst {
-    pub fn new() -> Self {
+    pub fn empty() -> Self {
         Self {
             solutions: HashMap::new(),
         }
     }
 
-    pub fn from_pair(tvar: u64, ty: &Ty) -> Self {
+    pub fn new(tvar: u64, ty: &Ty) -> Self {
         let mut solutions = HashMap::new();
         solutions.insert(tvar, ty.clone());
         Self { solutions }
