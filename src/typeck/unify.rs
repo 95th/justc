@@ -7,7 +7,7 @@ use super::{
     typed_ast::TypedExprKind, typed_ast::TypedStmt,
 };
 
-pub fn unify(constraints: &mut [Constraint], handler: &Handler) -> Option<Substitution> {
+pub fn unify(constraints: &mut [Constraint], handler: &Handler) -> Option<Subst> {
     Unify::new(handler).unify(constraints)
 }
 
@@ -20,9 +20,9 @@ impl<'a> Unify<'a> {
         Self { handler }
     }
 
-    fn unify(&self, constraints: &mut [Constraint]) -> Option<Substitution> {
+    fn unify(&self, constraints: &mut [Constraint]) -> Option<Subst> {
         match constraints {
-            [] => Some(Substitution::new()),
+            [] => Some(Subst::new()),
             [head, tail @ ..] => {
                 let mut subst = self.unify_one(head)?;
                 subst.apply(tail);
@@ -33,14 +33,14 @@ impl<'a> Unify<'a> {
         }
     }
 
-    fn unify_one(&self, constraint: &mut Constraint) -> Option<Substitution> {
+    fn unify_one(&self, constraint: &mut Constraint) -> Option<Subst> {
         let Constraint { a, b, .. } = constraint;
         match (a, b) {
             (Ty::Int, Ty::Int)
             | (Ty::Bool, Ty::Bool)
             | (Ty::Float, Ty::Float)
             | (Ty::Unit, Ty::Unit)
-            | (Ty::Str, Ty::Str) => Some(Substitution::new()),
+            | (Ty::Str, Ty::Str) => Some(Subst::new()),
             (Ty::Var(tvar), ref mut ty) => self.unify_var(*tvar, ty, constraint.span_b),
             (ref mut ty, Ty::Var(tvar)) => self.unify_var(*tvar, ty, constraint.span_a),
             (a, b) => {
@@ -53,13 +53,13 @@ impl<'a> Unify<'a> {
         }
     }
 
-    fn unify_var(&self, tvar: u64, ty: &Ty, span: Span) -> Option<Substitution> {
+    fn unify_var(&self, tvar: u64, ty: &Ty, span: Span) -> Option<Subst> {
         match ty {
             Ty::Var(tvar2) => {
                 if tvar == *tvar2 {
-                    Some(Substitution::new())
+                    Some(Subst::new())
                 } else {
-                    Some(Substitution::from_pair(tvar, ty))
+                    Some(Subst::from_pair(tvar, ty))
                 }
             }
             ty if occurs(tvar, ty) => {
@@ -67,7 +67,7 @@ impl<'a> Unify<'a> {
                     .report(span, &format!("Type is of infinite size: {:?}", ty));
                 None
             }
-            ty => Some(Substitution::from_pair(tvar, ty)),
+            ty => Some(Subst::from_pair(tvar, ty)),
         }
     }
 }
@@ -81,11 +81,11 @@ fn occurs(tvar: u64, ty: &Ty) -> bool {
 }
 
 #[derive(Debug)]
-pub struct Substitution {
+pub struct Subst {
     solutions: HashMap<u64, Ty>,
 }
 
-impl Substitution {
+impl Subst {
     pub fn new() -> Self {
         Self {
             solutions: HashMap::new(),
