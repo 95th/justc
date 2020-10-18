@@ -131,7 +131,7 @@ impl Lexer {
                 }
             }
             c if c.is_ascii_digit() => self.number(),
-            c if c.is_ascii_alphabetic() => self.ident(),
+            c if is_ident_start(c) => self.ident(),
             _ => {
                 self.handler.report(self.mk_span(), "Unexpected char");
                 return None;
@@ -210,7 +210,7 @@ impl Lexer {
     }
 
     fn ident(&mut self) -> Token {
-        while self.peek().is_ascii_alphanumeric() {
+        while is_ident_continue(self.peek()) {
             self.advance();
         }
 
@@ -248,6 +248,14 @@ impl Lexer {
     fn advance(&mut self) {
         self.pos += 1;
     }
+}
+
+fn is_ident_start(c: u8) -> bool {
+    matches!(c, b'a'..=b'z' | b'A'..=b'Z' | b'_')
+}
+
+fn is_ident_continue(c: u8) -> bool {
+    matches!(c, b'a'..=b'z' | b'A'..=b'Z' | b'_' | b'0'..=b'9')
 }
 
 fn keywords() -> HashMap<Symbol, TokenKind> {

@@ -25,11 +25,13 @@ impl Compiler {
             None => return,
         };
 
-        let mut stmts = crate::typeck::annotate::annotate(stmts);
+        let mut stmts = match crate::typeck::annotate::annotate(stmts, &handler) {
+            Some(s) => s,
+            None => return,
+        };
 
-        let mut constraints = crate::typeck::constraints::collect(&mut stmts)
-            .into_iter()
-            .collect::<Vec<_>>();
+        let constraints = crate::typeck::constraints::collect(&mut stmts);
+        let mut constraints = constraints.into_iter().collect::<Vec<_>>();
 
         let subst = crate::typeck::unify::unify(&mut constraints);
         dbg!(&subst);
