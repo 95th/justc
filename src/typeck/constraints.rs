@@ -176,6 +176,13 @@ fn collect_expr(expr: &mut TypedExpr, set: &mut BTreeSet<Constraint>) {
             else_clause,
         } => {
             collect_expr(cond, set);
+            set.insert(Constraint {
+                a: cond.ty.clone(),
+                b: Ty::Bool,
+                span_a: cond.span,
+                span_b: cond.span,
+            });
+
             collect_block(then_clause, set);
             if let Some(else_clause) = else_clause {
                 collect_block(else_clause, set);

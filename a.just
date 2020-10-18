@@ -1,1 +1,1 @@
-if true { 10 } else { true }
+if 10 { 1.0 } else { 1.0 }
