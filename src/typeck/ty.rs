@@ -14,7 +14,7 @@ impl TyContext {
     }
 }
 
-#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq, PartialOrd, Ord)]
 pub enum Ty {
     Var(u64),
     Unit,

@@ -1,2 +1,1 @@
-let a = 10;
-let b: int = if a { true } else { false };
+if true { 10 } else { true }

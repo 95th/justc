@@ -1,4 +1,4 @@
-use std::{collections::HashSet, hash::Hash};
+use std::collections::BTreeSet;
 
 use crate::{
     lex::Span,
@@ -10,19 +10,12 @@ use super::{
     typed_ast::{TypedBlock, TypedExpr, TypedExprKind, TypedStmt},
 };
 
-#[derive(Debug)]
+#[derive(Debug, PartialOrd, Ord)]
 pub struct Constraint {
     pub a: Ty,
     pub b: Ty,
     pub span_a: Span,
     pub span_b: Span,
-}
-
-impl Hash for Constraint {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.a.hash(state);
-        self.b.hash(state);
-    }
 }
 
 impl PartialEq for Constraint {
@@ -33,19 +26,19 @@ impl PartialEq for Constraint {
 
 impl Eq for Constraint {}
 
-pub fn collect(ast: &mut [TypedStmt]) -> HashSet<Constraint> {
-    let mut set = HashSet::new();
+pub fn collect(ast: &mut [TypedStmt]) -> BTreeSet<Constraint> {
+    let mut set = BTreeSet::new();
     collect_stmts(ast, &mut set);
     set
 }
 
-pub fn collect_stmts(ast: &mut [TypedStmt], set: &mut HashSet<Constraint>) {
+pub fn collect_stmts(ast: &mut [TypedStmt], set: &mut BTreeSet<Constraint>) {
     for stmt in ast {
         collect_stmt(stmt, set);
     }
 }
 
-fn collect_stmt(stmt: &mut TypedStmt, set: &mut HashSet<Constraint>) {
+fn collect_stmt(stmt: &mut TypedStmt, set: &mut BTreeSet<Constraint>) {
     match stmt {
         TypedStmt::Expr(e) | TypedStmt::SemiExpr(e) => collect_expr(e, set),
         TypedStmt::Let { name, ty, init } => {
@@ -72,7 +65,7 @@ fn collect_stmt(stmt: &mut TypedStmt, set: &mut HashSet<Constraint>) {
     }
 }
 
-fn collect_expr(expr: &mut TypedExpr, set: &mut HashSet<Constraint>) {
+fn collect_expr(expr: &mut TypedExpr, set: &mut BTreeSet<Constraint>) {
     match &mut expr.kind {
         TypedExprKind::Binary { op, left, right } => {
             collect_expr(left, set);
@@ -216,7 +209,7 @@ fn collect_expr(expr: &mut TypedExpr, set: &mut HashSet<Constraint>) {
     }
 }
 
-fn collect_block(block: &mut TypedBlock, set: &mut HashSet<Constraint>) {
+fn collect_block(block: &mut TypedBlock, set: &mut BTreeSet<Constraint>) {
     collect_stmts(&mut block.stmts, set);
     if let Some(TypedStmt::Expr(e)) = block.stmts.last_mut() {
         set.insert(Constraint {
