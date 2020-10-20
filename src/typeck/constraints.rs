@@ -230,7 +230,7 @@ fn collect_expr(expr: &mut TypedExpr, set: &mut BTreeSet<Constraint>) {
             set.insert(Constraint {
                 a: callee.ty.clone(),
                 b: Ty::Fn(
-                    args.iter().map(|p| p.ty.clone()).collect(),
+                    args.iter().map(|arg| arg.ty.clone()).collect(),
                     Box::new(expr.ty.clone()),
                 ),
                 span_a: expr.span,

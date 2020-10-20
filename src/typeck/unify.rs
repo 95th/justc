@@ -43,6 +43,36 @@ impl<'a> Unify<'a> {
             | (Ty::Str, Ty::Str) => Some(Subst::empty()),
             (Ty::Var(tvar), ref mut ty) => self.unify_var(*tvar, ty, constraint.span_b),
             (ref mut ty, Ty::Var(tvar)) => self.unify_var(*tvar, ty, constraint.span_a),
+            (Ty::Fn(params_1, ret_1), Ty::Fn(params_2, ret_2)) => {
+                if params_1.len() != params_2.len() {
+                    self.handler.report(
+                        constraint.span_b,
+                        &format!(
+                            "Number of arguments mismatch: Expected: {}, Actual: {}",
+                            params_1.len(),
+                            params_2.len()
+                        ),
+                    );
+                    return None;
+                }
+
+                let mut constraints = vec![];
+                for (a, b) in params_1.iter_mut().zip(params_2.iter_mut()) {
+                    constraints.push(Constraint {
+                        a: a.clone(),
+                        b: b.clone(),
+                        span_a: constraint.span_a,
+                        span_b: constraint.span_b,
+                    });
+                }
+                constraints.push(Constraint {
+                    a: (**ret_1).clone(),
+                    b: (**ret_2).clone(),
+                    span_a: constraint.span_a,
+                    span_b: constraint.span_b,
+                });
+                self.unify(&mut constraints)
+            }
             (a, b) => {
                 self.handler.report(
                     constraint.span_b,
