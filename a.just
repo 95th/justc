@@ -1,1 +1,1 @@
-let a = { let b = 100; let c = b + 1; };
+let a = |a, b| a + b + 1;

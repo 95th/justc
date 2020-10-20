@@ -7,6 +7,8 @@ use crate::{
 use ast::{BinOp, Block, Expr, ExprKind, Lit, Stmt, Ty, TyKind, UnOp};
 use std::rc::Rc;
 
+use self::ast::Param;
+
 pub struct Parser {
     lexer: Lexer,
     handler: Rc<Handler>,
@@ -344,6 +346,23 @@ impl Parser {
                 },
                 span,
             }));
+        } else if self.eat(Or) {
+            let lo = self.prev.span;
+            let mut params = vec![];
+            while let Some(param) = self.param() {
+                params.push(param);
+                if !self.eat(Comma) {
+                    break;
+                }
+            }
+            self.consume(Or, "Expect '|' after closure parameters")?;
+            let body = self.expr()?;
+
+            let span = lo.to(self.prev.span);
+            return Some(Box::new(Expr {
+                kind: ExprKind::Closure { params, body },
+                span,
+            }));
         } else {
             self.handler.report(self.curr.span, "Expected expression");
             return None;
@@ -353,6 +372,22 @@ impl Parser {
             kind: ExprKind::Literal(lit, self.prev.span),
             span: self.prev.span,
         }))
+    }
+
+    fn param(&mut self) -> Option<Param> {
+        let name = if self.eat(Ident) {
+            self.prev.clone()
+        } else {
+            return None;
+        };
+
+        let ty = if self.eat(Colon) {
+            Some(self.parse_ty()?)
+        } else {
+            None
+        };
+
+        Some(Param { name, ty })
     }
 
     fn parse_ty(&mut self) -> Option<Ty> {
