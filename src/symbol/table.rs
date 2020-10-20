@@ -23,7 +23,7 @@ impl<T> SymbolTable<T> {
         self.map.get(key)
     }
 
-    pub fn enter<F, R>(&mut self, f: F) -> R
+    pub fn enter_scope<F, R>(&mut self, f: F) -> R
     where
         F: FnOnce(&mut Self) -> R,
     {

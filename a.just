@@ -1,3 +1,1 @@
-let a = |a, b| a(b)(b);
-
-a(|a| |a| a, 10);
+if true { 1 } else if true { true } else { false };

@@ -154,7 +154,7 @@ impl<'a> Annotate<'a> {
     {
         let env = &mut *self.env;
         let handler = self.handler;
-        self.bindings.enter(|bindings| {
+        self.bindings.enter_scope(|bindings| {
             let mut annotate = Annotate::new(env, bindings, handler);
             f(&mut annotate)
         })
