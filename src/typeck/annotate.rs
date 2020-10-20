@@ -104,7 +104,7 @@ impl<'a> Annotate<'a> {
                 cond: self.annotate_expr(cond)?,
                 then_clause: self.annotate_block(then_clause)?,
                 else_clause: match else_clause {
-                    Some(e) => Some(self.annotate_block(e)?),
+                    Some(e) => Some(self.annotate_expr(e)?),
                     None => None,
                 },
             },

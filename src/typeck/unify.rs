@@ -193,7 +193,7 @@ impl Subst {
                 self.fill_expr(cond);
                 self.fill_block(then_clause);
                 if let Some(else_clause) = else_clause {
-                    self.fill_block(else_clause);
+                    self.fill_expr(else_clause);
                 }
             }
             TypedExprKind::Closure { params, body } => {

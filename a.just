@@ -1,3 +1,5 @@
-let a = |a, b| a(b);
-let b = a(|a| a > 1, 2);
-let b = a(|a| a < 1, 2);
+let a = |a, b, c| {
+    if a > 1 { b } else if c { 10 } else { 1 }
+};
+
+a(1, 12, true);

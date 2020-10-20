@@ -357,24 +357,7 @@ impl Parser {
                 span,
             }));
         } else if self.eat(If) {
-            let lo = self.prev.span;
-            let cond = self.expr()?;
-            self.consume(OpenBrace, "Expect '{' after if condition")?;
-            let then_clause = self.block()?;
-            let mut else_clause = None;
-            if self.eat(Else) {
-                self.consume(OpenBrace, "Expect '{' after else")?;
-                else_clause = Some(self.block()?);
-            }
-            let span = lo.to(self.prev.span);
-            return Some(Box::new(Expr {
-                kind: ExprKind::If {
-                    cond,
-                    then_clause,
-                    else_clause,
-                },
-                span,
-            }));
+            return self.if_expr();
         } else if self.eat(Or) {
             let lo = self.prev.span;
             let mut params = vec![];
@@ -400,6 +383,36 @@ impl Parser {
         Some(Box::new(Expr {
             kind: ExprKind::Literal(lit, self.prev.span),
             span: self.prev.span,
+        }))
+    }
+
+    fn if_expr(&mut self) -> Option<Box<Expr>> {
+        let lo = self.prev.span;
+        let cond = self.expr()?;
+        self.consume(OpenBrace, "Expect '{' after if condition")?;
+        let then_clause = self.block()?;
+        let mut else_clause = None;
+        if self.eat(Else) {
+            if self.eat(If) {
+                else_clause = Some(self.if_expr()?);
+            } else {
+                self.consume(OpenBrace, "Expect '{' after else")?;
+                let block = self.block()?;
+                let span = block.span;
+                else_clause = Some(Box::new(Expr {
+                    kind: ExprKind::Block(block),
+                    span,
+                }));
+            }
+        }
+        let span = lo.to(self.prev.span);
+        Some(Box::new(Expr {
+            kind: ExprKind::If {
+                cond,
+                then_clause,
+                else_clause,
+            },
+            span,
         }))
     }
 

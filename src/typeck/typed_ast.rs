@@ -43,7 +43,7 @@ pub enum TypedExprKind {
     If {
         cond: Box<TypedExpr>,
         then_clause: TypedBlock,
-        else_clause: Option<TypedBlock>,
+        else_clause: Option<Box<TypedExpr>>,
     },
     Closure {
         params: Vec<TypedParam>,

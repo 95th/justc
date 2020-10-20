@@ -94,7 +94,7 @@ pub enum ExprKind {
     If {
         cond: Box<Expr>,
         then_clause: Block,
-        else_clause: Option<Block>,
+        else_clause: Option<Box<Expr>>,
     },
     Closure {
         params: Vec<Param>,
