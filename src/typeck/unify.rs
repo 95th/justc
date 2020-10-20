@@ -59,17 +59,17 @@ impl<'a> Unify<'a> {
                 let mut constraints = vec![];
                 for (a, b) in params_1.iter_mut().zip(params_2.iter_mut()) {
                     constraints.push(Constraint {
-                        a: a.clone(),
-                        b: b.clone(),
-                        span_a: constraint.span_a,
-                        span_b: constraint.span_b,
+                        a: a.val.clone(),
+                        b: b.val.clone(),
+                        span_a: a.span,
+                        span_b: b.span,
                     });
                 }
                 constraints.push(Constraint {
-                    a: (**ret_1).clone(),
-                    b: (**ret_2).clone(),
-                    span_a: constraint.span_a,
-                    span_b: constraint.span_b,
+                    a: ret_1.val.clone(),
+                    b: ret_2.val.clone(),
+                    span_a: ret_1.span,
+                    span_b: ret_2.span,
                 });
                 self.unify(&mut constraints)
             }
@@ -104,7 +104,9 @@ impl<'a> Unify<'a> {
 
 fn occurs(tvar: u64, ty: &Ty) -> bool {
     match ty {
-        Ty::Fn(params, ret) => params.iter().any(|ty| occurs(tvar, ty)) || occurs(tvar, ret),
+        Ty::Fn(params, ret) => {
+            params.iter().any(|ty| occurs(tvar, &ty.val)) || occurs(tvar, &ret.val)
+        }
         Ty::Var(tvar2) => tvar == *tvar2,
         _ => false,
     }
@@ -234,8 +236,8 @@ fn substitute(ty: &mut Ty, tvar: u64, replacement: &Ty) {
         Ty::Fn(params, ret) => {
             params
                 .iter_mut()
-                .for_each(|p| substitute(p, tvar, replacement));
-            substitute(ret, tvar, replacement);
+                .for_each(|p| substitute(&mut p.val, tvar, replacement));
+            substitute(&mut ret.val, tvar, replacement);
         }
         Ty::Unit | Ty::Bool | Ty::Int | Ty::Float | Ty::Str => {}
     }

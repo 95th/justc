@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use crate::{
-    lex::Span,
+    lex::{Span, Spanned},
     parse::ast::{BinOp, UnOp},
 };
 
@@ -218,8 +218,11 @@ fn collect_expr(expr: &mut TypedExpr, set: &mut BTreeSet<Constraint>) {
             set.insert(Constraint {
                 a: expr.ty.clone(),
                 b: Ty::Fn(
-                    params.iter().map(|p| p.ty.clone()).collect(),
-                    Box::new(body.ty.clone()),
+                    params
+                        .iter()
+                        .map(|p| Spanned::new(p.ty.clone(), p.name.span))
+                        .collect(),
+                    Box::new(Spanned::new(body.ty.clone(), body.span)),
                 ),
                 span_a: expr.span,
                 span_b: expr.span,
@@ -230,8 +233,10 @@ fn collect_expr(expr: &mut TypedExpr, set: &mut BTreeSet<Constraint>) {
             set.insert(Constraint {
                 a: callee.ty.clone(),
                 b: Ty::Fn(
-                    args.iter().map(|arg| arg.ty.clone()).collect(),
-                    Box::new(expr.ty.clone()),
+                    args.iter()
+                        .map(|arg| Spanned::new(arg.ty.clone(), arg.span))
+                        .collect(),
+                    Box::new(Spanned::new(expr.ty.clone(), expr.span)),
                 ),
                 span_a: expr.span,
                 span_b: expr.span,

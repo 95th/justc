@@ -1,3 +1,5 @@
+use crate::lex::Spanned;
+
 pub struct TyContext {
     counter: u64,
 }
@@ -22,5 +24,5 @@ pub enum Ty {
     Int,
     Float,
     Str,
-    Fn(Vec<Ty>, Box<Ty>),
+    Fn(Vec<Spanned<Ty>>, Box<Spanned<Ty>>),
 }
