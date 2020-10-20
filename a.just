@@ -1,5 +1,3 @@
-let a = |a, b, c| {
-    if a > 1 { b } else if c { 10 } else { 1 }
-};
+let a = |a, b| a(b)(b);
 
-a(1, 12, true);
+a(|a| |a| a, 10);
