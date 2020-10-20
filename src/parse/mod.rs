@@ -269,7 +269,7 @@ impl Parser {
         } else if self.eat(Minus) {
             UnOp::Neg
         } else {
-            return self.primary();
+            return self.call();
         };
         let lo = self.prev.span;
 
@@ -278,6 +278,35 @@ impl Parser {
 
         Some(Box::new(Expr {
             kind: ExprKind::Unary { op, expr },
+            span,
+        }))
+    }
+
+    fn call(&mut self) -> Option<Box<Expr>> {
+        let mut expr = self.primary()?;
+
+        while self.eat(OpenParen) {
+            expr = self.finish_call(expr)?;
+        }
+
+        Some(expr)
+    }
+
+    fn finish_call(&mut self, callee: Box<Expr>) -> Option<Box<Expr>> {
+        let mut args = vec![];
+        while !self.check(CloseParen) {
+            let arg = self.expr()?;
+            args.push(arg);
+
+            if !self.eat(Comma) {
+                break;
+            }
+        }
+
+        self.consume(CloseParen, "Expected ')' after arguments");
+        let span = callee.span.to(self.prev.span);
+        Some(Box::new(Expr {
+            kind: ExprKind::Call { callee, args },
             span,
         }))
     }
