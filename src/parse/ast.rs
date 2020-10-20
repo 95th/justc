@@ -96,6 +96,10 @@ pub enum ExprKind {
         then_clause: Block,
         else_clause: Option<Block>,
     },
+    Closure {
+        params: Vec<Param>,
+        body: Box<Expr>,
+    },
 }
 
 #[derive(Debug, PartialEq)]
@@ -120,15 +124,6 @@ pub struct Block {
     pub span: Span,
 }
 
-// impl From<Stmt> for Block {
-//     fn from(stmt: Stmt) -> Self {
-//         Self {
-//             stmts: vec![stmt],
-//             span: Span::DUMMY,
-//         }
-//     }
-// }
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct Ty {
     pub kind: TyKind,
@@ -139,4 +134,10 @@ pub struct Ty {
 pub enum TyKind {
     Ident(Token),
     Infer,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Param {
+    pub name: Token,
+    pub ty: Option<Ty>,
 }

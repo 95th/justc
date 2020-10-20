@@ -213,6 +213,18 @@ fn collect_expr(expr: &mut TypedExpr, set: &mut BTreeSet<Constraint>) {
                 });
             }
         }
+        TypedExprKind::Closure { params, body } => {
+            collect_expr(body, set);
+            set.insert(Constraint {
+                a: expr.ty.clone(),
+                b: Ty::Fn(
+                    params.iter().map(|p| p.ty.clone()).collect(),
+                    Box::new(body.ty.clone()),
+                ),
+                span_a: expr.span,
+                span_b: expr.span,
+            });
+        }
     }
 }
 

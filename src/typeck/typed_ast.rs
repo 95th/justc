@@ -45,6 +45,10 @@ pub enum TypedExprKind {
         then_clause: TypedBlock,
         else_clause: Option<TypedBlock>,
     },
+    Closure {
+        params: Vec<TypedParam>,
+        body: Box<TypedExpr>,
+    },
 }
 
 #[derive(Debug)]
@@ -52,4 +56,10 @@ pub struct TypedBlock {
     pub stmts: Vec<TypedStmt>,
     pub ty: Ty,
     pub span: Span,
+}
+
+#[derive(Debug)]
+pub struct TypedParam {
+    pub name: Token,
+    pub ty: Ty,
 }

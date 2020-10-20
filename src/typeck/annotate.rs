@@ -1,12 +1,13 @@
 use crate::{
     err::Handler,
+    lex::Token,
     parse::ast::{self, Block, Expr, ExprKind, Lit, Stmt},
     symbol::SymbolTable,
 };
 
 use super::{
     ty::Ty, ty::TyContext, typed_ast::TypedBlock, typed_ast::TypedExpr, typed_ast::TypedExprKind,
-    typed_ast::TypedStmt,
+    typed_ast::TypedParam, typed_ast::TypedStmt,
 };
 
 pub fn annotate(ast: Vec<Stmt>, handler: &Handler) -> Option<Vec<TypedStmt>> {
@@ -48,27 +49,7 @@ impl<'a> Annotate<'a> {
                     None => None,
                 };
 
-                let let_ty = if let Some(ty) = ty {
-                    match ty.kind {
-                        ast::TyKind::Ident(t) => t.symbol.as_str_with(|s| {
-                            let ty = match s {
-                                "bool" => Ty::Bool,
-                                "int" => Ty::Int,
-                                "str" => Ty::Str,
-                                "float" => Ty::Float,
-                                _ => {
-                                    self.handler.report(t.span, "Unknown type");
-                                    return None;
-                                }
-                            };
-                            Some(ty)
-                        })?,
-                        ast::TyKind::Infer => self.env.new_var(),
-                    }
-                } else {
-                    self.env.new_var()
-                };
-
+                let let_ty = self.ast_ty_to_ty(ty)?;
                 self.bindings.insert(name.symbol, let_ty.clone());
 
                 Some(TypedStmt::Let {
@@ -127,6 +108,21 @@ impl<'a> Annotate<'a> {
                     None => None,
                 },
             },
+            ExprKind::Closure { params, body } => self.enter_scope(|this| {
+                let params = params
+                    .into_iter()
+                    .map(|p| {
+                        let param_ty = this.ast_ty_to_ty(p.ty)?;
+                        this.bindings.insert(p.name.symbol, param_ty.clone());
+                        Some(TypedParam {
+                            name: p.name,
+                            ty: param_ty,
+                        })
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                let body = this.annotate_expr(body)?;
+                Some(TypedExprKind::Closure { params, body })
+            })?,
         };
         Some(Box::new(TypedExpr {
             kind,
@@ -136,15 +132,52 @@ impl<'a> Annotate<'a> {
     }
 
     fn annotate_block(&mut self, block: Block) -> Option<TypedBlock> {
+        self.enter_scope(|this| {
+            Some(TypedBlock {
+                stmts: this.annotate_stmts(block.stmts)?,
+                ty: this.env.new_var(),
+                span: block.span,
+            })
+        })
+    }
+
+    fn enter_scope<F, R>(&mut self, f: F) -> R
+    where
+        F: FnOnce(&mut Annotate<'_>) -> R,
+    {
         let env = &mut *self.env;
         let handler = self.handler;
         self.bindings.enter(|bindings| {
             let mut annotate = Annotate::new(env, bindings, handler);
-            Some(TypedBlock {
-                stmts: annotate.annotate_stmts(block.stmts)?,
-                ty: env.new_var(),
-                span: block.span,
-            })
+            f(&mut annotate)
+        })
+    }
+
+    fn ast_ty_to_ty(&mut self, ty: Option<ast::Ty>) -> Option<Ty> {
+        let ty = if let Some(ty) = ty {
+            match ty.kind {
+                ast::TyKind::Ident(t) => self.token_to_ty(&t)?,
+                ast::TyKind::Infer => self.env.new_var(),
+            }
+        } else {
+            self.env.new_var()
+        };
+        Some(ty)
+    }
+
+    fn token_to_ty(&self, token: &Token) -> Option<Ty> {
+        token.symbol.as_str_with(|s| {
+            let ty = match s {
+                "bool" => Ty::Bool,
+                "int" => Ty::Int,
+                "str" => Ty::Str,
+                "float" => Ty::Float,
+                _ => {
+                    self.handler.report(token.span, "Unknown type");
+                    return None;
+                }
+            };
+            Some(ty)
         })
     }
 }

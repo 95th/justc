@@ -164,6 +164,12 @@ impl Subst {
                     self.fill_block(else_clause);
                 }
             }
+            TypedExprKind::Closure { params, body } => {
+                for p in params {
+                    self.fill_ty(&mut p.ty);
+                }
+                self.fill_expr(body);
+            }
         }
         self.fill_ty(&mut expr.ty);
     }
