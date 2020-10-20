@@ -112,7 +112,7 @@ impl<'a> Annotate<'a> {
                     None => None,
                 },
             },
-            ExprKind::Closure { params, body } => self.enter_scope(|this| {
+            ExprKind::Closure { params, ret, body } => self.enter_scope(|this| {
                 let params = params
                     .into_iter()
                     .map(|p| {
@@ -124,8 +124,9 @@ impl<'a> Annotate<'a> {
                         })
                     })
                     .collect::<Option<Vec<_>>>()?;
+                let ret = this.ast_ty_to_ty(ret)?;
                 let body = this.annotate_expr(body)?;
-                Some(TypedExprKind::Closure { params, body })
+                Some(TypedExprKind::Closure { params, ret, body })
             })?,
             ExprKind::Call { callee, args } => TypedExprKind::Call {
                 callee: self.annotate_expr(callee)?,

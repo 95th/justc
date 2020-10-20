@@ -373,11 +373,30 @@ impl Parser {
                 }
             }
             self.consume(Or, "Expect '|' after closure parameters")?;
-            let body = self.expr()?;
+
+            let ret = if self.eat(Arrow) {
+                Some(self.parse_ty()?)
+            } else {
+                None
+            };
+
+            let body = if ret.is_some() {
+                self.consume(OpenBrace, "Expected '{'")?;
+                let lo = self.prev.span;
+                let block = self.block()?;
+                let span = lo.to(self.prev.span);
+
+                Box::new(Expr {
+                    kind: ExprKind::Block(block),
+                    span,
+                })
+            } else {
+                self.expr()?
+            };
 
             let span = lo.to(self.prev.span);
             return Some(Box::new(Expr {
-                kind: ExprKind::Closure { params, body },
+                kind: ExprKind::Closure { params, ret, body },
                 span,
             }));
         } else {

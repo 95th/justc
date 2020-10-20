@@ -51,6 +51,7 @@ pub enum TypedExprKind {
     },
     Closure {
         params: Vec<TypedParam>,
+        ret: Ty,
         body: Box<TypedExpr>,
     },
     Call {

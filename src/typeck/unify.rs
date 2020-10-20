@@ -200,10 +200,11 @@ impl Subst {
                     self.fill_expr(else_clause);
                 }
             }
-            TypedExprKind::Closure { params, body } => {
+            TypedExprKind::Closure { params, ret, body } => {
                 for p in params {
                     self.fill_ty(&mut p.ty);
                 }
+                self.fill_ty(ret);
                 self.fill_expr(body);
             }
             TypedExprKind::Call { callee, args } => {

@@ -98,6 +98,7 @@ pub enum ExprKind {
     },
     Closure {
         params: Vec<Param>,
+        ret: Option<Ty>,
         body: Box<Expr>,
     },
     Call {
