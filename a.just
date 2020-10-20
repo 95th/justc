@@ -1,1 +1,1 @@
-if 10 { 1.0 } else { 1.0 }
+let a = { let b = 100; let c = b + 1; };

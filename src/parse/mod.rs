@@ -126,7 +126,7 @@ impl Parser {
     fn logic_or(&mut self) -> Option<Box<Expr>> {
         let mut left = self.logic_and()?;
 
-        while self.eat(Or) {
+        while self.eat(OrOr) {
             let right = self.logic_and()?;
 
             let span = left.span.to(right.span);
@@ -146,7 +146,7 @@ impl Parser {
     fn logic_and(&mut self) -> Option<Box<Expr>> {
         let mut left = self.equality()?;
 
-        while self.eat(And) {
+        while self.eat(AndAnd) {
             let right = self.equality()?;
             let span = left.span.to(right.span);
 

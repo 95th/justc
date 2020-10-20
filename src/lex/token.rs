@@ -52,13 +52,16 @@ pub enum TokenKind {
     Ge,
     Le,
     Ne,
+    And,
+    AndAnd,
+    Or,
+    OrOr,
 
     // Literals.
     Ident,
     Literal { kind: LiteralKind },
 
     // Keywords
-    And,
     Struct,
     Else,
     False,
@@ -66,7 +69,6 @@ pub enum TokenKind {
     For,
     In,
     If,
-    Or,
     Return,
     This,
     True,

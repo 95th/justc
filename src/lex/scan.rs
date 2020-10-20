@@ -116,18 +116,16 @@ impl Lexer {
             }
             b'&' => {
                 if self.eat(b'&') {
-                    self.add_token(TokenKind::And)
+                    self.add_token(TokenKind::AndAnd)
                 } else {
-                    self.handler.report(self.mk_span(), "Unexpected char");
-                    return None;
+                    self.add_token(TokenKind::And)
                 }
             }
             b'|' => {
                 if self.eat(b'|') {
-                    self.add_token(TokenKind::Or)
+                    self.add_token(TokenKind::OrOr)
                 } else {
-                    self.handler.report(self.mk_span(), "Unexpected char");
-                    return None;
+                    self.add_token(TokenKind::Or)
                 }
             }
             c if c.is_ascii_digit() => self.number(),
