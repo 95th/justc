@@ -171,6 +171,10 @@ impl Subst {
                 self.fill_expr(name);
                 self.fill_expr(val);
             }
+            TypedStmt::While { cond, body } => {
+                self.fill_expr(cond);
+                self.fill_block(body);
+            }
         }
     }
 

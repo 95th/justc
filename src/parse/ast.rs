@@ -120,6 +120,10 @@ pub enum Stmt {
         name: Box<Expr>,
         val: Box<Expr>,
     },
+    While {
+        cond: Box<Expr>,
+        body: Block,
+    },
 }
 
 #[derive(Default, Debug, PartialEq)]

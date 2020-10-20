@@ -1,1 +1,1 @@
-if true { 1 } else if true { true } else { false };
+while 1 > 2 { 1 + 2; }

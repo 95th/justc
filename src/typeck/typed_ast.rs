@@ -16,6 +16,10 @@ pub enum TypedStmt {
         name: Box<TypedExpr>,
         val: Box<TypedExpr>,
     },
+    While {
+        cond: Box<TypedExpr>,
+        body: TypedBlock,
+    },
 }
 
 #[derive(Debug)]

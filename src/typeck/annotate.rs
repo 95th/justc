@@ -62,6 +62,10 @@ impl<'a> Annotate<'a> {
                 name: self.annotate_expr(name)?,
                 val: self.annotate_expr(val)?,
             }),
+            Stmt::While { cond, body } => Some(TypedStmt::While {
+                cond: self.annotate_expr(cond)?,
+                body: self.annotate_block(body)?,
+            }),
         }
     }
 

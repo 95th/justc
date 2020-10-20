@@ -59,6 +59,11 @@ impl Parser {
             };
 
             Some(Stmt::Expr(Box::new(block)))
+        } else if self.eat(While) {
+            let cond = self.expr()?;
+            self.consume(OpenBrace, "Expected '{' after the condition")?;
+            let body = self.block()?;
+            Some(Stmt::While { cond, body })
         } else {
             self.expr_stmt()
         }

@@ -62,6 +62,16 @@ fn collect_stmt(stmt: &mut TypedStmt, set: &mut BTreeSet<Constraint>) {
                 span_b: val.span,
             });
         }
+        TypedStmt::While { cond, body } => {
+            collect_expr(cond, set);
+            collect_block(body, set);
+            set.insert(Constraint {
+                a: body.ty.clone(),
+                b: Ty::Unit,
+                span_a: body.span,
+                span_b: body.span,
+            });
+        }
     }
 }
 
