@@ -49,6 +49,10 @@ pub enum TypedExprKind {
         params: Vec<TypedParam>,
         body: Box<TypedExpr>,
     },
+    Call {
+        callee: Box<TypedExpr>,
+        args: Vec<Box<TypedExpr>>,
+    },
 }
 
 #[derive(Debug)]

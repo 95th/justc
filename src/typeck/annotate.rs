@@ -123,6 +123,13 @@ impl<'a> Annotate<'a> {
                 let body = this.annotate_expr(body)?;
                 Some(TypedExprKind::Closure { params, body })
             })?,
+            ExprKind::Call { callee, args } => TypedExprKind::Call {
+                callee: self.annotate_expr(callee)?,
+                args: args
+                    .into_iter()
+                    .map(|arg| self.annotate_expr(arg))
+                    .collect::<Option<Vec<_>>>()?,
+            },
         };
         Some(Box::new(TypedExpr {
             kind,

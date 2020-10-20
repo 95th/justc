@@ -225,6 +225,22 @@ fn collect_expr(expr: &mut TypedExpr, set: &mut BTreeSet<Constraint>) {
                 span_b: expr.span,
             });
         }
+        TypedExprKind::Call { callee, args } => {
+            collect_expr(callee, set);
+            set.insert(Constraint {
+                a: callee.ty.clone(),
+                b: Ty::Fn(
+                    args.iter().map(|p| p.ty.clone()).collect(),
+                    Box::new(expr.ty.clone()),
+                ),
+                span_a: expr.span,
+                span_b: expr.span,
+            });
+
+            for arg in args {
+                collect_expr(arg, set);
+            }
+        }
     }
 }
 

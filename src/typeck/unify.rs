@@ -170,6 +170,12 @@ impl Subst {
                 }
                 self.fill_expr(body);
             }
+            TypedExprKind::Call { callee, args } => {
+                self.fill_expr(callee);
+                for arg in args {
+                    self.fill_expr(arg);
+                }
+            }
         }
         self.fill_ty(&mut expr.ty);
     }

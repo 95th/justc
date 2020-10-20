@@ -100,6 +100,10 @@ pub enum ExprKind {
         params: Vec<Param>,
         body: Box<Expr>,
     },
+    Call {
+        callee: Box<Expr>,
+        args: Vec<Box<Expr>>,
+    },
 }
 
 #[derive(Debug, PartialEq)]
