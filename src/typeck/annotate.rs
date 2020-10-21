@@ -1,13 +1,18 @@
 use crate::{
     err::Handler,
     lex::Token,
-    parse::ast::{self, Block, Expr, ExprKind, Lit, Stmt},
+    parse::ast::{self, Block, Expr, ExprKind, Function, Lit, Param, Stmt},
     symbol::SymbolTable,
 };
 
 use super::{
-    ty::Ty, ty::TyContext, typed_ast::TypedBlock, typed_ast::TypedExpr, typed_ast::TypedExprKind,
-    typed_ast::TypedParam, typed_ast::TypedStmt,
+    ty::Ty,
+    ty::TyContext,
+    typed_ast::TypedBlock,
+    typed_ast::TypedExpr,
+    typed_ast::TypedExprKind,
+    typed_ast::TypedParam,
+    typed_ast::{TypedFunction, TypedStmt},
 };
 
 pub fn annotate(ast: Vec<Stmt>, handler: &Handler) -> Option<Vec<TypedStmt>> {
@@ -49,7 +54,7 @@ impl<'a> Annotate<'a> {
                     None => None,
                 };
 
-                let let_ty = self.ast_ty_to_ty(ty)?;
+                let let_ty = self.ast_ty_to_ty(ty, false)?;
                 self.bindings.insert(name.symbol, let_ty.clone());
 
                 Some(TypedStmt::Let {
@@ -113,18 +118,8 @@ impl<'a> Annotate<'a> {
                 },
             },
             ExprKind::Closure { params, ret, body } => self.enter_scope(|this| {
-                let params = params
-                    .into_iter()
-                    .map(|p| {
-                        let param_ty = this.ast_ty_to_ty(p.ty)?;
-                        this.bindings.insert(p.name.symbol, param_ty.clone());
-                        Some(TypedParam {
-                            name: p.name,
-                            ty: param_ty,
-                        })
-                    })
-                    .collect::<Option<Vec<_>>>()?;
-                let ret = this.ast_ty_to_ty(ret)?;
+                let params = this.annotate_params(params)?;
+                let ret = this.ast_ty_to_ty(ret, false)?;
                 let body = this.annotate_expr(body)?;
                 Some(TypedExprKind::Closure { params, ret, body })
             })?,
@@ -147,10 +142,53 @@ impl<'a> Annotate<'a> {
         self.enter_scope(|this| {
             Some(TypedBlock {
                 stmts: this.annotate_stmts(block.stmts)?,
+                functions: this.annotate_fns(block.functions)?,
                 ty: this.env.new_var(),
                 span: block.span,
             })
         })
+    }
+
+    fn annotate_fns(&mut self, functions: Vec<Function>) -> Option<Vec<TypedFunction>> {
+        functions
+            .into_iter()
+            .map(|func| self.annotate_fn(func))
+            .collect::<Option<Vec<_>>>()
+    }
+
+    fn annotate_fn(&mut self, func: Function) -> Option<TypedFunction> {
+        let bindings = &mut SymbolTable::new();
+        let mut this = Annotate::new(&mut self.env, bindings, &self.handler);
+
+        let params = this.annotate_params(func.params)?;
+        for p in &params {
+            this.bindings.insert(p.name.symbol, p.ty.clone());
+        }
+
+        let ret = this.ast_ty_to_ty(func.ret, true)?;
+        let body = this.annotate_block(func.body)?;
+        let ty = this.env.new_var();
+        Some(TypedFunction {
+            name: func.name,
+            params,
+            ret,
+            body,
+            ty,
+        })
+    }
+
+    fn annotate_params(&mut self, params: Vec<Param>) -> Option<Vec<TypedParam>> {
+        params
+            .into_iter()
+            .map(|p| {
+                let param_ty = self.ast_ty_to_ty(p.ty, false)?;
+                self.bindings.insert(p.name.symbol, param_ty.clone());
+                Some(TypedParam {
+                    name: p.name,
+                    ty: param_ty,
+                })
+            })
+            .collect()
     }
 
     fn enter_scope<F, R>(&mut self, f: F) -> R
@@ -165,12 +203,14 @@ impl<'a> Annotate<'a> {
         })
     }
 
-    fn ast_ty_to_ty(&mut self, ty: Option<ast::Ty>) -> Option<Ty> {
+    fn ast_ty_to_ty(&mut self, ty: Option<ast::Ty>, none_is_unit: bool) -> Option<Ty> {
         let ty = if let Some(ty) = ty {
             match ty.kind {
                 ast::TyKind::Ident(t) => self.token_to_ty(&t)?,
                 ast::TyKind::Infer => self.env.new_var(),
             }
+        } else if none_is_unit {
+            Ty::Unit
         } else {
             self.env.new_var()
         };

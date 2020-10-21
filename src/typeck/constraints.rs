@@ -7,7 +7,7 @@ use crate::{
 
 use super::{
     ty::Ty,
-    typed_ast::{TypedBlock, TypedExpr, TypedExprKind, TypedStmt},
+    typed_ast::{TypedBlock, TypedExpr, TypedExprKind, TypedFunction, TypedStmt},
 };
 
 #[derive(Debug, PartialOrd, Ord)]
@@ -267,6 +267,7 @@ fn collect_expr(expr: &mut TypedExpr, set: &mut BTreeSet<Constraint>) {
 
 fn collect_block(block: &mut TypedBlock, set: &mut BTreeSet<Constraint>) {
     collect_stmts(&mut block.stmts, set);
+    collect_fns(&mut block.functions, set);
     if let Some(TypedStmt::Expr(e)) = block.stmts.last_mut() {
         set.insert(Constraint {
             a: block.ty.clone(),
@@ -282,4 +283,33 @@ fn collect_block(block: &mut TypedBlock, set: &mut BTreeSet<Constraint>) {
             span_b: block.span,
         });
     }
+}
+
+fn collect_fns(items: &mut [TypedFunction], set: &mut BTreeSet<Constraint>) {
+    for item in items {
+        collect_item(item, set);
+    }
+}
+
+fn collect_item(function: &mut TypedFunction, set: &mut BTreeSet<Constraint>) {
+    collect_block(&mut function.body, set);
+    set.insert(Constraint {
+        a: function.ty.clone(),
+        b: Ty::Fn(
+            function
+                .params
+                .iter()
+                .map(|p| Spanned::new(p.ty.clone(), p.name.span))
+                .collect(),
+            Box::new(Spanned::new(function.body.ty.clone(), function.body.span)),
+        ),
+        span_a: function.name.span,
+        span_b: function.name.span,
+    });
+    set.insert(Constraint {
+        a: function.ret.clone(),
+        b: function.body.ty.clone(),
+        span_a: function.body.span,
+        span_b: function.body.span,
+    });
 }

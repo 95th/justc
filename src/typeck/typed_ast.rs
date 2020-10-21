@@ -63,6 +63,7 @@ pub enum TypedExprKind {
 #[derive(Debug)]
 pub struct TypedBlock {
     pub stmts: Vec<TypedStmt>,
+    pub functions: Vec<TypedFunction>,
     pub ty: Ty,
     pub span: Span,
 }
@@ -70,5 +71,14 @@ pub struct TypedBlock {
 #[derive(Debug)]
 pub struct TypedParam {
     pub name: Token,
+    pub ty: Ty,
+}
+
+#[derive(Debug)]
+pub struct TypedFunction {
+    pub name: Token,
+    pub params: Vec<TypedParam>,
+    pub ret: Ty,
+    pub body: TypedBlock,
     pub ty: Ty,
 }

@@ -7,7 +7,7 @@ use crate::{
 use ast::{BinOp, Block, Expr, ExprKind, Lit, Stmt, Ty, TyKind, UnOp};
 use std::rc::Rc;
 
-use self::ast::Param;
+use self::ast::{Function, Param};
 
 pub struct Parser {
     lexer: Lexer,
@@ -72,7 +72,14 @@ impl Parser {
     fn block(&mut self) -> Option<Block> {
         let lo = self.prev.span;
         let mut stmts = vec![];
+        let mut functions = vec![];
         while !self.check(CloseBrace) && !self.eof() {
+            if self.eat(Fn) {
+                let fun = self.function()?;
+                functions.push(fun);
+                continue;
+            }
+
             let s = self.full_stmt_without_recovery()?;
             let last_stmt = matches!(s, Stmt::Expr(_));
             stmts.push(s);
@@ -85,7 +92,45 @@ impl Parser {
         }
         self.consume(CloseBrace, "Expect '}' after block.")?;
         let span = lo.to(self.prev.span);
-        Some(Block { stmts, span })
+        Some(Block {
+            stmts,
+            span,
+            functions,
+        })
+    }
+
+    fn function(&mut self) -> Option<Function> {
+        let name = self.consume(Ident, "Expected function name")?;
+        self.consume(OpenParen, "Expect '('")?;
+        let mut params = vec![];
+        while let Some(param) = self.param() {
+            if param.ty.is_none() {
+                self.handler
+                    .report(param.name.span, "Parameter type required");
+                return None;
+            }
+            params.push(param);
+            if !self.eat(Comma) {
+                break;
+            }
+        }
+        self.consume(CloseParen, "Expected ')'")?;
+
+        let ret = if self.eat(Arrow) {
+            Some(self.parse_ty()?)
+        } else {
+            None
+        };
+
+        self.consume(OpenBrace, "Expected '{'")?;
+        let body = self.block()?;
+
+        Some(Function {
+            name,
+            params,
+            ret,
+            body,
+        })
     }
 
     fn let_decl(&mut self) -> Option<Stmt> {

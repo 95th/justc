@@ -1,2 +1,5 @@
-let a = |a| -> int 100;
-a(10);
+{
+    fn add_one(a: int) -> int {
+        a + 1
+    }
+}

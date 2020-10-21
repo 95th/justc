@@ -30,6 +30,8 @@ impl Compiler {
             None => return,
         };
 
+        dbg!(&stmts);
+
         let constraints = crate::typeck::constraints::collect(&mut stmts);
         let mut constraints = constraints.into_iter().collect::<Vec<_>>();
 

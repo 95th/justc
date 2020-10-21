@@ -3,8 +3,12 @@ use std::collections::HashMap;
 use crate::{err::Handler, lex::Span};
 
 use super::{
-    constraints::Constraint, ty::Ty, typed_ast::TypedBlock, typed_ast::TypedExpr,
-    typed_ast::TypedExprKind, typed_ast::TypedStmt,
+    constraints::Constraint,
+    ty::Ty,
+    typed_ast::TypedBlock,
+    typed_ast::TypedExpr,
+    typed_ast::TypedExprKind,
+    typed_ast::{TypedFunction, TypedStmt},
 };
 
 pub fn unify(constraints: &mut [Constraint], handler: &Handler) -> Option<Subst> {
@@ -219,7 +223,23 @@ impl Subst {
 
     fn fill_block(&self, block: &mut TypedBlock) {
         self.fill_ast(&mut block.stmts);
+        self.fill_fns(&mut block.functions);
         self.fill_ty(&mut block.ty);
+    }
+
+    fn fill_fns(&self, functions: &mut [TypedFunction]) {
+        for f in functions {
+            self.fill_fn(f);
+        }
+    }
+
+    fn fill_fn(&self, function: &mut TypedFunction) {
+        for p in &mut function.params {
+            self.fill_ty(&mut p.ty);
+        }
+        self.fill_ty(&mut function.ret);
+        self.fill_ty(&mut function.ty);
+        self.fill_block(&mut function.body);
     }
 
     fn fill_ty(&self, ty: &mut Ty) {

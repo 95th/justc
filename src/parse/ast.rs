@@ -131,6 +131,7 @@ pub enum Stmt {
 pub struct Block {
     pub stmts: Vec<Stmt>,
     pub span: Span,
+    pub functions: Vec<Function>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -149,4 +150,12 @@ pub enum TyKind {
 pub struct Param {
     pub name: Token,
     pub ty: Option<Ty>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Function {
+    pub name: Token,
+    pub params: Vec<Param>,
+    pub body: Block,
+    pub ret: Option<Ty>,
 }
