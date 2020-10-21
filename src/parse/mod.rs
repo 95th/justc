@@ -103,12 +103,8 @@ impl Parser {
         let name = self.consume(Ident, "Expected function name")?;
         self.consume(OpenParen, "Expect '('")?;
         let mut params = vec![];
-        while let Some(param) = self.param() {
-            if param.ty.is_none() {
-                self.handler
-                    .report(param.name.span, "Parameter type required");
-                return None;
-            }
+        while !self.check(CloseParen) && !self.eof() {
+            let param = self.param(false)?;
             params.push(param);
             if !self.eat(Comma) {
                 break;
@@ -117,9 +113,9 @@ impl Parser {
         self.consume(CloseParen, "Expected ')'")?;
 
         let ret = if self.eat(Arrow) {
-            Some(self.parse_ty()?)
+            self.parse_ty()?
         } else {
-            None
+            TyKind::Unit.into()
         };
 
         self.consume(OpenBrace, "Expected '{'")?;
@@ -137,9 +133,9 @@ impl Parser {
         let name = self.consume(Ident, "Expect variable name.")?;
 
         let ty = if self.eat(Colon) {
-            Some(self.parse_ty()?)
+            self.parse_ty()?
         } else {
-            None
+            TyKind::Infer.into()
         };
 
         let mut init = None;
@@ -344,7 +340,7 @@ impl Parser {
 
     fn finish_call(&mut self, callee: Box<Expr>) -> Option<Box<Expr>> {
         let mut args = vec![];
-        while !self.check(CloseParen) {
+        while !self.check(CloseParen) && !self.eof() {
             let arg = self.expr()?;
             args.push(arg);
 
@@ -411,7 +407,8 @@ impl Parser {
         } else if self.eat(Or) {
             let lo = self.prev.span;
             let mut params = vec![];
-            while let Some(param) = self.param() {
+            while !self.check(Or) && !self.eof() {
+                let param = self.param(true)?;
                 params.push(param);
                 if !self.eat(Comma) {
                     break;
@@ -419,13 +416,15 @@ impl Parser {
             }
             self.consume(Or, "Expect '|' after closure parameters")?;
 
+            let mut only_block_allowed = false;
             let ret = if self.eat(Arrow) {
-                Some(self.parse_ty()?)
+                only_block_allowed = true;
+                self.parse_ty()?
             } else {
-                None
+                TyKind::Infer.into()
             };
 
-            let body = if ret.is_some() {
+            let body = if only_block_allowed {
                 self.consume(OpenBrace, "Expected '{'")?;
                 let lo = self.prev.span;
                 let block = self.block()?;
@@ -485,17 +484,17 @@ impl Parser {
         }))
     }
 
-    fn param(&mut self) -> Option<Param> {
-        let name = if self.eat(Ident) {
-            self.prev.clone()
-        } else {
-            return None;
-        };
+    fn param(&mut self, infer_ty: bool) -> Option<Param> {
+        let name = self.consume(Ident, "Expected parameter name")?;
 
         let ty = if self.eat(Colon) {
-            Some(self.parse_ty()?)
+            self.parse_ty()?
+        } else if infer_ty {
+            TyKind::Infer.into()
         } else {
-            None
+            self.handler
+                .report(self.curr.span, "Expected parameter type");
+            return None;
         };
 
         Some(Param { name, ty })

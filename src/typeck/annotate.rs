@@ -54,7 +54,7 @@ impl<'a> Annotate<'a> {
                     None => None,
                 };
 
-                let let_ty = self.ast_ty_to_ty(ty, false)?;
+                let let_ty = self.ast_ty_to_ty(ty)?;
                 self.bindings.insert(name.symbol, let_ty.clone());
 
                 Some(TypedStmt::Let {
@@ -119,7 +119,7 @@ impl<'a> Annotate<'a> {
             },
             ExprKind::Closure { params, ret, body } => self.enter_scope(|this| {
                 let params = this.annotate_params(params)?;
-                let ret = this.ast_ty_to_ty(ret, false)?;
+                let ret = this.ast_ty_to_ty(ret)?;
                 let body = this.annotate_expr(body)?;
                 Some(TypedExprKind::Closure { params, ret, body })
             })?,
@@ -165,7 +165,7 @@ impl<'a> Annotate<'a> {
             this.bindings.insert(p.name.symbol, p.ty.clone());
         }
 
-        let ret = this.ast_ty_to_ty(func.ret, true)?;
+        let ret = this.ast_ty_to_ty(func.ret)?;
         let body = this.annotate_block(func.body)?;
         let ty = this.env.new_var();
         Some(TypedFunction {
@@ -181,7 +181,7 @@ impl<'a> Annotate<'a> {
         params
             .into_iter()
             .map(|p| {
-                let param_ty = self.ast_ty_to_ty(p.ty, false)?;
+                let param_ty = self.ast_ty_to_ty(p.ty)?;
                 self.bindings.insert(p.name.symbol, param_ty.clone());
                 Some(TypedParam {
                     name: p.name,
@@ -203,17 +203,13 @@ impl<'a> Annotate<'a> {
         })
     }
 
-    fn ast_ty_to_ty(&mut self, ty: Option<ast::Ty>, none_is_unit: bool) -> Option<Ty> {
-        let ty = if let Some(ty) = ty {
-            match ty.kind {
-                ast::TyKind::Ident(t) => self.token_to_ty(&t)?,
-                ast::TyKind::Infer => self.env.new_var(),
-            }
-        } else if none_is_unit {
-            Ty::Unit
-        } else {
-            self.env.new_var()
+    fn ast_ty_to_ty(&mut self, ty: ast::Ty) -> Option<Ty> {
+        let ty = match ty.kind {
+            ast::TyKind::Ident(t) => self.token_to_ty(&t)?,
+            ast::TyKind::Infer => self.env.new_var(),
+            ast::TyKind::Unit => Ty::Unit,
         };
+
         Some(ty)
     }
 

@@ -98,7 +98,7 @@ pub enum ExprKind {
     },
     Closure {
         params: Vec<Param>,
-        ret: Option<Ty>,
+        ret: Ty,
         body: Box<Expr>,
     },
     Call {
@@ -114,7 +114,7 @@ pub enum Stmt {
     SemiExpr(Box<Expr>),
     Let {
         name: Token,
-        ty: Option<Ty>,
+        ty: Ty,
         init: Option<Box<Expr>>,
     },
     Assign {
@@ -144,12 +144,22 @@ pub struct Ty {
 pub enum TyKind {
     Ident(Token),
     Infer,
+    Unit,
+}
+
+impl From<TyKind> for Ty {
+    fn from(kind: TyKind) -> Self {
+        Self {
+            kind,
+            span: Span::DUMMY,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Param {
     pub name: Token,
-    pub ty: Option<Ty>,
+    pub ty: Ty,
 }
 
 #[derive(Debug, PartialEq)]
@@ -157,5 +167,5 @@ pub struct Function {
     pub name: Token,
     pub params: Vec<Param>,
     pub body: Block,
-    pub ret: Option<Ty>,
+    pub ret: Ty,
 }
