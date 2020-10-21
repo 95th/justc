@@ -88,7 +88,7 @@ fn collect_expr(expr: &mut TypedExpr, set: &mut BTreeSet<Constraint>) {
                 span_a: left.span,
                 span_b: right.span,
             });
-            match op {
+            match op.val {
                 BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Rem => {
                     set.insert(Constraint {
                         a: expr.ty.clone(),
@@ -140,7 +140,7 @@ fn collect_expr(expr: &mut TypedExpr, set: &mut BTreeSet<Constraint>) {
         }
         TypedExprKind::Unary { op, expr: e, .. } => {
             collect_expr(e, set);
-            match op {
+            match op.val {
                 UnOp::Not => {
                     set.insert(Constraint {
                         a: expr.ty.clone(),

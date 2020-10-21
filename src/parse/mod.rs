@@ -2,7 +2,7 @@ pub mod ast;
 
 use crate::{
     err::Handler,
-    lex::{Lexer, LiteralKind, Token, TokenKind, TokenKind::*},
+    lex::{Lexer, LiteralKind, Spanned, Token, TokenKind, TokenKind::*},
 };
 use ast::{BinOp, Block, Expr, ExprKind, Lit, Stmt, Ty, TyKind, UnOp};
 use std::rc::Rc;
@@ -181,8 +181,7 @@ impl Parser {
             let span = left.span.to(right.span);
             left = Box::new(Expr {
                 kind: ExprKind::Binary {
-                    op: BinOp::Or,
-                    span: op_span,
+                    op: Spanned::new(BinOp::Or, op_span),
                     left,
                     right,
                 },
@@ -203,8 +202,7 @@ impl Parser {
 
             left = Box::new(Expr {
                 kind: ExprKind::Binary {
-                    op: BinOp::And,
-                    span: op_span,
+                    op: Spanned::new(BinOp::And, op_span),
                     left,
                     right,
                 },
@@ -232,8 +230,7 @@ impl Parser {
 
             left = Box::new(Expr {
                 kind: ExprKind::Binary {
-                    op,
-                    span: op_span,
+                    op: Spanned::new(op, op_span),
                     left,
                     right,
                 },
@@ -265,8 +262,7 @@ impl Parser {
 
             left = Box::new(Expr {
                 kind: ExprKind::Binary {
-                    op,
-                    span: op_span,
+                    op: Spanned::new(op, op_span),
                     left,
                     right,
                 },
@@ -294,8 +290,7 @@ impl Parser {
 
             left = Box::new(Expr {
                 kind: ExprKind::Binary {
-                    op,
-                    span: op_span,
+                    op: Spanned::new(op, op_span),
                     left,
                     right,
                 },
@@ -325,8 +320,7 @@ impl Parser {
 
             left = Box::new(Expr {
                 kind: ExprKind::Binary {
-                    op,
-                    span: op_span,
+                    op: Spanned::new(op, op_span),
                     left,
                     right,
                 },
@@ -352,8 +346,7 @@ impl Parser {
 
         Some(Box::new(Expr {
             kind: ExprKind::Unary {
-                op,
-                span: op_span,
+                op: Spanned::new(op, op_span),
                 expr,
             },
             span,
@@ -624,8 +617,7 @@ mod tests {
         ($op:ident, $left:expr, $right:expr, ($lo:expr, $hi:expr)) => {
             expr!(
                 ExprKind::Binary {
-                    op: BinOp::$op,
-                    span: Span::DUMMY,
+                    op: Spanned::new(BinOp::$op, Span::DUMMY),
                     left: $left,
                     right: $right,
                 },

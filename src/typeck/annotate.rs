@@ -79,12 +79,10 @@ impl<'a> Annotate<'a> {
         let kind = match kind {
             ExprKind::Binary {
                 op,
-                span,
                 left,
                 right,
             } => TypedExprKind::Binary {
                 op,
-                span,
                 left: self.annotate_expr(left)?,
                 right: self.annotate_expr(right)?,
             },
@@ -99,9 +97,8 @@ impl<'a> Annotate<'a> {
                 };
                 TypedExprKind::Literal(lit, ty, span)
             }
-            ExprKind::Unary { op, span, expr } => TypedExprKind::Unary {
+            ExprKind::Unary { op, expr } => TypedExprKind::Unary {
                 op,
-                span,
                 expr: self.annotate_expr(expr)?,
             },
             ExprKind::Variable(t) => match self.bindings.get(&t.symbol) {

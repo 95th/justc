@@ -1,5 +1,5 @@
 use crate::{
-    lex::{Span, Token},
+    lex::{Span, Spanned, Token},
     symbol::Symbol,
 };
 use std::fmt;
@@ -79,16 +79,14 @@ pub struct Expr {
 #[derive(Debug, PartialEq)]
 pub enum ExprKind {
     Binary {
-        op: BinOp,
-        span: Span,
+        op: Spanned<BinOp>,
         left: Box<Expr>,
         right: Box<Expr>,
     },
     Grouping(Box<Expr>),
     Literal(Lit, Span),
     Unary {
-        op: UnOp,
-        span: Span,
+        op: Spanned<UnOp>,
         expr: Box<Expr>,
     },
     Variable(Token),

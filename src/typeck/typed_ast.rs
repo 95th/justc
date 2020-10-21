@@ -1,4 +1,6 @@
-use crate::{lex::Span, lex::Token, parse::ast::BinOp, parse::ast::Lit, parse::ast::UnOp};
+use crate::{
+    lex::Span, lex::Spanned, lex::Token, parse::ast::BinOp, parse::ast::Lit, parse::ast::UnOp,
+};
 
 use super::ty::Ty;
 
@@ -32,16 +34,14 @@ pub struct TypedExpr {
 #[derive(Debug)]
 pub enum TypedExprKind {
     Binary {
-        op: BinOp,
-        span: Span,
+        op: Spanned<BinOp>,
         left: Box<TypedExpr>,
         right: Box<TypedExpr>,
     },
     Grouping(Box<TypedExpr>),
     Literal(Lit, Ty, Span),
     Unary {
-        op: UnOp,
-        span: Span,
+        op: Spanned<UnOp>,
         expr: Box<TypedExpr>,
     },
     Variable(Token, Ty),

@@ -64,14 +64,9 @@ impl<'a> Typeck<'a> {
 
     fn typeck_expr(&self, expr: &TypedExpr) -> Option<()> {
         match &expr.kind {
-            TypedExprKind::Binary {
-                op,
-                span,
-                left,
-                right,
-            } => {
+            TypedExprKind::Binary { op, left, right } => {
                 self.typeck_eq(&left.ty, &right.ty, &right.span)?;
-                match op {
+                match op.val {
                     BinOp::Add
                     | BinOp::Sub
                     | BinOp::Mul
@@ -84,7 +79,7 @@ impl<'a> Typeck<'a> {
                         if [Ty::Int, Ty::Float].contains(&left.ty) {
                             Some(())
                         } else {
-                            self.handler.report(*span, "Operation not supported.");
+                            self.handler.report(op.span, "Operation not supported.");
                             None
                         }
                     }
@@ -93,7 +88,7 @@ impl<'a> Typeck<'a> {
                         if [Ty::Int, Ty::Float, Ty::Bool].contains(&left.ty) {
                             Some(())
                         } else {
-                            self.handler.report(*span, "Operation not supported.");
+                            self.handler.report(op.span, "Operation not supported.");
                             None
                         }
                     }
@@ -101,7 +96,7 @@ impl<'a> Typeck<'a> {
                         if left.ty == Ty::Bool {
                             Some(())
                         } else {
-                            self.handler.report(*span, "Operation not supported.");
+                            self.handler.report(op.span, "Operation not supported.");
                             None
                         }
                     }
@@ -109,12 +104,12 @@ impl<'a> Typeck<'a> {
             }
             TypedExprKind::Grouping(e) => self.typeck_expr(e),
             TypedExprKind::Literal(_, _, _) => Some(()),
-            TypedExprKind::Unary { op, span, expr } => match op {
+            TypedExprKind::Unary { op, expr } => match op.val {
                 UnOp::Not => {
                     if expr.ty == Ty::Bool {
                         Some(())
                     } else {
-                        self.handler.report(*span, "Operation not supported.");
+                        self.handler.report(op.span, "Operation not supported.");
                         None
                     }
                 }
@@ -122,7 +117,7 @@ impl<'a> Typeck<'a> {
                     if [Ty::Int, Ty::Float, Ty::Bool].contains(&expr.ty) {
                         Some(())
                     } else {
-                        self.handler.report(expr.span, "Operation not supported.");
+                        self.handler.report(op.span, "Operation not supported.");
                         None
                     }
                 }
