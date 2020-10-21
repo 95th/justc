@@ -33,6 +33,7 @@ pub struct TypedExpr {
 pub enum TypedExprKind {
     Binary {
         op: BinOp,
+        span: Span,
         left: Box<TypedExpr>,
         right: Box<TypedExpr>,
     },
@@ -40,6 +41,7 @@ pub enum TypedExprKind {
     Literal(Lit, Ty, Span),
     Unary {
         op: UnOp,
+        span: Span,
         expr: Box<TypedExpr>,
     },
     Variable(Token, Ty),

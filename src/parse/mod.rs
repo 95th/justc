@@ -175,12 +175,14 @@ impl Parser {
         let mut left = self.logic_and()?;
 
         while self.eat(OrOr) {
+            let op_span = self.prev.span;
             let right = self.logic_and()?;
 
             let span = left.span.to(right.span);
             left = Box::new(Expr {
                 kind: ExprKind::Binary {
                     op: BinOp::Or,
+                    span: op_span,
                     left,
                     right,
                 },
@@ -195,12 +197,14 @@ impl Parser {
         let mut left = self.equality()?;
 
         while self.eat(AndAnd) {
+            let op_span = self.prev.span;
             let right = self.equality()?;
             let span = left.span.to(right.span);
 
             left = Box::new(Expr {
                 kind: ExprKind::Binary {
                     op: BinOp::And,
+                    span: op_span,
                     left,
                     right,
                 },
@@ -222,11 +226,17 @@ impl Parser {
             } else {
                 break;
             };
+            let op_span = self.prev.span;
             let right = self.comparison()?;
             let span = left.span.to(right.span);
 
             left = Box::new(Expr {
-                kind: ExprKind::Binary { op, left, right },
+                kind: ExprKind::Binary {
+                    op,
+                    span: op_span,
+                    left,
+                    right,
+                },
                 span,
             });
         }
@@ -249,11 +259,17 @@ impl Parser {
             } else {
                 break;
             };
+            let op_span = self.prev.span;
             let right = self.addition()?;
             let span = left.span.to(right.span);
 
             left = Box::new(Expr {
-                kind: ExprKind::Binary { op, left, right },
+                kind: ExprKind::Binary {
+                    op,
+                    span: op_span,
+                    left,
+                    right,
+                },
                 span,
             });
         }
@@ -272,11 +288,17 @@ impl Parser {
             } else {
                 break;
             };
+            let op_span = self.prev.span;
             let right = self.multiplication()?;
             let span = left.span.to(right.span);
 
             left = Box::new(Expr {
-                kind: ExprKind::Binary { op, left, right },
+                kind: ExprKind::Binary {
+                    op,
+                    span: op_span,
+                    left,
+                    right,
+                },
                 span,
             });
         }
@@ -297,11 +319,17 @@ impl Parser {
             } else {
                 break;
             };
+            let op_span = self.prev.span;
             let right = self.unary()?;
             let span = left.span.to(right.span);
 
             left = Box::new(Expr {
-                kind: ExprKind::Binary { op, left, right },
+                kind: ExprKind::Binary {
+                    op,
+                    span: op_span,
+                    left,
+                    right,
+                },
                 span,
             });
         }
@@ -317,13 +345,17 @@ impl Parser {
         } else {
             return self.call();
         };
-        let lo = self.prev.span;
+        let op_span = self.prev.span;
 
         let expr = self.unary()?;
-        let span = lo.to(self.prev.span);
+        let span = op_span.to(self.prev.span);
 
         Some(Box::new(Expr {
-            kind: ExprKind::Unary { op, expr },
+            kind: ExprKind::Unary {
+                op,
+                span: op_span,
+                expr,
+            },
             span,
         }))
     }
@@ -593,6 +625,7 @@ mod tests {
             expr!(
                 ExprKind::Binary {
                     op: BinOp::$op,
+                    span: Span::DUMMY,
                     left: $left,
                     right: $right,
                 },

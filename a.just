@@ -1,7 +1,7 @@
 {
-    fn fib(a: int) -> int {
-        if a < 2 { 1 } else { fib(a - 1) + fib(a - 2) }
+    fn fib(n: int) -> int {
+        if n < 2 { 1 } else { fib(n - 1) + fib(n - 2) }
     }
 
-    fib(1);
+    fib(100);
 }

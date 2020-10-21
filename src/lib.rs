@@ -1,3 +1,5 @@
+use crate::typeck::Typeck;
+
 use self::{err::Handler, parse::Parser};
 use std::rc::Rc;
 pub use util::Args;
@@ -25,24 +27,10 @@ impl Compiler {
             None => return,
         };
 
-        let mut stmts = match crate::typeck::annotate::annotate(stmts, &handler) {
+        let _stmts = match Typeck::new(&handler).typeck(stmts) {
             Some(s) => s,
             None => return,
         };
-
-        dbg!(&stmts);
-
-        let constraints = crate::typeck::constraints::collect(&mut stmts);
-        let mut constraints = constraints.into_iter().collect::<Vec<_>>();
-
-        let subst = match crate::typeck::unify::unify(&mut constraints, &handler) {
-            Some(s) => s,
-            None => return,
-        };
-        dbg!(&subst);
-
-        subst.fill_ast(&mut stmts);
-        dbg!(&stmts);
 
         if handler.has_errors() {
             return;

@@ -80,6 +80,7 @@ pub struct Expr {
 pub enum ExprKind {
     Binary {
         op: BinOp,
+        span: Span,
         left: Box<Expr>,
         right: Box<Expr>,
     },
@@ -87,6 +88,7 @@ pub enum ExprKind {
     Literal(Lit, Span),
     Unary {
         op: UnOp,
+        span: Span,
         expr: Box<Expr>,
     },
     Variable(Token),

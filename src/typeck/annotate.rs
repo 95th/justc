@@ -77,8 +77,14 @@ impl<'a> Annotate<'a> {
     fn annotate_expr(&mut self, expr: Box<Expr>) -> Option<Box<TypedExpr>> {
         let (kind, span) = (expr.kind, expr.span);
         let kind = match kind {
-            ExprKind::Binary { op, left, right } => TypedExprKind::Binary {
+            ExprKind::Binary {
                 op,
+                span,
+                left,
+                right,
+            } => TypedExprKind::Binary {
+                op,
+                span,
                 left: self.annotate_expr(left)?,
                 right: self.annotate_expr(right)?,
             },
@@ -93,8 +99,9 @@ impl<'a> Annotate<'a> {
                 };
                 TypedExprKind::Literal(lit, ty, span)
             }
-            ExprKind::Unary { op, expr } => TypedExprKind::Unary {
+            ExprKind::Unary { op, span, expr } => TypedExprKind::Unary {
                 op,
+                span,
                 expr: self.annotate_expr(expr)?,
             },
             ExprKind::Variable(t) => match self.bindings.get(&t.symbol) {

@@ -77,7 +77,9 @@ fn collect_stmt(stmt: &mut TypedStmt, set: &mut BTreeSet<Constraint>) {
 
 fn collect_expr(expr: &mut TypedExpr, set: &mut BTreeSet<Constraint>) {
     match &mut expr.kind {
-        TypedExprKind::Binary { op, left, right } => {
+        TypedExprKind::Binary {
+            op, left, right, ..
+        } => {
             collect_expr(left, set);
             collect_expr(right, set);
             set.insert(Constraint {
@@ -136,7 +138,7 @@ fn collect_expr(expr: &mut TypedExpr, set: &mut BTreeSet<Constraint>) {
                 span_b: *span,
             });
         }
-        TypedExprKind::Unary { op, expr: e } => {
+        TypedExprKind::Unary { op, expr: e, .. } => {
             collect_expr(e, set);
             match op {
                 UnOp::Not => {
