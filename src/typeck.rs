@@ -79,7 +79,8 @@ impl<'a> Typeck<'a> {
                         if [Ty::Int, Ty::Float].contains(&left.ty) {
                             Some(())
                         } else {
-                            self.handler.report(op.span, "Operation not supported.");
+                            self.handler
+                                .report(op.span, &format!("Not supported for {:?}", &left.ty));
                             None
                         }
                     }
@@ -88,7 +89,8 @@ impl<'a> Typeck<'a> {
                         if [Ty::Int, Ty::Float, Ty::Bool].contains(&left.ty) {
                             Some(())
                         } else {
-                            self.handler.report(op.span, "Operation not supported.");
+                            self.handler
+                                .report(op.span, &format!("Not supported for {:?}", &left.ty));
                             None
                         }
                     }
@@ -96,7 +98,8 @@ impl<'a> Typeck<'a> {
                         if left.ty == Ty::Bool {
                             Some(())
                         } else {
-                            self.handler.report(op.span, "Operation not supported.");
+                            self.handler
+                                .report(op.span, &format!("Not supported for {:?}", &left.ty));
                             None
                         }
                     }
@@ -109,7 +112,8 @@ impl<'a> Typeck<'a> {
                     if expr.ty == Ty::Bool {
                         Some(())
                     } else {
-                        self.handler.report(op.span, "Operation not supported.");
+                        self.handler
+                            .report(op.span, &format!("Not supported for {:?}", &expr.ty));
                         None
                     }
                 }
@@ -117,7 +121,8 @@ impl<'a> Typeck<'a> {
                     if [Ty::Int, Ty::Float, Ty::Bool].contains(&expr.ty) {
                         Some(())
                     } else {
-                        self.handler.report(op.span, "Operation not supported.");
+                        self.handler
+                            .report(op.span, &format!("Not supported for {:?}", &expr.ty));
                         None
                     }
                 }
