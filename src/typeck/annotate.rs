@@ -140,9 +140,11 @@ impl<'a> Annotate<'a> {
 
     fn annotate_block(&mut self, block: Block) -> Option<TypedBlock> {
         self.enter_scope(|this| {
+            let functions = this.annotate_fns(block.functions)?;
+            let stmts = this.annotate_stmts(block.stmts)?;
             Some(TypedBlock {
-                stmts: this.annotate_stmts(block.stmts)?,
-                functions: this.annotate_fns(block.functions)?,
+                stmts,
+                functions,
                 ty: this.env.new_var(),
                 span: block.span,
             })
@@ -157,8 +159,14 @@ impl<'a> Annotate<'a> {
     }
 
     fn annotate_fn(&mut self, func: Function) -> Option<TypedFunction> {
+        let ty = self.env.new_var();
+        self.bindings.insert(func.name.symbol, ty.clone());
+
         let bindings = &mut SymbolTable::new();
         let mut this = Annotate::new(&mut self.env, bindings, &self.handler);
+
+        // Allow recursion
+        this.bindings.insert(func.name.symbol, ty.clone());
 
         let params = this.annotate_params(func.params)?;
         for p in &params {
@@ -167,7 +175,8 @@ impl<'a> Annotate<'a> {
 
         let ret = this.ast_ty_to_ty(func.ret)?;
         let body = this.annotate_block(func.body)?;
-        let ty = this.env.new_var();
+
+        self.bindings.insert(func.name.symbol, ty.clone());
         Some(TypedFunction {
             name: func.name,
             params,

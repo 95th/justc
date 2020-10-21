@@ -1,6 +1,7 @@
 use crate::symbol::Symbol;
 use std::collections::HashMap;
 
+#[derive(Debug)]
 pub struct SymbolTable<T> {
     map: HashMap<Symbol, T>,
     changes: Vec<(Symbol, Option<T>)>,
