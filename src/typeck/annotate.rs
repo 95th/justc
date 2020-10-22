@@ -176,10 +176,6 @@ impl<'a> Annotate<'a> {
         this.bindings.insert(func.name.symbol, ty.clone());
 
         let params = this.annotate_params(func.params)?;
-        for p in &params {
-            this.bindings.insert(p.name.symbol, p.ty.clone());
-        }
-
         let ret = this.ast_ty_to_ty(func.ret)?;
         let body = this.annotate_block(func.body)?;
 

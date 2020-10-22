@@ -32,7 +32,7 @@ pub enum Ty {
 impl fmt::Debug for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Ty::Var(n) => write!(f, "{{unknown [id: {}]}}", n)?,
+            Ty::Var(_) => f.write_str("{unknown}")?,
             Ty::Unit => f.write_str("unit")?,
             Ty::Bool => f.write_str("bool")?,
             Ty::Int => f.write_str("int")?,
