@@ -84,3 +84,9 @@ pub struct TypedFunction {
     pub body: TypedBlock,
     pub ty: Ty,
 }
+
+#[derive(Debug)]
+pub struct TypedAst {
+    pub functions: Vec<TypedFunction>,
+    pub stmts: Vec<TypedStmt>,
+}

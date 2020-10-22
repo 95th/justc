@@ -1,7 +1,7 @@
 use crate::{
     err::Handler,
     lex::Token,
-    parse::ast::{self, Block, Expr, ExprKind, Function, Lit, Param, Stmt},
+    parse::ast::{self, Ast, Block, Expr, ExprKind, Function, Lit, Param, Stmt},
     symbol::SymbolTable,
 };
 
@@ -12,13 +12,13 @@ use super::{
     typed_ast::TypedExpr,
     typed_ast::TypedExprKind,
     typed_ast::TypedParam,
-    typed_ast::{TypedFunction, TypedStmt},
+    typed_ast::{TypedAst, TypedFunction, TypedStmt},
 };
 
-pub fn annotate(ast: Vec<Stmt>, handler: &Handler) -> Option<Vec<TypedStmt>> {
+pub fn annotate(ast: Ast, handler: &Handler) -> Option<TypedAst> {
     let env = &mut TyContext::new();
     let bindings = &mut SymbolTable::new();
-    Annotate::new(env, bindings, &handler).annotate_stmts(ast)
+    Annotate::new(env, bindings, &handler).annotate_ast(ast)
 }
 
 struct Annotate<'a> {
@@ -38,6 +38,13 @@ impl<'a> Annotate<'a> {
             bindings,
             handler,
         }
+    }
+
+    fn annotate_ast(&mut self, ast: Ast) -> Option<TypedAst> {
+        Some(TypedAst {
+            functions: self.annotate_fns(ast.functions)?,
+            stmts: self.annotate_stmts(ast.stmts)?,
+        })
     }
 
     fn annotate_stmts(&mut self, stmts: Vec<Stmt>) -> Option<Vec<TypedStmt>> {
@@ -77,11 +84,7 @@ impl<'a> Annotate<'a> {
     fn annotate_expr(&mut self, expr: Box<Expr>) -> Option<Box<TypedExpr>> {
         let (kind, span) = (expr.kind, expr.span);
         let kind = match kind {
-            ExprKind::Binary {
-                op,
-                left,
-                right,
-            } => TypedExprKind::Binary {
+            ExprKind::Binary { op, left, right } => TypedExprKind::Binary {
                 op,
                 left: self.annotate_expr(left)?,
                 right: self.annotate_expr(right)?,

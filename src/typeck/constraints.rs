@@ -7,7 +7,7 @@ use crate::{
 
 use super::{
     ty::Ty,
-    typed_ast::{TypedBlock, TypedExpr, TypedExprKind, TypedFunction, TypedStmt},
+    typed_ast::{TypedAst, TypedBlock, TypedExpr, TypedExprKind, TypedFunction, TypedStmt},
 };
 
 #[derive(Debug, PartialOrd, Ord)]
@@ -26,13 +26,14 @@ impl PartialEq for Constraint {
 
 impl Eq for Constraint {}
 
-pub fn collect(ast: &mut [TypedStmt]) -> BTreeSet<Constraint> {
+pub fn collect(ast: &mut TypedAst) -> BTreeSet<Constraint> {
     let mut set = BTreeSet::new();
-    collect_stmts(ast, &mut set);
+    collect_fns(&mut ast.functions, &mut set);
+    collect_stmts(&mut ast.stmts, &mut set);
     set
 }
 
-pub fn collect_stmts(ast: &mut [TypedStmt], set: &mut BTreeSet<Constraint>) {
+fn collect_stmts(ast: &mut [TypedStmt], set: &mut BTreeSet<Constraint>) {
     for stmt in ast {
         collect_stmt(stmt, set);
     }

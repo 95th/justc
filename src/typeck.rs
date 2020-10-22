@@ -2,12 +2,12 @@ use crate::{
     err::Handler,
     lex::Span,
     parse::ast::BinOp,
-    parse::ast::{Stmt, UnOp},
+    parse::ast::{Ast, UnOp},
 };
 
 use self::{
     ty::Ty,
-    typed_ast::{TypedBlock, TypedExpr, TypedExprKind, TypedFunction, TypedStmt},
+    typed_ast::{TypedAst, TypedBlock, TypedExpr, TypedExprKind, TypedFunction, TypedStmt},
 };
 
 mod annotate;
@@ -25,20 +25,26 @@ impl<'a> Typeck<'a> {
         Self { handler }
     }
 
-    pub fn typeck(&self, ast: Vec<Stmt>) -> Option<Vec<TypedStmt>> {
-        let mut stmts = self::annotate::annotate(ast, self.handler)?;
-        let constraints = self::constraints::collect(&mut stmts);
+    pub fn typeck(&self, ast: Ast) -> Option<TypedAst> {
+        let mut ast = self::annotate::annotate(ast, self.handler)?;
+        let constraints = self::constraints::collect(&mut ast);
         let mut constraints = constraints.into_iter().collect::<Vec<_>>();
 
         let subst = self::unify::unify(&mut constraints, self.handler)?;
-        subst.fill_ast(&mut stmts);
+        subst.fill_ast(&mut ast);
 
-        for stmt in &stmts {
+        self.typeck_fns(&ast.functions)?;
+        self.typeck_stmts(&ast.stmts)?;
+
+        dbg!(&ast);
+        Some(ast)
+    }
+
+    fn typeck_stmts(&self, stmts: &[TypedStmt]) -> Option<()> {
+        for stmt in stmts {
             self.typeck_stmt(stmt)?;
         }
-
-        dbg!(&stmts);
-        Some(stmts)
+        Some(())
     }
 
     fn typeck_stmt(&self, stmt: &TypedStmt) -> Option<()> {
@@ -151,17 +157,20 @@ impl<'a> Typeck<'a> {
     }
 
     fn typeck_block(&self, block: &TypedBlock) -> Option<()> {
-        for f in &block.functions {
-            self.typeck_fn(f)?;
-        }
-        for s in &block.stmts {
-            self.typeck_stmt(s)?;
-        }
+        self.typeck_fns(&block.functions)?;
+        self.typeck_stmts(&block.stmts)?;
 
         if let Some(TypedStmt::Expr(last)) = block.stmts.last() {
             self.typeck_eq(&last.ty, &block.ty, &last.span)?;
         }
 
+        Some(())
+    }
+
+    fn typeck_fns(&self, func: &[TypedFunction]) -> Option<()> {
+        for f in func {
+            self.typeck_fn(f)?;
+        }
         Some(())
     }
 

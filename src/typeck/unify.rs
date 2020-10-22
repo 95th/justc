@@ -8,7 +8,7 @@ use super::{
     typed_ast::TypedBlock,
     typed_ast::TypedExpr,
     typed_ast::TypedExprKind,
-    typed_ast::{TypedFunction, TypedStmt},
+    typed_ast::{TypedAst, TypedFunction, TypedStmt},
 };
 
 pub fn unify(constraints: &mut [Constraint], handler: &Handler) -> Option<Subst> {
@@ -156,7 +156,12 @@ impl Subst {
         }
     }
 
-    pub fn fill_ast(&self, stmts: &mut [TypedStmt]) {
+    pub fn fill_ast(&self, ast: &mut TypedAst) {
+        self.fill_fns(&mut ast.functions);
+        self.fill_stmts(&mut ast.stmts);
+    }
+
+    fn fill_stmts(&self, stmts: &mut [TypedStmt]) {
         for s in stmts {
             self.fill_stmt(s);
         }
@@ -222,7 +227,7 @@ impl Subst {
     }
 
     fn fill_block(&self, block: &mut TypedBlock) {
-        self.fill_ast(&mut block.stmts);
+        self.fill_stmts(&mut block.stmts);
         self.fill_fns(&mut block.functions);
         self.fill_ty(&mut block.ty);
     }

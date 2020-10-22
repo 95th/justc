@@ -169,3 +169,9 @@ pub struct Function {
     pub body: Block,
     pub ret: Ty,
 }
+
+#[derive(Debug)]
+pub struct Ast {
+    pub functions: Vec<Function>,
+    pub stmts: Vec<Stmt>,
+}

@@ -7,7 +7,7 @@ use crate::{
 use ast::{BinOp, Block, Expr, ExprKind, Lit, Stmt, Ty, TyKind, UnOp};
 use std::rc::Rc;
 
-use self::ast::{Function, Param};
+use self::ast::{Ast, Function, Param};
 
 pub struct Parser {
     lexer: Lexer,
@@ -28,12 +28,20 @@ impl Parser {
         }
     }
 
-    pub fn parse(&mut self) -> Option<Vec<Stmt>> {
+    pub fn parse(&mut self) -> Option<Ast> {
         let mut stmts = vec![];
+        let mut functions = vec![];
+
         while !self.eof() {
-            stmts.push(self.stmt()?);
+            if self.eat(Fn) {
+                let fun = self.function()?;
+                functions.push(fun);
+            } else {
+                let stmt = self.stmt()?;
+                stmts.push(stmt);
+            }
         }
-        Some(stmts)
+        Some(Ast { functions, stmts })
     }
 
     fn stmt(&mut self) -> Option<Stmt> {
@@ -592,7 +600,7 @@ mod tests {
         let src = Rc::new(String::from(src));
         let handler = Rc::new(Handler::new(&src));
         let mut parser = Parser::new(src, &handler);
-        parser.parse().unwrap()
+        parser.parse().unwrap().stmts
     }
 
     macro_rules! expr {
