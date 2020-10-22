@@ -1,13 +1,12 @@
 pub mod ast;
 
+use self::ast::{Ast, BinOp, Block, Expr, ExprKind, Function, Lit, Param, Stmt, Ty, TyKind, UnOp};
 use crate::{
     err::Handler,
     lex::{Lexer, LiteralKind, Spanned, Token, TokenKind, TokenKind::*},
+    symbol::Symbol,
 };
-use ast::{BinOp, Block, Expr, ExprKind, Lit, Stmt, Ty, TyKind, UnOp};
-use std::rc::Rc;
-
-use self::ast::{Ast, Function, Param};
+use std::{collections::HashSet, rc::Rc};
 
 pub struct Parser {
     lexer: Lexer,
@@ -31,17 +30,23 @@ impl Parser {
     pub fn parse(&mut self) -> Option<Ast> {
         let mut stmts = vec![];
         let mut functions = vec![];
+        let mut declared_fns = HashSet::new();
 
         while !self.eof() {
             if self.eat(Fn) {
-                let fun = self.function()?;
+                let fun = self.function(&mut declared_fns)?;
                 functions.push(fun);
             } else {
                 let stmt = self.stmt()?;
                 stmts.push(stmt);
             }
         }
-        Some(Ast { functions, stmts })
+
+        if self.handler.has_errors() {
+            None
+        } else {
+            Some(Ast { functions, stmts })
+        }
     }
 
     fn stmt(&mut self) -> Option<Stmt> {
@@ -81,9 +86,10 @@ impl Parser {
         let lo = self.prev.span;
         let mut stmts = vec![];
         let mut functions = vec![];
+        let mut declared_fns = HashSet::new();
         while !self.check(CloseBrace) && !self.eof() {
             if self.eat(Fn) {
-                let fun = self.function()?;
+                let fun = self.function(&mut declared_fns)?;
                 functions.push(fun);
                 continue;
             }
@@ -107,8 +113,15 @@ impl Parser {
         })
     }
 
-    fn function(&mut self) -> Option<Function> {
+    fn function(&mut self, declared_fns: &mut HashSet<Symbol>) -> Option<Function> {
         let name = self.consume(Ident, "Expected function name")?;
+        if !declared_fns.insert(name.symbol) {
+            self.handler.report(
+                name.span,
+                "Function with same name already defined in this scope",
+            );
+        }
+
         self.consume(OpenParen, "Expect '('")?;
         let mut params = vec![];
         while !self.check(CloseParen) && !self.eof() {

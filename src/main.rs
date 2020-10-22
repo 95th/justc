@@ -22,7 +22,9 @@ fn run_prompt() {
     let mut c = Compiler::new();
     loop {
         match editor.readline("$ ") {
-            Ok(line) => c.run(line),
+            Ok(line) => {
+                c.run(line);
+            }
             Err(_) => break,
         }
     }

@@ -18,22 +18,11 @@ impl Compiler {
         Self {}
     }
 
-    pub fn run(&mut self, src: String) {
+    pub fn run(&mut self, src: String) -> Option<()> {
         let src = Rc::new(src);
         let handler = Rc::new(Handler::new(&src));
-        let mut parser = Parser::new(src, &handler);
-        let stmts = match parser.parse() {
-            Some(t) => t,
-            None => return,
-        };
-
-        let _stmts = match Typeck::new(&handler).typeck(stmts) {
-            Some(s) => s,
-            None => return,
-        };
-
-        if handler.has_errors() {
-            return;
-        }
+        let ast = Parser::new(src, &handler).parse()?;
+        Typeck::new(&handler).typeck(ast)?;
+        Some(())
     }
 }
