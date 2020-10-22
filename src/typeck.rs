@@ -75,57 +75,52 @@ impl<'a> Typeck<'a> {
                     | BinOp::Lt
                     | BinOp::Gt
                     | BinOp::Le
-                    | BinOp::Ge => {
-                        if [Ty::Int, Ty::Float].contains(&left.ty) {
-                            Some(())
-                        } else {
+                    | BinOp::Ge => match &left.ty {
+                        Ty::Int | Ty::Float => Some(()),
+                        ty => {
                             self.handler
-                                .report(op.span, &format!("Not supported for {:?}", &left.ty));
+                                .report(op.span, &format!("Not supported for {:?}", ty));
                             None
                         }
-                    }
+                    },
 
-                    BinOp::Ne | BinOp::Eq => {
-                        if [Ty::Int, Ty::Float, Ty::Bool].contains(&left.ty) {
-                            Some(())
-                        } else {
+                    BinOp::Ne | BinOp::Eq => match &left.ty {
+                        Ty::Int | Ty::Float | Ty::Bool => Some(()),
+                        ty => {
                             self.handler
-                                .report(op.span, &format!("Not supported for {:?}", &left.ty));
+                                .report(op.span, &format!("Not supported for {:?}", ty));
                             None
                         }
-                    }
-                    BinOp::And | BinOp::Or => {
-                        if left.ty == Ty::Bool {
-                            Some(())
-                        } else {
+                    },
+                    BinOp::And | BinOp::Or => match &left.ty {
+                        Ty::Bool => Some(()),
+                        ty => {
                             self.handler
-                                .report(op.span, &format!("Not supported for {:?}", &left.ty));
+                                .report(op.span, &format!("Not supported for {:?}", ty));
                             None
                         }
-                    }
+                    },
                 }
             }
             TypedExprKind::Grouping(e) => self.typeck_expr(e),
-            TypedExprKind::Literal(_, _, _) => Some(()),
+            TypedExprKind::Literal(..) => Some(()),
             TypedExprKind::Unary { op, expr } => match op.val {
-                UnOp::Not => {
-                    if expr.ty == Ty::Bool {
-                        Some(())
-                    } else {
+                UnOp::Not => match &expr.ty {
+                    Ty::Bool => Some(()),
+                    ty => {
                         self.handler
-                            .report(op.span, &format!("Not supported for {:?}", &expr.ty));
+                            .report(op.span, &format!("Not supported for {:?}", ty));
                         None
                     }
-                }
-                UnOp::Neg => {
-                    if [Ty::Int, Ty::Float, Ty::Bool].contains(&expr.ty) {
-                        Some(())
-                    } else {
+                },
+                UnOp::Neg => match &expr.ty {
+                    Ty::Int | Ty::Float => Some(()),
+                    ty => {
                         self.handler
-                            .report(op.span, &format!("Not supported for {:?}", &expr.ty));
+                            .report(op.span, &format!("Not supported for {:?}", ty));
                         None
                     }
-                }
+                },
             },
             TypedExprKind::Variable(_, _) => Some(()),
             TypedExprKind::Block(block) => self.typeck_block(block),
