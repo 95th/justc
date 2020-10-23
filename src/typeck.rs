@@ -1,19 +1,13 @@
-use crate::{
-    err::Handler,
-    lex::Span,
-    parse::ast::BinOp,
-    parse::ast::{Ast, UnOp},
-};
-
 use self::{
+    hir::{Ast, Block, Expr, ExprKind, Function, Stmt},
     ty::Ty,
-    typed_ast::{TypedAst, TypedBlock, TypedExpr, TypedExprKind, TypedFunction, TypedStmt},
 };
+use crate::{err::Handler, lex::Span, parse::ast};
 
 mod annotate;
 mod constraints;
-pub mod ty;
-pub mod typed_ast;
+mod hir;
+mod ty;
 mod unify;
 
 pub struct Typeck<'a> {
@@ -25,7 +19,7 @@ impl<'a> Typeck<'a> {
         Self { handler }
     }
 
-    pub fn typeck(&self, ast: Ast) -> Option<TypedAst> {
+    pub fn typeck(&self, ast: ast::Ast) -> Option<Ast> {
         let mut ast = self::annotate::annotate(ast, self.handler)?;
         let constraints = self::constraints::collect(&mut ast);
         let mut constraints = constraints.into_iter().collect::<Vec<_>>();
@@ -40,48 +34,44 @@ impl<'a> Typeck<'a> {
         Some(ast)
     }
 
-    fn typeck_stmts(&self, stmts: &[TypedStmt]) -> Option<()> {
+    fn typeck_stmts(&self, stmts: &[Stmt]) -> Option<()> {
         for stmt in stmts {
             self.typeck_stmt(stmt)?;
         }
         Some(())
     }
 
-    fn typeck_stmt(&self, stmt: &TypedStmt) -> Option<()> {
+    fn typeck_stmt(&self, stmt: &Stmt) -> Option<()> {
+        use Stmt::*;
         match stmt {
-            TypedStmt::Expr(e) | TypedStmt::SemiExpr(e) => self.typeck_expr(e),
-            TypedStmt::Let { ty, init, .. } => {
+            Expr(e) | SemiExpr(e) => self.typeck_expr(e),
+            Let { ty, init, .. } => {
                 if let Some(init) = init {
                     self.typeck_expr(init)?;
                     self.typeck_eq(ty, &init.ty, &init.span)?;
                 }
                 Some(())
             }
-            TypedStmt::Assign { name, val } => {
+            Assign { name, val } => {
                 self.typeck_expr(val)?;
                 self.typeck_eq(&name.ty, &val.ty, &val.span)
             }
-            TypedStmt::While { cond, body } => {
+            While { cond, body } => {
                 self.typeck_expr(cond)?;
                 self.typeck_block(body)
             }
         }
     }
 
-    fn typeck_expr(&self, expr: &TypedExpr) -> Option<()> {
+    fn typeck_expr(&self, expr: &Expr) -> Option<()> {
+        use ExprKind::*;
         match &expr.kind {
-            TypedExprKind::Binary { op, left, right } => {
+            Binary { op, left, right } => {
                 self.typeck_eq(&left.ty, &right.ty, &right.span)?;
+
+                use ast::BinOp::*;
                 match op.val {
-                    BinOp::Add
-                    | BinOp::Sub
-                    | BinOp::Mul
-                    | BinOp::Div
-                    | BinOp::Rem
-                    | BinOp::Lt
-                    | BinOp::Gt
-                    | BinOp::Le
-                    | BinOp::Ge => match &left.ty {
+                    Add | Sub | Mul | Div | Rem | Lt | Gt | Le | Ge => match &left.ty {
                         Ty::Int | Ty::Float => Some(()),
                         ty => {
                             self.handler
@@ -90,7 +80,7 @@ impl<'a> Typeck<'a> {
                         }
                     },
 
-                    BinOp::Ne | BinOp::Eq => match &left.ty {
+                    Ne | Eq => match &left.ty {
                         Ty::Int | Ty::Float | Ty::Bool => Some(()),
                         ty => {
                             self.handler
@@ -98,7 +88,7 @@ impl<'a> Typeck<'a> {
                             None
                         }
                     },
-                    BinOp::And | BinOp::Or => match &left.ty {
+                    And | Or => match &left.ty {
                         Ty::Bool => Some(()),
                         ty => {
                             self.handler
@@ -108,10 +98,10 @@ impl<'a> Typeck<'a> {
                     },
                 }
             }
-            TypedExprKind::Grouping(e) => self.typeck_expr(e),
-            TypedExprKind::Literal(..) => Some(()),
-            TypedExprKind::Unary { op, expr } => match op.val {
-                UnOp::Not => match &expr.ty {
+            Grouping(e) => self.typeck_expr(e),
+            Literal(..) => Some(()),
+            Unary { op, expr } => match op.val {
+                ast::UnOp::Not => match &expr.ty {
                     Ty::Bool => Some(()),
                     ty => {
                         self.handler
@@ -119,7 +109,7 @@ impl<'a> Typeck<'a> {
                         None
                     }
                 },
-                UnOp::Neg => match &expr.ty {
+                ast::UnOp::Neg => match &expr.ty {
                     Ty::Int | Ty::Float => Some(()),
                     ty => {
                         self.handler
@@ -128,9 +118,9 @@ impl<'a> Typeck<'a> {
                     }
                 },
             },
-            TypedExprKind::Variable(_, _) => Some(()),
-            TypedExprKind::Block(block) => self.typeck_block(block),
-            TypedExprKind::If {
+            Variable(_, _) => Some(()),
+            Block(block) => self.typeck_block(block),
+            If {
                 cond,
                 then_clause,
                 else_clause,
@@ -142,11 +132,11 @@ impl<'a> Typeck<'a> {
                 }
                 Some(())
             }
-            TypedExprKind::Closure { ret, body, .. } => {
+            Closure { ret, body, .. } => {
                 self.typeck_expr(body)?;
                 self.typeck_eq(ret, &body.ty, &body.span)
             }
-            TypedExprKind::Call { callee, args } => {
+            Call { callee, args } => {
                 self.typeck_expr(callee)?;
                 for arg in args {
                     self.typeck_expr(arg)?;
@@ -156,25 +146,25 @@ impl<'a> Typeck<'a> {
         }
     }
 
-    fn typeck_block(&self, block: &TypedBlock) -> Option<()> {
+    fn typeck_block(&self, block: &Block) -> Option<()> {
         self.typeck_fns(&block.functions)?;
         self.typeck_stmts(&block.stmts)?;
 
-        if let Some(TypedStmt::Expr(last)) = block.stmts.last() {
+        if let Some(Stmt::Expr(last)) = block.stmts.last() {
             self.typeck_eq(&last.ty, &block.ty, &last.span)?;
         }
 
         Some(())
     }
 
-    fn typeck_fns(&self, func: &[TypedFunction]) -> Option<()> {
+    fn typeck_fns(&self, func: &[Function]) -> Option<()> {
         for f in func {
             self.typeck_fn(f)?;
         }
         Some(())
     }
 
-    fn typeck_fn(&self, func: &TypedFunction) -> Option<()> {
+    fn typeck_fn(&self, func: &Function) -> Option<()> {
         self.typeck_eq(&func.ret, &func.body.ty, &func.body.span)?;
         self.typeck_block(&func.body)
     }

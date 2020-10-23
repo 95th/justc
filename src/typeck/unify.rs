@@ -4,11 +4,11 @@ use crate::{err::Handler, lex::Span};
 
 use super::{
     constraints::Constraint,
+    hir::Block,
+    hir::Expr,
+    hir::ExprKind,
+    hir::{Ast, Function, Stmt},
     ty::Ty,
-    typed_ast::TypedBlock,
-    typed_ast::TypedExpr,
-    typed_ast::TypedExprKind,
-    typed_ast::{TypedAst, TypedFunction, TypedStmt},
 };
 
 pub fn unify(constraints: &mut [Constraint], handler: &Handler) -> Option<Subst> {
@@ -156,49 +156,47 @@ impl Subst {
         }
     }
 
-    pub fn fill_ast(&self, ast: &mut TypedAst) {
+    pub fn fill_ast(&self, ast: &mut Ast) {
         self.fill_fns(&mut ast.functions);
         self.fill_stmts(&mut ast.stmts);
     }
 
-    fn fill_stmts(&self, stmts: &mut [TypedStmt]) {
+    fn fill_stmts(&self, stmts: &mut [Stmt]) {
         for s in stmts {
             self.fill_stmt(s);
         }
     }
 
-    fn fill_stmt(&self, stmt: &mut TypedStmt) {
+    fn fill_stmt(&self, stmt: &mut Stmt) {
         match stmt {
-            TypedStmt::Expr(e) | TypedStmt::SemiExpr(e) => self.fill_expr(e),
-            TypedStmt::Let { ty, init, .. } => {
+            Stmt::Expr(e) | Stmt::SemiExpr(e) => self.fill_expr(e),
+            Stmt::Let { ty, init, .. } => {
                 self.fill_ty(ty);
                 if let Some(init) = init {
                     self.fill_expr(init);
                 }
             }
-            TypedStmt::Assign { name, val } => {
+            Stmt::Assign { name, val } => {
                 self.fill_expr(name);
                 self.fill_expr(val);
             }
-            TypedStmt::While { cond, body } => {
+            Stmt::While { cond, body } => {
                 self.fill_expr(cond);
                 self.fill_block(body);
             }
         }
     }
 
-    fn fill_expr(&self, expr: &mut TypedExpr) {
+    fn fill_expr(&self, expr: &mut Expr) {
         match &mut expr.kind {
-            TypedExprKind::Binary { left, right, .. } => {
+            ExprKind::Binary { left, right, .. } => {
                 self.fill_expr(left);
                 self.fill_expr(right);
             }
-            TypedExprKind::Grouping(expr) | TypedExprKind::Unary { expr, .. } => {
-                self.fill_expr(expr)
-            }
-            TypedExprKind::Literal(_, ty, _) | TypedExprKind::Variable(_, ty) => self.fill_ty(ty),
-            TypedExprKind::Block(block) => self.fill_block(block),
-            TypedExprKind::If {
+            ExprKind::Grouping(expr) | ExprKind::Unary { expr, .. } => self.fill_expr(expr),
+            ExprKind::Literal(_, ty, _) | ExprKind::Variable(_, ty) => self.fill_ty(ty),
+            ExprKind::Block(block) => self.fill_block(block),
+            ExprKind::If {
                 cond,
                 then_clause,
                 else_clause,
@@ -209,14 +207,14 @@ impl Subst {
                     self.fill_expr(else_clause);
                 }
             }
-            TypedExprKind::Closure { params, ret, body } => {
+            ExprKind::Closure { params, ret, body } => {
                 for p in params {
                     self.fill_ty(&mut p.ty);
                 }
                 self.fill_ty(ret);
                 self.fill_expr(body);
             }
-            TypedExprKind::Call { callee, args } => {
+            ExprKind::Call { callee, args } => {
                 self.fill_expr(callee);
                 for arg in args {
                     self.fill_expr(arg);
@@ -226,19 +224,19 @@ impl Subst {
         self.fill_ty(&mut expr.ty);
     }
 
-    fn fill_block(&self, block: &mut TypedBlock) {
+    fn fill_block(&self, block: &mut Block) {
         self.fill_stmts(&mut block.stmts);
         self.fill_fns(&mut block.functions);
         self.fill_ty(&mut block.ty);
     }
 
-    fn fill_fns(&self, functions: &mut [TypedFunction]) {
+    fn fill_fns(&self, functions: &mut [Function]) {
         for f in functions {
             self.fill_fn(f);
         }
     }
 
-    fn fill_fn(&self, function: &mut TypedFunction) {
+    fn fill_fn(&self, function: &mut Function) {
         for p in &mut function.params {
             self.fill_ty(&mut p.ty);
         }

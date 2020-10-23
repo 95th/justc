@@ -6,8 +6,8 @@ use crate::{
 };
 
 use super::{
+    hir::{Ast, Block, Expr, ExprKind, Function, Stmt},
     ty::Ty,
-    typed_ast::{TypedAst, TypedBlock, TypedExpr, TypedExprKind, TypedFunction, TypedStmt},
 };
 
 #[derive(Debug, PartialOrd, Ord)]
@@ -26,23 +26,23 @@ impl PartialEq for Constraint {
 
 impl Eq for Constraint {}
 
-pub fn collect(ast: &mut TypedAst) -> BTreeSet<Constraint> {
+pub fn collect(ast: &mut Ast) -> BTreeSet<Constraint> {
     let mut set = BTreeSet::new();
     collect_fns(&mut ast.functions, &mut set);
     collect_stmts(&mut ast.stmts, &mut set);
     set
 }
 
-fn collect_stmts(ast: &mut [TypedStmt], set: &mut BTreeSet<Constraint>) {
+fn collect_stmts(ast: &mut [Stmt], set: &mut BTreeSet<Constraint>) {
     for stmt in ast {
         collect_stmt(stmt, set);
     }
 }
 
-fn collect_stmt(stmt: &mut TypedStmt, set: &mut BTreeSet<Constraint>) {
+fn collect_stmt(stmt: &mut Stmt, set: &mut BTreeSet<Constraint>) {
     match stmt {
-        TypedStmt::Expr(e) | TypedStmt::SemiExpr(e) => collect_expr(e, set),
-        TypedStmt::Let { name, ty, init } => {
+        Stmt::Expr(e) | Stmt::SemiExpr(e) => collect_expr(e, set),
+        Stmt::Let { name, ty, init } => {
             if let Some(init) = init {
                 collect_expr(init, set);
                 set.insert(Constraint {
@@ -53,7 +53,7 @@ fn collect_stmt(stmt: &mut TypedStmt, set: &mut BTreeSet<Constraint>) {
                 });
             }
         }
-        TypedStmt::Assign { name, val } => {
+        Stmt::Assign { name, val } => {
             collect_expr(name, set);
             collect_expr(val, set);
             set.insert(Constraint {
@@ -63,7 +63,7 @@ fn collect_stmt(stmt: &mut TypedStmt, set: &mut BTreeSet<Constraint>) {
                 span_b: val.span,
             });
         }
-        TypedStmt::While { cond, body } => {
+        Stmt::While { cond, body } => {
             collect_expr(cond, set);
             collect_block(body, set);
             set.insert(Constraint {
@@ -76,9 +76,9 @@ fn collect_stmt(stmt: &mut TypedStmt, set: &mut BTreeSet<Constraint>) {
     }
 }
 
-fn collect_expr(expr: &mut TypedExpr, set: &mut BTreeSet<Constraint>) {
+fn collect_expr(expr: &mut Expr, set: &mut BTreeSet<Constraint>) {
     match &mut expr.kind {
-        TypedExprKind::Binary {
+        ExprKind::Binary {
             op, left, right, ..
         } => {
             collect_expr(left, set);
@@ -130,8 +130,8 @@ fn collect_expr(expr: &mut TypedExpr, set: &mut BTreeSet<Constraint>) {
                 }
             }
         }
-        TypedExprKind::Grouping(e) => collect_expr(e, set),
-        TypedExprKind::Literal(_, ty, span) => {
+        ExprKind::Grouping(e) => collect_expr(e, set),
+        ExprKind::Literal(_, ty, span) => {
             set.insert(Constraint {
                 a: expr.ty.clone(),
                 b: ty.clone(),
@@ -139,7 +139,7 @@ fn collect_expr(expr: &mut TypedExpr, set: &mut BTreeSet<Constraint>) {
                 span_b: *span,
             });
         }
-        TypedExprKind::Unary { op, expr: e, .. } => {
+        ExprKind::Unary { op, expr: e, .. } => {
             collect_expr(e, set);
             match op.val {
                 UnOp::Not => {
@@ -166,7 +166,7 @@ fn collect_expr(expr: &mut TypedExpr, set: &mut BTreeSet<Constraint>) {
                 }
             }
         }
-        TypedExprKind::Variable(name, ty) => {
+        ExprKind::Variable(name, ty) => {
             set.insert(Constraint {
                 a: expr.ty.clone(),
                 b: ty.clone(),
@@ -174,7 +174,7 @@ fn collect_expr(expr: &mut TypedExpr, set: &mut BTreeSet<Constraint>) {
                 span_b: name.span,
             });
         }
-        TypedExprKind::Block(block) => {
+        ExprKind::Block(block) => {
             collect_block(block, set);
             set.insert(Constraint {
                 a: expr.ty.clone(),
@@ -183,7 +183,7 @@ fn collect_expr(expr: &mut TypedExpr, set: &mut BTreeSet<Constraint>) {
                 span_b: block.span,
             });
         }
-        TypedExprKind::If {
+        ExprKind::If {
             cond,
             then_clause,
             else_clause,
@@ -226,7 +226,7 @@ fn collect_expr(expr: &mut TypedExpr, set: &mut BTreeSet<Constraint>) {
                 });
             }
         }
-        TypedExprKind::Closure { params, ret, body } => {
+        ExprKind::Closure { params, ret, body } => {
             collect_expr(body, set);
             set.insert(Constraint {
                 a: expr.ty.clone(),
@@ -247,7 +247,7 @@ fn collect_expr(expr: &mut TypedExpr, set: &mut BTreeSet<Constraint>) {
                 span_b: body.span,
             });
         }
-        TypedExprKind::Call { callee, args } => {
+        ExprKind::Call { callee, args } => {
             collect_expr(callee, set);
             set.insert(Constraint {
                 a: callee.ty.clone(),
@@ -268,10 +268,10 @@ fn collect_expr(expr: &mut TypedExpr, set: &mut BTreeSet<Constraint>) {
     }
 }
 
-fn collect_block(block: &mut TypedBlock, set: &mut BTreeSet<Constraint>) {
+fn collect_block(block: &mut Block, set: &mut BTreeSet<Constraint>) {
     collect_stmts(&mut block.stmts, set);
     collect_fns(&mut block.functions, set);
-    if let Some(TypedStmt::Expr(e)) = block.stmts.last_mut() {
+    if let Some(Stmt::Expr(e)) = block.stmts.last_mut() {
         set.insert(Constraint {
             a: block.ty.clone(),
             b: e.ty.clone(),
@@ -288,13 +288,13 @@ fn collect_block(block: &mut TypedBlock, set: &mut BTreeSet<Constraint>) {
     }
 }
 
-fn collect_fns(items: &mut [TypedFunction], set: &mut BTreeSet<Constraint>) {
+fn collect_fns(items: &mut [Function], set: &mut BTreeSet<Constraint>) {
     for item in items {
         collect_item(item, set);
     }
 }
 
-fn collect_item(function: &mut TypedFunction, set: &mut BTreeSet<Constraint>) {
+fn collect_item(function: &mut Function, set: &mut BTreeSet<Constraint>) {
     collect_block(&mut function.body, set);
     set.insert(Constraint {
         a: function.ty.clone(),

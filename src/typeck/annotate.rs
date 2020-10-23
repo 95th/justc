@@ -1,21 +1,8 @@
-use crate::{
-    err::Handler,
-    lex::Token,
-    parse::ast::{self, Ast, Block, Expr, ExprKind, Function, Lit, Param, Stmt},
-    symbol::SymbolTable,
-};
+use crate::{err::Handler, lex::Token, parse::ast, symbol::SymbolTable};
 
-use super::{
-    ty::Ty,
-    ty::TyContext,
-    typed_ast::TypedBlock,
-    typed_ast::TypedExpr,
-    typed_ast::TypedExprKind,
-    typed_ast::TypedParam,
-    typed_ast::{TypedAst, TypedFunction, TypedStmt},
-};
+use super::{hir, ty::Ty, ty::TyContext};
 
-pub fn annotate(ast: Ast, handler: &Handler) -> Option<TypedAst> {
+pub fn annotate(ast: ast::Ast, handler: &Handler) -> Option<hir::Ast> {
     let env = &mut TyContext::new();
     let bindings = &mut SymbolTable::new();
     let functions = &mut SymbolTable::new();
@@ -44,22 +31,22 @@ impl<'a> Annotate<'a> {
         }
     }
 
-    fn annotate_ast(&mut self, ast: Ast) -> Option<TypedAst> {
-        Some(TypedAst {
+    fn annotate_ast(&mut self, ast: ast::Ast) -> Option<hir::Ast> {
+        Some(hir::Ast {
             functions: self.annotate_fns(ast.functions)?,
             stmts: self.annotate_stmts(ast.stmts)?,
         })
     }
 
-    fn annotate_stmts(&mut self, stmts: Vec<Stmt>) -> Option<Vec<TypedStmt>> {
+    fn annotate_stmts(&mut self, stmts: Vec<ast::Stmt>) -> Option<Vec<hir::Stmt>> {
         stmts.into_iter().map(|s| self.annotate_stmt(s)).collect()
     }
 
-    fn annotate_stmt(&mut self, stmt: Stmt) -> Option<TypedStmt> {
+    fn annotate_stmt(&mut self, stmt: ast::Stmt) -> Option<hir::Stmt> {
         match stmt {
-            Stmt::Expr(e) => Some(TypedStmt::Expr(self.annotate_expr(e)?)),
-            Stmt::SemiExpr(e) => Some(TypedStmt::SemiExpr(self.annotate_expr(e)?)),
-            Stmt::Let { name, init, ty } => {
+            ast::Stmt::Expr(e) => Some(hir::Stmt::Expr(self.annotate_expr(e)?)),
+            ast::Stmt::SemiExpr(e) => Some(hir::Stmt::SemiExpr(self.annotate_expr(e)?)),
+            ast::Stmt::Let { name, init, ty } => {
                 let init = match init {
                     Some(e) => Some(self.annotate_expr(e)?),
                     None => None,
@@ -68,63 +55,63 @@ impl<'a> Annotate<'a> {
                 let let_ty = self.ast_ty_to_ty(ty)?;
                 self.bindings.insert(name.symbol, let_ty.clone());
 
-                Some(TypedStmt::Let {
+                Some(hir::Stmt::Let {
                     name,
                     ty: let_ty,
                     init,
                 })
             }
-            Stmt::Assign { name, val } => Some(TypedStmt::Assign {
+            ast::Stmt::Assign { name, val } => Some(hir::Stmt::Assign {
                 name: self.annotate_expr(name)?,
                 val: self.annotate_expr(val)?,
             }),
-            Stmt::While { cond, body } => Some(TypedStmt::While {
+            ast::Stmt::While { cond, body } => Some(hir::Stmt::While {
                 cond: self.annotate_expr(cond)?,
                 body: self.annotate_block(body)?,
             }),
         }
     }
 
-    fn annotate_expr(&mut self, expr: Box<Expr>) -> Option<Box<TypedExpr>> {
+    fn annotate_expr(&mut self, expr: Box<ast::Expr>) -> Option<Box<hir::Expr>> {
         let (kind, span) = (expr.kind, expr.span);
         let kind = match kind {
-            ExprKind::Binary { op, left, right } => TypedExprKind::Binary {
+            ast::ExprKind::Binary { op, left, right } => hir::ExprKind::Binary {
                 op,
                 left: self.annotate_expr(left)?,
                 right: self.annotate_expr(right)?,
             },
-            ExprKind::Grouping(e) => TypedExprKind::Grouping(self.annotate_expr(e)?),
-            ExprKind::Literal(lit, span) => {
+            ast::ExprKind::Grouping(e) => hir::ExprKind::Grouping(self.annotate_expr(e)?),
+            ast::ExprKind::Literal(lit, span) => {
                 let ty = match &lit {
-                    Lit::Str(_) => Ty::Str,
-                    Lit::Integer(_) => Ty::Int,
-                    Lit::Float(_) => Ty::Float,
-                    Lit::Bool(_) => Ty::Bool,
-                    Lit::Err => self.env.new_var(),
+                    ast::Lit::Str(_) => Ty::Str,
+                    ast::Lit::Integer(_) => Ty::Int,
+                    ast::Lit::Float(_) => Ty::Float,
+                    ast::Lit::Bool(_) => Ty::Bool,
+                    ast::Lit::Err => self.env.new_var(),
                 };
-                TypedExprKind::Literal(lit, ty, span)
+                hir::ExprKind::Literal(lit, ty, span)
             }
-            ExprKind::Unary { op, expr } => TypedExprKind::Unary {
+            ast::ExprKind::Unary { op, expr } => hir::ExprKind::Unary {
                 op,
                 expr: self.annotate_expr(expr)?,
             },
-            ExprKind::Variable(t) => match self
+            ast::ExprKind::Variable(t) => match self
                 .bindings
                 .get(&t.symbol)
                 .or_else(|| self.functions.get(&t.symbol))
             {
-                Some(ty) => TypedExprKind::Variable(t, ty.clone()),
+                Some(ty) => hir::ExprKind::Variable(t, ty.clone()),
                 None => {
                     self.handler.report(t.span, "Not found in this scope");
                     return None;
                 }
             },
-            ExprKind::Block(block) => TypedExprKind::Block(self.annotate_block(block)?),
-            ExprKind::If {
+            ast::ExprKind::Block(block) => hir::ExprKind::Block(self.annotate_block(block)?),
+            ast::ExprKind::If {
                 cond,
                 then_clause,
                 else_clause,
-            } => TypedExprKind::If {
+            } => hir::ExprKind::If {
                 cond: self.annotate_expr(cond)?,
                 then_clause: self.annotate_block(then_clause)?,
                 else_clause: match else_clause {
@@ -132,13 +119,13 @@ impl<'a> Annotate<'a> {
                     None => None,
                 },
             },
-            ExprKind::Closure { params, ret, body } => self.enter_scope(|this| {
+            ast::ExprKind::Closure { params, ret, body } => self.enter_scope(|this| {
                 let params = this.annotate_params(params)?;
                 let ret = this.ast_ty_to_ty(ret)?;
                 let body = this.annotate_expr(body)?;
-                Some(TypedExprKind::Closure { params, ret, body })
+                Some(hir::ExprKind::Closure { params, ret, body })
             })?,
-            ExprKind::Call { callee, args } => TypedExprKind::Call {
+            ast::ExprKind::Call { callee, args } => hir::ExprKind::Call {
                 callee: self.annotate_expr(callee)?,
                 args: args
                     .into_iter()
@@ -146,18 +133,18 @@ impl<'a> Annotate<'a> {
                     .collect::<Option<Vec<_>>>()?,
             },
         };
-        Some(Box::new(TypedExpr {
+        Some(Box::new(hir::Expr {
             kind,
             span,
             ty: self.env.new_var(),
         }))
     }
 
-    fn annotate_block(&mut self, block: Block) -> Option<TypedBlock> {
+    fn annotate_block(&mut self, block: ast::Block) -> Option<hir::Block> {
         self.enter_scope(|this| {
             let functions = this.annotate_fns(block.functions)?;
             let stmts = this.annotate_stmts(block.stmts)?;
-            Some(TypedBlock {
+            Some(hir::Block {
                 stmts,
                 functions,
                 ty: this.env.new_var(),
@@ -166,14 +153,14 @@ impl<'a> Annotate<'a> {
         })
     }
 
-    fn annotate_fns(&mut self, functions: Vec<Function>) -> Option<Vec<TypedFunction>> {
+    fn annotate_fns(&mut self, functions: Vec<ast::Function>) -> Option<Vec<hir::Function>> {
         functions
             .into_iter()
             .map(|func| self.annotate_fn(func))
             .collect::<Option<Vec<_>>>()
     }
 
-    fn annotate_fn(&mut self, func: Function) -> Option<TypedFunction> {
+    fn annotate_fn(&mut self, func: ast::Function) -> Option<hir::Function> {
         let ty = self.env.new_var();
         self.functions.insert(func.name.symbol, ty.clone());
 
@@ -186,7 +173,7 @@ impl<'a> Annotate<'a> {
             let params = this.annotate_params(func.params)?;
             let ret = this.ast_ty_to_ty(func.ret)?;
             let body = this.annotate_block(func.body)?;
-            Some(TypedFunction {
+            Some(hir::Function {
                 name: func.name,
                 params,
                 ret,
@@ -196,13 +183,13 @@ impl<'a> Annotate<'a> {
         })
     }
 
-    fn annotate_params(&mut self, params: Vec<Param>) -> Option<Vec<TypedParam>> {
+    fn annotate_params(&mut self, params: Vec<ast::Param>) -> Option<Vec<hir::Param>> {
         params
             .into_iter()
             .map(|p| {
                 let param_ty = self.ast_ty_to_ty(p.ty)?;
                 self.bindings.insert(p.name.symbol, param_ty.clone());
-                Some(TypedParam {
+                Some(hir::Param {
                     name: p.name,
                     ty: param_ty,
                 })
