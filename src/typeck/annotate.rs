@@ -108,15 +108,16 @@ impl<'a> Annotate<'a> {
                 op,
                 expr: self.annotate_expr(expr)?,
             },
-            ExprKind::Variable(t) => match self.bindings.get(&t.symbol) {
+            ExprKind::Variable(t) => match self
+                .bindings
+                .get(&t.symbol)
+                .or_else(|| self.functions.get(&t.symbol))
+            {
                 Some(ty) => TypedExprKind::Variable(t, ty.clone()),
-                None => match self.functions.get(&t.symbol) {
-                    Some(ty) => TypedExprKind::Variable(t, ty.clone()),
-                    None => {
-                        self.handler.report(t.span, "Not found in this scope");
-                        return None;
-                    }
-                },
+                None => {
+                    self.handler.report(t.span, "Not found in this scope");
+                    return None;
+                }
             },
             ExprKind::Block(block) => TypedExprKind::Block(self.annotate_block(block)?),
             ExprKind::If {
