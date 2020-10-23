@@ -39,7 +39,6 @@ pub enum ExprKind {
         left: Box<Expr>,
         right: Box<Expr>,
     },
-    Grouping(Box<Expr>),
     Literal(Lit, Ty, Span),
     Unary {
         op: Spanned<UnOp>,

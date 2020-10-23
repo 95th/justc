@@ -100,7 +100,7 @@ impl<'a> Annotate<'a> {
                 left: self.annotate_expr(left)?,
                 right: self.annotate_expr(right)?,
             },
-            ast::ExprKind::Grouping(e) => hir::ExprKind::Grouping(self.annotate_expr(e)?),
+            ast::ExprKind::Grouping(e) => return self.annotate_expr(e),
             ast::ExprKind::Literal(lit, span) => {
                 let ty = match &lit {
                     ast::Lit::Str(_) => Ty::Str,

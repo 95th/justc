@@ -104,7 +104,6 @@ impl<'a> Typeck<'a> {
                     },
                 }
             }
-            Grouping(e) => self.typeck_expr(e),
             Literal(..) => Some(()),
             Unary { op, expr } => match op.val {
                 ast::UnOp::Not => match &expr.ty {

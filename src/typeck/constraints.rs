@@ -148,15 +148,6 @@ impl Collector {
                     }
                 }
             }
-            ExprKind::Grouping(e) => {
-                self.collect_expr(e);
-                self.constraints.insert(Constraint {
-                    a: expr.ty.clone(),
-                    b: e.ty.clone(),
-                    span_a: expr.span,
-                    span_b: e.span,
-                });
-            }
             ExprKind::Literal(_, ty, span) => {
                 self.constraints.insert(Constraint {
                     a: expr.ty.clone(),

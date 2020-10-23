@@ -198,7 +198,7 @@ impl Subst {
                 self.fill_expr(left);
                 self.fill_expr(right);
             }
-            ExprKind::Grouping(expr) | ExprKind::Unary { expr, .. } => self.fill_expr(expr),
+            ExprKind::Unary { expr, .. } => self.fill_expr(expr),
             ExprKind::Literal(_, ty, _) | ExprKind::Variable(_, ty) => self.fill_ty(ty),
             ExprKind::Block(block) => self.fill_block(block),
             ExprKind::If {
