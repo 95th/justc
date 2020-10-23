@@ -140,9 +140,9 @@ impl<'a> Annotate<'a> {
                 },
             },
             ast::ExprKind::Closure { params, ret, body } => self.enter_scope(|this| {
-                this.has_enclosing_fn = true;
                 let params = this.annotate_params(params)?;
                 let ret = this.ast_ty_to_ty(ret)?;
+                this.has_enclosing_fn = true;
                 let body = this.annotate_expr(body)?;
                 this.has_enclosing_fn = false;
                 Some(hir::ExprKind::Closure { params, ret, body })

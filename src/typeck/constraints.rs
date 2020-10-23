@@ -244,6 +244,7 @@ impl Collector {
                 }
             }
             ExprKind::Closure { params, ret, body } => {
+                let old_fn_ret_ty = self.enclosing_fn_ret_ty.take();
                 self.enclosing_fn_ret_ty = Some(ret.clone());
                 self.collect_expr(body);
                 self.constraints.insert(Constraint {
@@ -264,7 +265,7 @@ impl Collector {
                     span_a: body.span,
                     span_b: body.span,
                 });
-                self.enclosing_fn_ret_ty = None;
+                self.enclosing_fn_ret_ty = old_fn_ret_ty;
             }
             ExprKind::Call { callee, args } => {
                 self.collect_expr(callee);
@@ -334,9 +335,10 @@ impl Collector {
 
     fn collect_fns(&mut self, items: &[Function]) {
         for item in items {
+            let old_fn_ret_ty = self.enclosing_fn_ret_ty.take();
             self.enclosing_fn_ret_ty = Some(item.ret.clone());
             self.collect_fn(item);
-            self.enclosing_fn_ret_ty = None;
+            self.enclosing_fn_ret_ty = old_fn_ret_ty;
         }
     }
 
