@@ -292,13 +292,20 @@ impl Collector {
 
         for stmt in &block.stmts {
             self.collect_stmt(stmt);
-            if let Stmt::Return(_, e) = stmt {
+            if let Stmt::Return(span, e) = stmt {
                 if let Some(e) = e {
                     self.constraints.insert(Constraint {
                         a: self.enclosing_fn_ret_ty.clone().unwrap(),
                         b: e.ty.clone(),
                         span_a: e.span,
                         span_b: e.span,
+                    });
+                } else {
+                    self.constraints.insert(Constraint {
+                        a: self.enclosing_fn_ret_ty.clone().unwrap(),
+                        b: Ty::Unit,
+                        span_a: *span,
+                        span_b: *span,
                     });
                 }
             }
