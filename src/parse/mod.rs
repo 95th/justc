@@ -458,17 +458,20 @@ impl Parser {
             }));
         } else if self.eat(If) {
             return self.if_expr();
-        } else if self.eat(Or) {
+        } else if self.eat(Or) || self.eat(OrOr) {
             let lo = self.prev.span;
             let mut params = vec![];
-            while !self.check(Or) && !self.eof() {
-                let param = self.param(true)?;
-                params.push(param);
-                if !self.eat(Comma) {
-                    break;
+
+            if self.prev.kind == Or {
+                while !self.check(Or) && !self.eof() {
+                    let param = self.param(true)?;
+                    params.push(param);
+                    if !self.eat(Comma) {
+                        break;
+                    }
                 }
+                self.consume(Or, "Expect '|' after closure parameters")?;
             }
-            self.consume(Or, "Expect '|' after closure parameters")?;
 
             let mut only_block_allowed = false;
             let ret = if self.eat(Arrow) {
