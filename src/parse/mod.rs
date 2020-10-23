@@ -459,47 +459,7 @@ impl Parser {
         } else if self.eat(If) {
             return self.if_expr();
         } else if self.eat(Or) || self.eat(OrOr) {
-            let lo = self.prev.span;
-            let mut params = vec![];
-
-            if self.prev.kind == Or {
-                while !self.check(Or) && !self.eof() {
-                    let param = self.param(true)?;
-                    params.push(param);
-                    if !self.eat(Comma) {
-                        break;
-                    }
-                }
-                self.consume(Or, "Expect '|' after closure parameters")?;
-            }
-
-            let mut only_block_allowed = false;
-            let ret = if self.eat(Arrow) {
-                only_block_allowed = true;
-                self.parse_ty()?
-            } else {
-                TyKind::Infer.into()
-            };
-
-            let body = if only_block_allowed {
-                self.consume(OpenBrace, "Expected '{'")?;
-                let lo = self.prev.span;
-                let block = self.block()?;
-                let span = lo.to(self.prev.span);
-
-                Box::new(Expr {
-                    kind: ExprKind::Block(block),
-                    span,
-                })
-            } else {
-                self.expr()?
-            };
-
-            let span = lo.to(self.prev.span);
-            return Some(Box::new(Expr {
-                kind: ExprKind::Closure { params, ret, body },
-                span,
-            }));
+            return self.closure();
         } else {
             self.handler.report(self.curr.span, "Expected expression");
             return None;
@@ -508,6 +468,50 @@ impl Parser {
         Some(Box::new(Expr {
             kind: ExprKind::Literal(lit, self.prev.span),
             span: self.prev.span,
+        }))
+    }
+
+    fn closure(&mut self) -> Option<Box<Expr>> {
+        let lo = self.prev.span;
+        let mut params = vec![];
+
+        if self.prev.kind == Or {
+            while !self.check(Or) && !self.eof() {
+                let param = self.param(true)?;
+                params.push(param);
+                if !self.eat(Comma) {
+                    break;
+                }
+            }
+            self.consume(Or, "Expect '|' after closure parameters")?;
+        }
+
+        let mut only_block_allowed = false;
+        let ret = if self.eat(Arrow) {
+            only_block_allowed = true;
+            self.parse_ty()?
+        } else {
+            TyKind::Infer.into()
+        };
+
+        let body = if only_block_allowed {
+            self.consume(OpenBrace, "Expected '{'")?;
+            let lo = self.prev.span;
+            let block = self.block()?;
+            let span = lo.to(self.prev.span);
+
+            Box::new(Expr {
+                kind: ExprKind::Block(block),
+                span,
+            })
+        } else {
+            self.expr()?
+        };
+
+        let span = lo.to(self.prev.span);
+        Some(Box::new(Expr {
+            kind: ExprKind::Closure { params, ret, body },
+            span,
         }))
     }
 
