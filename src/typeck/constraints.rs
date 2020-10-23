@@ -244,28 +244,27 @@ impl Collector {
                 }
             }
             ExprKind::Closure { params, ret, body } => {
-                let old_fn_ret_ty = self.enclosing_fn_ret_ty.take();
-                self.enclosing_fn_ret_ty = Some(ret.clone());
-                self.collect_expr(body);
-                self.constraints.insert(Constraint {
-                    a: expr.ty.clone(),
-                    b: Ty::Fn(
-                        params
-                            .iter()
-                            .map(|p| Spanned::new(p.ty.clone(), p.name.span))
-                            .collect(),
-                        Box::new(Spanned::new(body.ty.clone(), body.span)),
-                    ),
-                    span_a: expr.span,
-                    span_b: expr.span,
+                self.enter_fn_scope(ret.clone(), |this| {
+                    this.collect_expr(body);
+                    this.constraints.insert(Constraint {
+                        a: expr.ty.clone(),
+                        b: Ty::Fn(
+                            params
+                                .iter()
+                                .map(|p| Spanned::new(p.ty.clone(), p.name.span))
+                                .collect(),
+                            Box::new(Spanned::new(body.ty.clone(), body.span)),
+                        ),
+                        span_a: expr.span,
+                        span_b: expr.span,
+                    });
+                    this.constraints.insert(Constraint {
+                        a: ret.clone(),
+                        b: body.ty.clone(),
+                        span_a: body.span,
+                        span_b: body.span,
+                    });
                 });
-                self.constraints.insert(Constraint {
-                    a: ret.clone(),
-                    b: body.ty.clone(),
-                    span_a: body.span,
-                    span_b: body.span,
-                });
-                self.enclosing_fn_ret_ty = old_fn_ret_ty;
             }
             ExprKind::Call { callee, args } => {
                 self.collect_expr(callee);
@@ -335,10 +334,7 @@ impl Collector {
 
     fn collect_fns(&mut self, items: &[Function]) {
         for item in items {
-            let old_fn_ret_ty = self.enclosing_fn_ret_ty.take();
-            self.enclosing_fn_ret_ty = Some(item.ret.clone());
-            self.collect_fn(item);
-            self.enclosing_fn_ret_ty = old_fn_ret_ty;
+            self.enter_fn_scope(item.ret.clone(), |this| this.collect_fn(item))
         }
     }
 
@@ -363,5 +359,16 @@ impl Collector {
             span_a: function.body.span,
             span_b: function.body.span,
         });
+    }
+
+    fn enter_fn_scope<F, R>(&mut self, ty: Ty, f: F) -> R
+    where
+        F: FnOnce(&mut Self) -> R,
+    {
+        let save_ret_ty = self.enclosing_fn_ret_ty.take();
+        self.enclosing_fn_ret_ty = Some(ty);
+        let result = f(self);
+        self.enclosing_fn_ret_ty = save_ret_ty;
+        result
     }
 }
