@@ -21,8 +21,7 @@ impl<'a> Typeck<'a> {
 
     pub fn typeck(&self, ast: ast::Ast) -> Option<Ast> {
         let mut ast = self::annotate::annotate(ast, self.handler)?;
-        let constraints = self::constraints::collect(&mut ast);
-        let mut constraints = constraints.into_iter().collect::<Vec<_>>();
+        let mut constraints = self::constraints::collect(&mut ast);
 
         let subst = self::unify::unify(&mut constraints, self.handler)?;
         subst.fill_ast(&mut ast);
@@ -59,6 +58,13 @@ impl<'a> Typeck<'a> {
             While { cond, body } => {
                 self.typeck_expr(cond)?;
                 self.typeck_block(body)
+            }
+            Return(_, e) => {
+                if let Some(e) = e {
+                    self.typeck_expr(e)
+                } else {
+                    Some(())
+                }
             }
         }
     }

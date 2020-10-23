@@ -14,6 +14,7 @@ struct Annotate<'a> {
     bindings: &'a mut SymbolTable<Ty>,
     functions: &'a mut SymbolTable<Ty>,
     handler: &'a Handler,
+    has_enclosing_fn: bool,
 }
 
 impl<'a> Annotate<'a> {
@@ -28,6 +29,7 @@ impl<'a> Annotate<'a> {
             bindings,
             functions,
             handler,
+            has_enclosing_fn: false,
         }
     }
 
@@ -69,6 +71,24 @@ impl<'a> Annotate<'a> {
                 cond: self.annotate_expr(cond)?,
                 body: self.annotate_block(body)?,
             }),
+            ast::Stmt::Return(span, Some(e)) => {
+                if self.has_enclosing_fn {
+                    Some(hir::Stmt::Return(span, Some(self.annotate_expr(e)?)))
+                } else {
+                    self.handler
+                        .report(span, "Cannot return without enclosing function");
+                    None
+                }
+            }
+            ast::Stmt::Return(span, None) => {
+                if self.has_enclosing_fn {
+                    Some(hir::Stmt::Return(span, None))
+                } else {
+                    self.handler
+                        .report(span, "Cannot return without enclosing function");
+                    None
+                }
+            }
         }
     }
 
@@ -120,9 +140,11 @@ impl<'a> Annotate<'a> {
                 },
             },
             ast::ExprKind::Closure { params, ret, body } => self.enter_scope(|this| {
+                this.has_enclosing_fn = true;
                 let params = this.annotate_params(params)?;
                 let ret = this.ast_ty_to_ty(ret)?;
                 let body = this.annotate_expr(body)?;
+                this.has_enclosing_fn = false;
                 Some(hir::ExprKind::Closure { params, ret, body })
             })?,
             ast::ExprKind::Call { callee, args } => hir::ExprKind::Call {
@@ -172,7 +194,9 @@ impl<'a> Annotate<'a> {
 
             let params = this.annotate_params(func.params)?;
             let ret = this.ast_ty_to_ty(func.ret)?;
+            this.has_enclosing_fn = true;
             let body = this.annotate_block(func.body)?;
+            this.has_enclosing_fn = false;
             Some(hir::Function {
                 name: func.name,
                 params,
@@ -204,10 +228,12 @@ impl<'a> Annotate<'a> {
         let env = &mut *self.env;
         let functions = &mut *self.functions;
         let handler = self.handler;
+        let has_enclosing_fn = self.has_enclosing_fn;
         self.bindings.enter_scope(|bindings| {
             functions.enter_scope(|functions| {
-                let mut annotate = Annotate::new(env, bindings, functions, handler);
-                f(&mut annotate)
+                let mut this = Annotate::new(env, bindings, functions, handler);
+                this.has_enclosing_fn = has_enclosing_fn;
+                f(&mut this)
             })
         })
     }

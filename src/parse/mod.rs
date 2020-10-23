@@ -77,6 +77,14 @@ impl Parser {
             self.consume(OpenBrace, "Expected '{' after the condition")?;
             let body = self.block()?;
             Some(Stmt::While { cond, body })
+        } else if self.eat(Return) {
+            let span = self.prev.span;
+            let mut expr = None;
+            if !self.check(SemiColon) {
+                expr = Some(self.expr()?);
+            }
+            self.consume(SemiColon, "Expected ';' after return");
+            Some(Stmt::Return(span, expr))
         } else {
             self.expr_stmt()
         }

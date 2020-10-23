@@ -125,6 +125,7 @@ pub enum Stmt {
         cond: Box<Expr>,
         body: Block,
     },
+    Return(Span, Option<Box<Expr>>),
 }
 
 #[derive(Default, Debug, PartialEq)]

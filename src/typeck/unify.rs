@@ -184,6 +184,11 @@ impl Subst {
                 self.fill_expr(cond);
                 self.fill_block(body);
             }
+            Stmt::Return(_, e) => {
+                if let Some(e) = e {
+                    self.fill_expr(e);
+                }
+            }
         }
     }
 
