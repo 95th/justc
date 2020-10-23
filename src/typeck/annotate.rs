@@ -18,12 +18,14 @@ use super::{
 pub fn annotate(ast: Ast, handler: &Handler) -> Option<TypedAst> {
     let env = &mut TyContext::new();
     let bindings = &mut SymbolTable::new();
-    Annotate::new(env, bindings, &handler).annotate_ast(ast)
+    let functions = &mut SymbolTable::new();
+    Annotate::new(env, bindings, functions, handler).annotate_ast(ast)
 }
 
 struct Annotate<'a> {
     env: &'a mut TyContext,
     bindings: &'a mut SymbolTable<Ty>,
+    functions: &'a mut SymbolTable<Ty>,
     handler: &'a Handler,
 }
 
@@ -31,11 +33,13 @@ impl<'a> Annotate<'a> {
     fn new(
         env: &'a mut TyContext,
         bindings: &'a mut SymbolTable<Ty>,
+        functions: &'a mut SymbolTable<Ty>,
         handler: &'a Handler,
     ) -> Self {
         Self {
             env,
             bindings,
+            functions,
             handler,
         }
     }
@@ -106,10 +110,13 @@ impl<'a> Annotate<'a> {
             },
             ExprKind::Variable(t) => match self.bindings.get(&t.symbol) {
                 Some(ty) => TypedExprKind::Variable(t, ty.clone()),
-                None => {
-                    self.handler.report(t.span, "Undefined variable");
-                    return None;
-                }
+                None => match self.functions.get(&t.symbol) {
+                    Some(ty) => TypedExprKind::Variable(t, ty.clone()),
+                    None => {
+                        self.handler.report(t.span, "Not found in this scope");
+                        return None;
+                    }
+                },
             },
             ExprKind::Block(block) => TypedExprKind::Block(self.annotate_block(block)?),
             ExprKind::If {
@@ -167,25 +174,24 @@ impl<'a> Annotate<'a> {
 
     fn annotate_fn(&mut self, func: Function) -> Option<TypedFunction> {
         let ty = self.env.new_var();
-        self.bindings.insert(func.name.symbol, ty.clone());
+        self.functions.insert(func.name.symbol, ty.clone());
 
-        let bindings = &mut SymbolTable::new();
-        let mut this = Annotate::new(&mut self.env, bindings, &self.handler);
+        let env = &mut *self.env;
+        let handler = self.handler;
+        self.functions.enter_scope(|functions| {
+            let bindings = &mut SymbolTable::new();
+            let mut this = Annotate::new(env, bindings, functions, handler);
 
-        // Allow recursion
-        this.bindings.insert(func.name.symbol, ty.clone());
-
-        let params = this.annotate_params(func.params)?;
-        let ret = this.ast_ty_to_ty(func.ret)?;
-        let body = this.annotate_block(func.body)?;
-
-        self.bindings.insert(func.name.symbol, ty.clone());
-        Some(TypedFunction {
-            name: func.name,
-            params,
-            ret,
-            body,
-            ty,
+            let params = this.annotate_params(func.params)?;
+            let ret = this.ast_ty_to_ty(func.ret)?;
+            let body = this.annotate_block(func.body)?;
+            Some(TypedFunction {
+                name: func.name,
+                params,
+                ret,
+                body,
+                ty,
+            })
         })
     }
 
@@ -208,10 +214,13 @@ impl<'a> Annotate<'a> {
         F: FnOnce(&mut Annotate<'_>) -> R,
     {
         let env = &mut *self.env;
+        let functions = &mut *self.functions;
         let handler = self.handler;
         self.bindings.enter_scope(|bindings| {
-            let mut annotate = Annotate::new(env, bindings, handler);
-            f(&mut annotate)
+            functions.enter_scope(|functions| {
+                let mut annotate = Annotate::new(env, bindings, functions, handler);
+                f(&mut annotate)
+            })
         })
     }
 
