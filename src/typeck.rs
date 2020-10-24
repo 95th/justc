@@ -66,7 +66,7 @@ impl<'a> Typeck<'a> {
                     Some(())
                 }
             }
-            Continue(_) => Some(()),
+            Continue(_) | Break(_) => Some(()),
         }
     }
 

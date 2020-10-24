@@ -89,6 +89,10 @@ impl Parser {
             let span = self.prev.span;
             self.consume(SemiColon, "Expected ';' after continue");
             Some(Stmt::Continue(span))
+        } else if self.eat(Break) {
+            let span = self.prev.span;
+            self.consume(SemiColon, "Expected ';' after break");
+            Some(Stmt::Break(span))
         } else {
             self.expr_stmt()
         }

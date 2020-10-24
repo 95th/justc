@@ -104,6 +104,15 @@ impl<'a> Annotate<'a> {
                     None
                 }
             }
+            ast::Stmt::Break(span) => {
+                if self.has_enclosing_loop {
+                    Some(hir::Stmt::Break(span))
+                } else {
+                    self.handler
+                        .report(span, "Cannot break without an enclosing loop");
+                    None
+                }
+            }
         }
     }
 

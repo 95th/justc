@@ -189,7 +189,7 @@ impl Subst {
                     self.fill_expr(e);
                 }
             }
-            Stmt::Continue(_) => {}
+            Stmt::Continue(_) | Stmt::Break(_) => {}
         }
     }
 

@@ -22,6 +22,7 @@ pub enum Stmt {
     },
     Return(Span, Option<Box<Expr>>),
     Continue(Span),
+    Break(Span),
 }
 
 #[derive(Debug)]
