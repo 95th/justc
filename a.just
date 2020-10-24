@@ -1,15 +1,11 @@
-fn is_odd(a: int, x: bool) -> bool {
-    if a == 1 {
-        true
-    } else {
-        is_even(a - 1, x)
-    }
-}
+let a = |a, b| {
+    a(b + 1)
+};
 
-fn is_even(a: int, x: bool) -> bool {
-    if a == 0 {
-        true
-    } else {
-        return is_odd(a - 1, x);
+let a = || {
+    if a(|a| a + 1, 1) > 1 {
+        return 1;
     }
-}
+
+    return 0;
+};

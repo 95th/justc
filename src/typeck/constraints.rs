@@ -1,5 +1,3 @@
-use std::collections::BTreeSet;
-
 use crate::{
     lex::{Span, Spanned},
     parse::ast::{BinOp, UnOp},
@@ -10,7 +8,7 @@ use super::{
     ty::Ty,
 };
 
-#[derive(Debug, PartialOrd, Ord)]
+#[derive(Debug)]
 pub struct Constraint {
     pub a: Ty,
     pub b: Ty,
@@ -18,31 +16,23 @@ pub struct Constraint {
     pub span_b: Span,
 }
 
-impl PartialEq for Constraint {
-    fn eq(&self, other: &Self) -> bool {
-        self.a == other.a && self.b == other.b
-    }
-}
-
-impl Eq for Constraint {}
-
 struct Collector {
     enclosing_fn_ret_ty: Option<Ty>,
-    constraints: BTreeSet<Constraint>,
+    constraints: Vec<Constraint>,
 }
 
 pub fn collect(ast: &Ast) -> Vec<Constraint> {
     let mut collector = Collector::new();
     collector.collect_fns(&ast.functions);
     collector.collect_stmts(&ast.stmts);
-    collector.constraints.into_iter().collect()
+    collector.constraints
 }
 
 impl Collector {
     fn new() -> Self {
         Self {
             enclosing_fn_ret_ty: None,
-            constraints: BTreeSet::new(),
+            constraints: vec![],
         }
     }
 
@@ -58,7 +48,7 @@ impl Collector {
             Stmt::Let { name, ty, init } => {
                 if let Some(init) = init {
                     self.collect_expr(init);
-                    self.constraints.insert(Constraint {
+                    self.constraints.push(Constraint {
                         a: ty.clone(),
                         b: init.ty.clone(),
                         span_a: name.span,
@@ -69,7 +59,7 @@ impl Collector {
             Stmt::Assign { name, val } => {
                 self.collect_expr(name);
                 self.collect_expr(val);
-                self.constraints.insert(Constraint {
+                self.constraints.push(Constraint {
                     a: name.ty.clone(),
                     b: val.ty.clone(),
                     span_a: name.span,
@@ -79,7 +69,7 @@ impl Collector {
             Stmt::While { cond, body } => {
                 self.collect_expr(cond);
                 self.collect_block(body);
-                self.constraints.insert(Constraint {
+                self.constraints.push(Constraint {
                     a: body.ty.clone(),
                     b: Ty::Unit,
                     span_a: body.span,
@@ -102,7 +92,7 @@ impl Collector {
             } => {
                 self.collect_expr(left);
                 self.collect_expr(right);
-                self.constraints.insert(Constraint {
+                self.constraints.push(Constraint {
                     a: left.ty.clone(),
                     b: right.ty.clone(),
                     span_a: left.span,
@@ -110,7 +100,7 @@ impl Collector {
                 });
                 match op.val {
                     BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Rem => {
-                        self.constraints.insert(Constraint {
+                        self.constraints.push(Constraint {
                             a: expr.ty.clone(),
                             b: left.ty.clone(),
                             span_a: expr.span,
@@ -118,7 +108,7 @@ impl Collector {
                         });
                     }
                     BinOp::Lt | BinOp::Gt | BinOp::Le | BinOp::Ge => {
-                        self.constraints.insert(Constraint {
+                        self.constraints.push(Constraint {
                             a: expr.ty.clone(),
                             b: Ty::Bool,
                             span_a: expr.span,
@@ -126,7 +116,7 @@ impl Collector {
                         });
                     }
                     BinOp::Ne | BinOp::Eq => {
-                        self.constraints.insert(Constraint {
+                        self.constraints.push(Constraint {
                             a: expr.ty.clone(),
                             b: Ty::Bool,
                             span_a: expr.span,
@@ -134,13 +124,13 @@ impl Collector {
                         });
                     }
                     BinOp::And | BinOp::Or => {
-                        self.constraints.insert(Constraint {
+                        self.constraints.push(Constraint {
                             a: left.ty.clone(),
                             b: Ty::Bool,
                             span_a: left.span,
                             span_b: left.span,
                         });
-                        self.constraints.insert(Constraint {
+                        self.constraints.push(Constraint {
                             a: expr.ty.clone(),
                             b: Ty::Bool,
                             span_a: expr.span,
@@ -150,7 +140,7 @@ impl Collector {
                 }
             }
             ExprKind::Literal(_, ty, span) => {
-                self.constraints.insert(Constraint {
+                self.constraints.push(Constraint {
                     a: expr.ty.clone(),
                     b: ty.clone(),
                     span_a: expr.span,
@@ -161,13 +151,13 @@ impl Collector {
                 self.collect_expr(e);
                 match op.val {
                     UnOp::Not => {
-                        self.constraints.insert(Constraint {
+                        self.constraints.push(Constraint {
                             a: expr.ty.clone(),
                             b: Ty::Bool,
                             span_a: expr.span,
                             span_b: expr.span,
                         });
-                        self.constraints.insert(Constraint {
+                        self.constraints.push(Constraint {
                             a: e.ty.clone(),
                             b: Ty::Bool,
                             span_a: e.span,
@@ -175,7 +165,7 @@ impl Collector {
                         });
                     }
                     UnOp::Neg => {
-                        self.constraints.insert(Constraint {
+                        self.constraints.push(Constraint {
                             a: expr.ty.clone(),
                             b: e.ty.clone(),
                             span_a: expr.span,
@@ -185,7 +175,7 @@ impl Collector {
                 }
             }
             ExprKind::Variable(name, ty) => {
-                self.constraints.insert(Constraint {
+                self.constraints.push(Constraint {
                     a: expr.ty.clone(),
                     b: ty.clone(),
                     span_a: expr.span,
@@ -194,7 +184,7 @@ impl Collector {
             }
             ExprKind::Block(block) => {
                 self.collect_block(block);
-                self.constraints.insert(Constraint {
+                self.constraints.push(Constraint {
                     a: expr.ty.clone(),
                     b: block.ty.clone(),
                     span_a: expr.span,
@@ -207,7 +197,7 @@ impl Collector {
                 else_clause,
             } => {
                 self.collect_expr(cond);
-                self.constraints.insert(Constraint {
+                self.constraints.push(Constraint {
                     a: cond.ty.clone(),
                     b: Ty::Bool,
                     span_a: cond.span,
@@ -217,26 +207,26 @@ impl Collector {
                 self.collect_block(then_clause);
                 if let Some(else_clause) = else_clause {
                     self.collect_expr(else_clause);
-                    self.constraints.insert(Constraint {
+                    self.constraints.push(Constraint {
                         a: then_clause.ty.clone(),
                         b: else_clause.ty.clone(),
                         span_a: then_clause.span,
                         span_b: else_clause.span,
                     });
-                    self.constraints.insert(Constraint {
+                    self.constraints.push(Constraint {
                         a: expr.ty.clone(),
                         b: then_clause.ty.clone(),
                         span_a: expr.span,
                         span_b: then_clause.span,
                     });
                 } else {
-                    self.constraints.insert(Constraint {
+                    self.constraints.push(Constraint {
                         a: then_clause.ty.clone(),
                         b: Ty::Unit,
                         span_a: then_clause.span,
                         span_b: then_clause.span,
                     });
-                    self.constraints.insert(Constraint {
+                    self.constraints.push(Constraint {
                         a: expr.ty.clone(),
                         b: Ty::Unit,
                         span_a: expr.span,
@@ -247,7 +237,7 @@ impl Collector {
             ExprKind::Closure { params, ret, body } => {
                 self.enter_fn_scope(ret.clone(), |this| {
                     this.collect_expr(body);
-                    this.constraints.insert(Constraint {
+                    this.constraints.push(Constraint {
                         a: expr.ty.clone(),
                         b: Ty::Fn(
                             params
@@ -259,7 +249,7 @@ impl Collector {
                         span_a: expr.span,
                         span_b: expr.span,
                     });
-                    this.constraints.insert(Constraint {
+                    this.constraints.push(Constraint {
                         a: ret.clone(),
                         b: body.ty.clone(),
                         span_a: body.span,
@@ -269,7 +259,7 @@ impl Collector {
             }
             ExprKind::Call { callee, args } => {
                 self.collect_expr(callee);
-                self.constraints.insert(Constraint {
+                self.constraints.push(Constraint {
                     a: callee.ty.clone(),
                     b: Ty::Fn(
                         args.iter()
@@ -295,14 +285,14 @@ impl Collector {
             self.collect_stmt(stmt);
             if let Stmt::Return(span, e) = stmt {
                 if let Some(e) = e {
-                    self.constraints.insert(Constraint {
+                    self.constraints.push(Constraint {
                         a: self.enclosing_fn_ret_ty.clone().unwrap(),
                         b: e.ty.clone(),
                         span_a: e.span,
                         span_b: e.span,
                     });
                 } else {
-                    self.constraints.insert(Constraint {
+                    self.constraints.push(Constraint {
                         a: self.enclosing_fn_ret_ty.clone().unwrap(),
                         b: Ty::Unit,
                         span_a: *span,
@@ -314,7 +304,7 @@ impl Collector {
 
         match block.stmts.last() {
             Some(Stmt::Expr(expr, false)) => {
-                self.constraints.insert(Constraint {
+                self.constraints.push(Constraint {
                     a: block.ty.clone(),
                     b: expr.ty.clone(),
                     span_a: block.span,
@@ -323,7 +313,7 @@ impl Collector {
             }
             Some(Stmt::Return(_, _)) => {}
             _ => {
-                self.constraints.insert(Constraint {
+                self.constraints.push(Constraint {
                     a: block.ty.clone(),
                     b: Ty::Unit,
                     span_a: block.span,
@@ -341,7 +331,7 @@ impl Collector {
 
     fn collect_fn(&mut self, function: &Function) {
         self.collect_block(&function.body);
-        self.constraints.insert(Constraint {
+        self.constraints.push(Constraint {
             a: function.ty.clone(),
             b: Ty::Fn(
                 function
@@ -354,7 +344,7 @@ impl Collector {
             span_a: function.name.span,
             span_b: function.name.span,
         });
-        self.constraints.insert(Constraint {
+        self.constraints.push(Constraint {
             a: function.ret.clone(),
             b: function.body.ty.clone(),
             span_a: function.body.span,
