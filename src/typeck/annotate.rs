@@ -183,6 +183,7 @@ impl<'a> Annotate<'a> {
                     .map(|arg| self.annotate_expr(arg))
                     .collect::<Option<Vec<_>>>()?,
             },
+            _ => todo!(),
         };
         Some(Box::new(hir::Expr {
             kind,

@@ -25,6 +25,31 @@ impl Lexer {
         }
     }
 
+    pub fn look_ahead<F, R>(&mut self, dist: usize, f: F) -> R
+    where
+        F: FnOnce(Token) -> R,
+    {
+        assert!(dist > 0);
+        let pos = self.pos;
+
+        let mut t = Token {
+            kind: TokenKind::Eof,
+            span: Span::DUMMY,
+            symbol: Symbol::intern(""),
+        };
+
+        for _ in 0..dist {
+            t = self.next_token();
+            if t.kind == Eof {
+                break;
+            }
+        }
+
+        let result = f(t);
+        self.pos = pos;
+        result
+    }
+
     pub fn next_token(&mut self) -> Token {
         while !self.eof() {
             self.start_pos = self.pos;

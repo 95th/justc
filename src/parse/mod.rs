@@ -1,6 +1,8 @@
 pub mod ast;
 
-use self::ast::{Ast, BinOp, Block, Expr, ExprKind, Function, Lit, Param, Stmt, Ty, TyKind, UnOp};
+use self::ast::{
+    Ast, BinOp, Block, Expr, ExprKind, Field, Function, Lit, Param, Stmt, Ty, TyKind, UnOp,
+};
 use crate::{
     err::Handler,
     lex::{Lexer, LiteralKind, Spanned, Token, TokenKind, TokenKind::*},
@@ -13,6 +15,13 @@ pub struct Parser {
     handler: Rc<Handler>,
     curr: Token,
     prev: Token,
+    restrictions: Restrictions,
+}
+
+bitflags::bitflags! {
+    struct Restrictions: u8 {
+        const NO_STRUCT_LITERAL = 1 << 0;
+    }
 }
 
 impl Parser {
@@ -24,6 +33,7 @@ impl Parser {
             handler: handler.clone(),
             curr,
             prev: Token::dummy(),
+            restrictions: Restrictions::empty(),
         }
     }
 
@@ -82,7 +92,9 @@ impl Parser {
 
             Some(Stmt::Expr(Box::new(block), false))
         } else if self.eat(While) {
-            let cond = self.expr()?;
+            let cond =
+                self.with_restrictions(Restrictions::NO_STRUCT_LITERAL, |this| this.expr())?;
+
             self.consume(OpenBrace, "Expected '{' after the condition")?;
             let body = self.block()?;
             Some(Stmt::While { cond, body })
@@ -127,7 +139,7 @@ impl Parser {
                 stmts.push(s);
             }
         }
-        self.consume(CloseBrace, "Expect '}' after block.")?;
+        self.consume(CloseBrace, "Expected '}' after block.")?;
         let span = lo.to(self.prev.span);
         Some(Block {
             stmts,
@@ -146,7 +158,7 @@ impl Parser {
             );
         }
 
-        self.consume(OpenParen, "Expect '('")?;
+        self.consume(OpenParen, "Expected '('")?;
         let mut params = vec![];
         while !self.check(CloseParen) && !self.eof() {
             let param = self.param(false)?;
@@ -183,7 +195,7 @@ impl Parser {
             );
         }
 
-        self.consume(OpenBrace, "Expect '{'")?;
+        self.consume(OpenBrace, "Expected '{'")?;
         let mut fields = vec![];
         while !self.check(CloseBrace) && !self.eof() {
             let field = self.struct_field()?;
@@ -214,7 +226,7 @@ impl Parser {
     }
 
     fn let_decl(&mut self) -> Option<Stmt> {
-        let name = self.consume(Ident, "Expect variable name.")?;
+        let name = self.consume(Ident, "Expected variable name.")?;
 
         let ty = if self.eat(Colon) {
             self.parse_ty()?
@@ -227,7 +239,7 @@ impl Parser {
             init = Some(self.expr()?);
         }
 
-        self.consume(SemiColon, "Expect ';' after variable declaration.")?;
+        self.consume(SemiColon, "Expected ';' after variable declaration.")?;
         Some(Stmt::Let { name, ty, init })
     }
 
@@ -237,7 +249,7 @@ impl Parser {
         if self.eat(Eq) {
             if let ExprKind::Variable(_) = expr.kind {
                 let val = self.expr()?;
-                self.consume(SemiColon, "Expect ';' after assignment.")?;
+                self.consume(SemiColon, "Expected ';' after assignment.")?;
                 return Some(Stmt::Assign { name: expr, val });
             } else {
                 self.handler.report(expr.span, "Invalid assignment target.");
@@ -484,14 +496,11 @@ impl Parser {
         }) {
             Lit::Str(self.prev.symbol)
         } else if self.eat(Ident) {
-            return Some(Box::new(Expr {
-                kind: ExprKind::Variable(self.prev.clone()),
-                span: self.prev.span,
-            }));
+            return self.path_or_struct();
         } else if self.eat(OpenParen) {
             let lo = self.prev.span;
             let expr = self.expr()?;
-            self.consume(CloseParen, "Expect ')' after expr")?;
+            self.consume(CloseParen, "Expected ')' after expr")?;
             let span = lo.to(self.prev.span);
 
             return Some(Box::new(Expr {
@@ -522,6 +531,44 @@ impl Parser {
         }))
     }
 
+    fn path_or_struct(&mut self) -> Option<Box<Expr>> {
+        let mut span = self.prev.span;
+        let name = self.prev.clone();
+
+        let kind = if self.check(OpenBrace)
+            && !self.restrictions.contains(Restrictions::NO_STRUCT_LITERAL)
+            && self.is_certainly_not_a_block()
+        {
+            self.consume(OpenBrace, "Expected '{'")?;
+            let mut fields = vec![];
+
+            while !self.check(CloseBrace) && !self.eof() {
+                let name = self.consume(Ident, "Expected field name")?;
+                let expr = if self.eat(Colon) {
+                    self.expr()?
+                } else {
+                    let var_span = name.span;
+                    Box::new(Expr {
+                        kind: ExprKind::Variable(name.clone()),
+                        span: var_span,
+                    })
+                };
+                fields.push(Field { name, expr });
+
+                if !self.eat(Comma) {
+                    break;
+                }
+            }
+            self.consume(CloseBrace, "Expected '}'")?;
+            span = span.to(self.prev.span);
+            ExprKind::Struct(name, fields)
+        } else {
+            ExprKind::Variable(name)
+        };
+
+        Some(Box::new(Expr { kind, span }))
+    }
+
     fn closure(&mut self) -> Option<Box<Expr>> {
         let lo = self.prev.span;
         let mut params = vec![];
@@ -534,7 +581,7 @@ impl Parser {
                     break;
                 }
             }
-            self.consume(Or, "Expect '|' after closure parameters")?;
+            self.consume(Or, "Expected '|' after closure parameters")?;
         }
 
         let mut only_block_allowed = false;
@@ -569,14 +616,14 @@ impl Parser {
     fn if_expr(&mut self) -> Option<Box<Expr>> {
         let lo = self.prev.span;
         let cond = self.expr()?;
-        self.consume(OpenBrace, "Expect '{' after if condition")?;
+        self.consume(OpenBrace, "Expected '{' after if condition")?;
         let then_clause = self.block()?;
         let mut else_clause = None;
         if self.eat(Else) {
             if self.eat(If) {
                 else_clause = Some(self.if_expr()?);
             } else {
-                self.consume(OpenBrace, "Expect '{' after else")?;
+                self.consume(OpenBrace, "Expected '{' after else")?;
                 let block = self.block()?;
                 let span = block.span;
                 else_clause = Some(Box::new(Expr {
@@ -613,7 +660,7 @@ impl Parser {
     }
 
     fn parse_ty(&mut self) -> Option<Ty> {
-        let token = self.consume(Ident, "Expect Type name")?;
+        let token = self.consume(Ident, "Expected Type name")?;
         let symbol = token.symbol;
 
         let kind = symbol.as_str_with(|s| match s {
@@ -627,6 +674,18 @@ impl Parser {
         })
     }
 
+    fn is_certainly_not_a_block(&mut self) -> bool {
+        if !self.lexer.look_ahead(1, |t| t.kind == Ident) {
+            return false;
+        }
+
+        if self.lexer.look_ahead(2, |t| t.kind == Comma) {
+            return true;
+        }
+
+        self.lexer.look_ahead(2, |t| t.kind == Colon)
+    }
+
     fn synchronize(&mut self) {
         self.advance();
         while !self.eof() {
@@ -636,6 +695,17 @@ impl Parser {
                 _ => self.advance(),
             }
         }
+    }
+
+    fn with_restrictions<F, R>(&mut self, new_restrictions: Restrictions, f: F) -> R
+    where
+        F: FnOnce(&mut Self) -> R,
+    {
+        let save = self.restrictions;
+        self.restrictions.insert(new_restrictions);
+        let result = f(self);
+        self.restrictions = save;
+        result
     }
 
     fn consume(&mut self, kind: TokenKind, msg: &'static str) -> Option<Token> {
