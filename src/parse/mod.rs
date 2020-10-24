@@ -71,10 +71,7 @@ impl Parser {
                 span: lo.to(self.prev.span),
             };
 
-            Some(Stmt::Expr {
-                expr: Box::new(block),
-                semicolon: false,
-            })
+            Some(Stmt::Expr(Box::new(block), false))
         } else if self.eat(While) {
             let cond = self.expr()?;
             self.consume(OpenBrace, "Expected '{' after the condition")?;
@@ -189,10 +186,7 @@ impl Parser {
                 return None;
             }
         }
-        Some(Stmt::Expr {
-            expr,
-            semicolon: self.eat(SemiColon),
-        })
+        Some(Stmt::Expr(expr, self.eat(SemiColon)))
     }
 
     fn expr(&mut self) -> Option<Box<Expr>> {
@@ -665,10 +659,10 @@ mod tests {
     fn add() {
         assert_eq!(
             parse("1 + 1"),
-            vec![Stmt::Expr {
-                expr: binop!(Add, litint!(1, (0, 1)), litint!(1, (4, 5)), (0, 5)),
-                semicolon: false
-            }]
+            vec![Stmt::Expr(
+                binop!(Add, litint!(1, (0, 1)), litint!(1, (4, 5)), (0, 5)),
+                false
+            )]
         );
     }
 
@@ -676,8 +670,8 @@ mod tests {
     fn combine() {
         assert_eq!(
             parse("1 * 1 - 1 / 1 + 1"),
-            vec![Stmt::Expr {
-                expr: binop!(
+            vec![Stmt::Expr(
+                binop!(
                     Add,
                     binop!(
                         Sub,
@@ -688,8 +682,8 @@ mod tests {
                     litint!(1, (16, 17)),
                     (0, 17)
                 ),
-                semicolon: false
-            }]
+                false
+            )]
         );
     }
 }

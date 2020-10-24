@@ -48,10 +48,9 @@ impl<'a> Annotate<'a> {
 
     fn annotate_stmt(&mut self, stmt: ast::Stmt) -> Option<hir::Stmt> {
         match stmt {
-            ast::Stmt::Expr { expr, semicolon } => Some(hir::Stmt::Expr {
-                expr: self.annotate_expr(expr)?,
-                semicolon,
-            }),
+            ast::Stmt::Expr(expr, semicolon) => {
+                Some(hir::Stmt::Expr(self.annotate_expr(expr)?, semicolon))
+            }
             ast::Stmt::Let { name, init, ty } => {
                 let init = match init {
                     Some(e) => Some(self.annotate_expr(e)?),

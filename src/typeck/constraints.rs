@@ -54,7 +54,7 @@ impl Collector {
 
     fn collect_stmt(&mut self, stmt: &Stmt) {
         match stmt {
-            Stmt::Expr { expr, .. } => self.collect_expr(expr),
+            Stmt::Expr(expr, _) => self.collect_expr(expr),
             Stmt::Let { name, ty, init } => {
                 if let Some(init) = init {
                     self.collect_expr(init);
@@ -313,10 +313,7 @@ impl Collector {
         }
 
         match block.stmts.last() {
-            Some(Stmt::Expr {
-                expr,
-                semicolon: false,
-            }) => {
+            Some(Stmt::Expr(expr, false)) => {
                 self.constraints.insert(Constraint {
                     a: block.ty.clone(),
                     b: expr.ty.clone(),

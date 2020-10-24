@@ -6,10 +6,7 @@ use super::ty::Ty;
 
 #[derive(Debug)]
 pub enum Stmt {
-    Expr {
-        expr: Box<Expr>,
-        semicolon: bool,
-    },
+    Expr(Box<Expr>, bool),
     Let {
         name: Token,
         ty: Ty,

@@ -109,10 +109,7 @@ pub enum ExprKind {
 
 #[derive(Debug, PartialEq)]
 pub enum Stmt {
-    Expr {
-        expr: Box<Expr>,
-        semicolon: bool,
-    },
+    Expr(Box<Expr>, /* semicolon: */ bool),
     Let {
         name: Token,
         ty: Ty,

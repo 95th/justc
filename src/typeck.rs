@@ -43,7 +43,7 @@ impl<'a> Typeck<'a> {
     fn typeck_stmt(&self, stmt: &Stmt) -> Option<()> {
         use Stmt::*;
         match stmt {
-            Expr { expr, .. } => self.typeck_expr(expr),
+            Expr(expr, _) => self.typeck_expr(expr),
             Let { ty, init, .. } => {
                 if let Some(init) = init {
                     self.typeck_expr(init)?;
@@ -156,11 +156,7 @@ impl<'a> Typeck<'a> {
         self.typeck_fns(&block.functions)?;
         self.typeck_stmts(&block.stmts)?;
 
-        if let Some(Stmt::Expr {
-            expr,
-            semicolon: false,
-        }) = block.stmts.last()
-        {
+        if let Some(Stmt::Expr(expr, false)) = block.stmts.last() {
             self.typeck_eq(&expr.ty, &block.ty, &expr.span)?;
         }
 

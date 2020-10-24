@@ -169,7 +169,7 @@ impl Subst {
 
     fn fill_stmt(&self, stmt: &mut Stmt) {
         match stmt {
-            Stmt::Expr { expr, .. } => self.fill_expr(expr),
+            Stmt::Expr(expr, _) => self.fill_expr(expr),
             Stmt::Let { ty, init, .. } => {
                 self.fill_ty(ty);
                 if let Some(init) = init {
