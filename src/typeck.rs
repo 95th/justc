@@ -149,6 +149,13 @@ impl<'a> Typeck<'a> {
                 }
                 Some(())
             }
+            Struct(_, fields, _) => {
+                for f in fields {
+                    self.typeck_expr(&f.expr)?;
+                }
+
+                Some(())
+            }
         }
     }
 

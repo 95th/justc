@@ -7,7 +7,7 @@ use super::{
     hir::Block,
     hir::Expr,
     hir::ExprKind,
-    hir::{Ast, Function, Stmt},
+    hir::{Ast, Function, Stmt, Struct},
     ty::Ty,
 };
 
@@ -45,7 +45,6 @@ impl<'a> Unify<'a> {
             | (Ty::Float, Ty::Float)
             | (Ty::Unit, Ty::Unit)
             | (Ty::Str, Ty::Str) => Some(Subst::empty()),
-            (Ty::Struct(_, tvar), Ty::Struct(_, tvar2)) if tvar == tvar2 => Some(Subst::empty()),
             (Ty::Var(tvar), ref mut ty) => self.unify_var(*tvar, ty, constraint.span_b),
             (ref mut ty, Ty::Var(tvar)) => self.unify_var(*tvar, ty, constraint.span_a),
             (Ty::Fn(params_1, ret_1), Ty::Fn(params_2, ret_2)) => {
@@ -76,6 +75,46 @@ impl<'a> Unify<'a> {
                     span_a: ret_1.span,
                     span_b: ret_2.span,
                 });
+                self.unify(&mut constraints)
+            }
+            (Ty::Struct(name_1, fields_1), Ty::Struct(name_2, fields_2)) => {
+                if name_1 != name_2 {
+                    self.handler.report(
+                        constraint.span_b,
+                        &format!("Type mismatch: Expected: {}, Actual: {}", name_1, name_2),
+                    );
+                    return None;
+                }
+                if fields_1.len() != fields_2.len() {
+                    self.handler.report(
+                        constraint.span_b,
+                        &format!(
+                            "Number of fields mismatch: Expected: {}, Actual: {}",
+                            fields_1.len(),
+                            fields_2.len()
+                        ),
+                    );
+                    return None;
+                }
+
+                let mut constraints = vec![];
+                for (name, a) in fields_1 {
+                    let b = match fields_2.get_mut(name) {
+                        Some(e) => e,
+                        None => {
+                            self.handler
+                                .report(constraint.span_b, &format!("Field {} missing", name));
+                            return None;
+                        }
+                    };
+
+                    constraints.push(Constraint {
+                        a: a.val.clone(),
+                        b: b.val.clone(),
+                        span_a: a.span,
+                        span_b: b.span,
+                    });
+                }
                 self.unify(&mut constraints)
             }
             (a, b) => {
@@ -158,6 +197,7 @@ impl Subst {
     }
 
     pub fn fill_ast(&self, ast: &mut Ast) {
+        self.fill_structs(&mut ast.structs);
         self.fill_fns(&mut ast.functions);
         self.fill_stmts(&mut ast.stmts);
     }
@@ -227,14 +267,31 @@ impl Subst {
                     self.fill_expr(arg);
                 }
             }
+            ExprKind::Struct(_, fields, ty) => {
+                for f in fields {
+                    self.fill_expr(&mut f.expr);
+                }
+                self.fill_ty(ty);
+            }
         }
         self.fill_ty(&mut expr.ty);
     }
 
     fn fill_block(&self, block: &mut Block) {
+        self.fill_structs(&mut block.structs);
         self.fill_stmts(&mut block.stmts);
         self.fill_fns(&mut block.functions);
         self.fill_ty(&mut block.ty);
+    }
+
+    fn fill_structs(&self, structs: &mut [Struct]) {
+        for s in structs {
+            self.fill_struct(s);
+        }
+    }
+
+    fn fill_struct(&self, s: &mut Struct) {
+        self.fill_ty(&mut s.ty);
     }
 
     fn fill_fns(&self, functions: &mut [Function]) {
@@ -269,11 +326,16 @@ fn substitute(ty: &mut Ty, tvar: u64, replacement: &Ty) {
             }
         }
         Ty::Fn(params, ret) => {
-            params
-                .iter_mut()
-                .for_each(|p| substitute(&mut p.val, tvar, replacement));
+            for p in params {
+                substitute(&mut p.val, tvar, replacement);
+            }
             substitute(&mut ret.val, tvar, replacement);
         }
-        Ty::Unit | Ty::Bool | Ty::Int | Ty::Float | Ty::Str | Ty::Struct(..) => {}
+        Ty::Struct(_, fields) => {
+            for (_, ty) in fields {
+                substitute(&mut ty.val, tvar, replacement);
+            }
+        }
+        Ty::Unit | Ty::Bool | Ty::Int | Ty::Float | Ty::Str => {}
     }
 }

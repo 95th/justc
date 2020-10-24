@@ -182,12 +182,7 @@ pub struct Function {
 #[derive(Debug, PartialEq)]
 pub struct Struct {
     pub name: Token,
-    pub kind: AdtKind,
-}
-
-#[derive(Debug, PartialEq)]
-pub enum AdtKind {
-    Struct { fields: Vec<StructField> },
+    pub fields: Vec<StructField>,
 }
 
 #[derive(Debug, PartialEq)]

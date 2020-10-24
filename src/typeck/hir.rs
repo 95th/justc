@@ -60,6 +60,13 @@ pub enum ExprKind {
         callee: Box<Expr>,
         args: Vec<Box<Expr>>,
     },
+    Struct(Token, Vec<Field>, Ty),
+}
+
+#[derive(Debug)]
+pub struct Field {
+    pub name: Token,
+    pub expr: Box<Expr>,
 }
 
 #[derive(Debug)]
@@ -86,19 +93,14 @@ pub struct Function {
     pub ty: Ty,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub struct Struct {
     pub name: Token,
-    pub kind: AdtKind,
+    pub fields: Vec<StructField>,
     pub ty: Ty,
 }
 
-#[derive(Debug, PartialEq)]
-pub enum AdtKind {
-    Struct { fields: Vec<StructField> },
-}
-
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub struct StructField {
     pub name: Token,
     pub ty: Ty,

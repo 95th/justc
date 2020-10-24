@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{collections::HashMap, fmt};
 
 use crate::{lex::Spanned, symbol::Symbol};
 
@@ -16,15 +16,9 @@ impl TyContext {
         self.counter += 1;
         Ty::Var(n)
     }
-
-    pub fn new_struct(&mut self, name: Symbol) -> Ty {
-        let n = self.counter;
-        self.counter += 1;
-        Ty::Struct(name, n)
-    }
 }
 
-#[derive(Clone, Hash, Eq, PartialEq, PartialOrd, Ord)]
+#[derive(Clone, PartialEq)]
 pub enum Ty {
     Var(u64),
     Unit,
@@ -33,13 +27,13 @@ pub enum Ty {
     Float,
     Str,
     Fn(Vec<Spanned<Ty>>, Box<Spanned<Ty>>),
-    Struct(Symbol, u64),
+    Struct(Symbol, HashMap<Symbol, Spanned<Ty>>),
 }
 
 impl fmt::Debug for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Ty::Var(_) => f.write_str("{unknown}")?,
+            Ty::Var(n) => write!(f, "{{unknown {}}}", n)?,
             Ty::Unit => f.write_str("unit")?,
             Ty::Bool => f.write_str("bool")?,
             Ty::Int => f.write_str("int")?,
@@ -62,7 +56,13 @@ impl fmt::Debug for Ty {
                     ty => write!(f, " -> {:?}", ty)?,
                 }
             }
-            Ty::Struct(s, _) => write!(f, "{}", s)?,
+            Ty::Struct(name, fields) => {
+                write!(f, "struct {} {{", name)?;
+                for (name, ty) in fields {
+                    write!(f, " {}: {:?},", name, ty.val)?;
+                }
+                write!(f, " }}")?;
+            }
         }
         Ok(())
     }

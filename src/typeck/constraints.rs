@@ -1,19 +1,26 @@
+use std::{collections::HashMap, fmt};
+
 use crate::{
     lex::{Span, Spanned},
     parse::ast::{BinOp, UnOp},
 };
 
 use super::{
-    hir::{Ast, Block, Expr, ExprKind, Function, Stmt},
+    hir::{Ast, Block, Expr, ExprKind, Function, Stmt, Struct},
     ty::Ty,
 };
 
-#[derive(Debug)]
 pub struct Constraint {
     pub a: Ty,
     pub b: Ty,
     pub span_a: Span,
     pub span_b: Span,
+}
+
+impl fmt::Debug for Constraint {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?} == {:?}", self.a, self.b)
+    }
 }
 
 struct Collector {
@@ -23,6 +30,7 @@ struct Collector {
 
 pub fn collect(ast: &Ast) -> Vec<Constraint> {
     let mut collector = Collector::new();
+    collector.collect_structs(&ast.structs);
     collector.collect_fns(&ast.functions);
     collector.collect_stmts(&ast.stmts);
     collector.constraints
@@ -275,10 +283,32 @@ impl Collector {
                     self.collect_expr(arg);
                 }
             }
+            ExprKind::Struct(name, fields, ty) => {
+                let mut field_map = HashMap::new();
+                for f in fields {
+                    self.collect_expr(&f.expr);
+                    field_map.insert(f.name.symbol, Spanned::new(f.expr.ty.clone(), f.expr.span));
+                }
+
+                self.constraints.push(Constraint {
+                    a: ty.clone(),
+                    b: Ty::Struct(name.symbol, field_map),
+                    span_a: name.span,
+                    span_b: name.span,
+                });
+
+                self.constraints.push(Constraint {
+                    a: expr.ty.clone(),
+                    b: ty.clone(),
+                    span_a: expr.span,
+                    span_b: name.span,
+                });
+            }
         }
     }
 
     fn collect_block(&mut self, block: &Block) {
+        self.collect_structs(&block.structs);
         self.collect_fns(&block.functions);
 
         for stmt in &block.stmts {
@@ -321,6 +351,27 @@ impl Collector {
                 });
             }
         }
+    }
+
+    fn collect_structs(&mut self, structs: &[Struct]) {
+        for s in structs {
+            self.collect_struct(s);
+        }
+    }
+
+    fn collect_struct(&mut self, s: &Struct) {
+        self.constraints.push(Constraint {
+            a: s.ty.clone(),
+            b: Ty::Struct(
+                s.name.symbol,
+                s.fields
+                    .iter()
+                    .map(|f| (f.name.symbol, Spanned::new(f.ty.clone(), f.name.span)))
+                    .collect(),
+            ),
+            span_a: s.name.span,
+            span_b: s.name.span,
+        })
     }
 
     fn collect_fns(&mut self, items: &[Function]) {

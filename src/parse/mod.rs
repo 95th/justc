@@ -206,10 +206,7 @@ impl Parser {
         }
         self.consume(CloseBrace, "Expected '}'")?;
 
-        Some(ast::Struct {
-            name,
-            kind: ast::AdtKind::Struct { fields },
-        })
+        Some(ast::Struct { name, fields })
     }
 
     fn struct_field(&mut self) -> Option<ast::StructField> {

@@ -3,5 +3,4 @@ struct A {
     b: str,
 }
 
-let a = 10;
-let a = A { a, b: "hello", };
+let a = A { a: 1, b: "hello" };

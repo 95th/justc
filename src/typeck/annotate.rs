@@ -183,7 +183,16 @@ impl<'a> Annotate<'a> {
                     .map(|arg| self.annotate_expr(arg))
                     .collect::<Option<Vec<_>>>()?,
             },
-            _ => todo!(),
+            ast::ExprKind::Struct(name, fields) => {
+                let ty = match self.structs.get(&name.symbol) {
+                    Some(ty) => ty.clone(),
+                    None => {
+                        self.handler.report(name.span, "not found in this scope");
+                        return None;
+                    }
+                };
+                hir::ExprKind::Struct(name, self.annotate_fields(fields)?, ty)
+            }
         };
         Some(Box::new(hir::Expr {
             kind,
@@ -292,8 +301,7 @@ impl<'a> Annotate<'a> {
 
     fn annotate_structs(&mut self, structs: Vec<ast::Struct>) -> Option<Vec<hir::Struct>> {
         for s in &structs {
-            self.structs
-                .insert(s.name.symbol, self.env.new_struct(s.name.symbol));
+            self.structs.insert(s.name.symbol, self.env.new_var());
         }
 
         structs
@@ -304,25 +312,38 @@ impl<'a> Annotate<'a> {
 
     fn annotate_struct(&mut self, s: ast::Struct) -> Option<hir::Struct> {
         let ty = self.structs.get(&s.name.symbol).unwrap().clone();
-        match s.kind {
-            ast::AdtKind::Struct { fields } => Some(hir::Struct {
-                name: s.name,
-                kind: hir::AdtKind::Struct {
-                    fields: self.annotate_fields(fields)?,
-                },
-                ty,
-            }),
-        }
+        Some(hir::Struct {
+            name: s.name,
+            fields: self.annotate_struct_fields(s.fields)?,
+            ty,
+        })
     }
 
-    fn annotate_fields(&mut self, fields: Vec<ast::StructField>) -> Option<Vec<hir::StructField>> {
-        fields.into_iter().map(|f| self.annotate_field(f)).collect()
+    fn annotate_struct_fields(
+        &mut self,
+        fields: Vec<ast::StructField>,
+    ) -> Option<Vec<hir::StructField>> {
+        fields
+            .into_iter()
+            .map(|f| self.annotate_struct_field(f))
+            .collect()
     }
 
-    fn annotate_field(&mut self, field: ast::StructField) -> Option<hir::StructField> {
+    fn annotate_struct_field(&mut self, field: ast::StructField) -> Option<hir::StructField> {
         Some(hir::StructField {
             name: field.name,
             ty: self.ast_ty_to_ty(field.ty)?,
+        })
+    }
+
+    fn annotate_fields(&mut self, fields: Vec<ast::Field>) -> Option<Vec<hir::Field>> {
+        fields.into_iter().map(|f| self.annotate_field(f)).collect()
+    }
+
+    fn annotate_field(&mut self, field: ast::Field) -> Option<hir::Field> {
+        Some(hir::Field {
+            name: field.name,
+            expr: self.annotate_expr(field.expr)?,
         })
     }
 
