@@ -133,6 +133,7 @@ pub struct Block {
     pub stmts: Vec<Stmt>,
     pub span: Span,
     pub functions: Vec<Function>,
+    pub structs: Vec<Struct>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -171,8 +172,26 @@ pub struct Function {
     pub ret: Ty,
 }
 
+#[derive(Debug, PartialEq)]
+pub struct Struct {
+    pub name: Token,
+    pub kind: AdtKind,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum AdtKind {
+    Struct { fields: Vec<StructField> },
+}
+
+#[derive(Debug, PartialEq)]
+pub struct StructField {
+    pub name: Token,
+    pub ty: Ty,
+}
+
 #[derive(Debug)]
 pub struct Ast {
-    pub functions: Vec<Function>,
     pub stmts: Vec<Stmt>,
+    pub functions: Vec<Function>,
+    pub structs: Vec<Struct>,
 }

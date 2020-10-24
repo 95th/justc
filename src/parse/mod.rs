@@ -30,12 +30,17 @@ impl Parser {
     pub fn parse(&mut self) -> Option<Ast> {
         let mut stmts = vec![];
         let mut functions = vec![];
+        let mut structs = vec![];
         let mut declared_fns = HashSet::new();
+        let mut declared_structs = HashSet::new();
 
         while !self.eof() {
             if self.eat(Fn) {
                 let fun = self.function(&mut declared_fns)?;
                 functions.push(fun);
+            } else if self.eat(Struct) {
+                let s = self.struct_item(&mut declared_structs)?;
+                structs.push(s);
             } else {
                 let stmt = self.stmt()?;
                 stmts.push(stmt);
@@ -45,7 +50,11 @@ impl Parser {
         if self.handler.has_errors() {
             None
         } else {
-            Some(Ast { functions, stmts })
+            Some(Ast {
+                stmts,
+                functions,
+                structs,
+            })
         }
     }
 
@@ -102,16 +111,21 @@ impl Parser {
         let lo = self.prev.span;
         let mut stmts = vec![];
         let mut functions = vec![];
+        let mut structs = vec![];
         let mut declared_fns = HashSet::new();
+        let mut declared_structs = HashSet::new();
+
         while !self.check(CloseBrace) && !self.eof() {
             if self.eat(Fn) {
                 let fun = self.function(&mut declared_fns)?;
                 functions.push(fun);
-                continue;
+            } else if self.eat(Struct) {
+                let s = self.struct_item(&mut declared_structs)?;
+                structs.push(s);
+            } else {
+                let s = self.full_stmt_without_recovery()?;
+                stmts.push(s);
             }
-
-            let s = self.full_stmt_without_recovery()?;
-            stmts.push(s);
         }
         self.consume(CloseBrace, "Expect '}' after block.")?;
         let span = lo.to(self.prev.span);
@@ -119,6 +133,7 @@ impl Parser {
             stmts,
             span,
             functions,
+            structs,
         })
     }
 
@@ -157,6 +172,45 @@ impl Parser {
             ret,
             body,
         })
+    }
+
+    fn struct_item(&mut self, declared_structs: &mut HashSet<Symbol>) -> Option<ast::Struct> {
+        let name = self.consume(Ident, "Expected struct name")?;
+        if !declared_structs.insert(name.symbol) {
+            self.handler.report(
+                name.span,
+                "Struct with same name already defined in this scope",
+            );
+        }
+
+        self.consume(OpenBrace, "Expect '{'")?;
+        let mut fields = vec![];
+        while !self.check(CloseBrace) && !self.eof() {
+            let field = self.struct_field()?;
+            fields.push(field);
+            if !self.eat(Comma) {
+                break;
+            }
+        }
+        self.consume(CloseBrace, "Expected '}'")?;
+
+        Some(ast::Struct {
+            name,
+            kind: ast::AdtKind::Struct { fields },
+        })
+    }
+
+    fn struct_field(&mut self) -> Option<ast::StructField> {
+        let name = self.consume(Ident, "Expected field name")?;
+        self.consume(Colon, "Expected ':' after field name")?;
+        let ty = self.parse_ty()?;
+        if ty.kind == TyKind::Infer {
+            self.handler
+                .report(ty.span, "not allowed in type signatures");
+            return None;
+        }
+
+        Some(ast::StructField { name, ty })
     }
 
     fn let_decl(&mut self) -> Option<Stmt> {
