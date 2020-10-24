@@ -71,7 +71,10 @@ impl Parser {
                 span: lo.to(self.prev.span),
             };
 
-            Some(Stmt::Expr(Box::new(block)))
+            Some(Stmt::Expr {
+                expr: Box::new(block),
+                semicolon: false,
+            })
         } else if self.eat(While) {
             let cond = self.expr()?;
             self.consume(OpenBrace, "Expected '{' after the condition")?;
@@ -85,6 +88,10 @@ impl Parser {
             }
             self.consume(SemiColon, "Expected ';' after return");
             Some(Stmt::Return(span, expr))
+        } else if self.eat(Continue) {
+            let span = self.prev.span;
+            self.consume(SemiColon, "Expected ';' after continue");
+            Some(Stmt::Continue(span))
         } else {
             self.expr_stmt()
         }
@@ -103,14 +110,7 @@ impl Parser {
             }
 
             let s = self.full_stmt_without_recovery()?;
-            let last_stmt = matches!(s, Stmt::Expr(_));
             stmts.push(s);
-
-            // If statement was an expression without ';',
-            // then it must be the last one in this block
-            if last_stmt {
-                break;
-            }
         }
         self.consume(CloseBrace, "Expect '}' after block.")?;
         let span = lo.to(self.prev.span);
@@ -189,11 +189,10 @@ impl Parser {
                 return None;
             }
         }
-        if self.eat(SemiColon) {
-            Some(Stmt::SemiExpr(expr))
-        } else {
-            Some(Stmt::Expr(expr))
-        }
+        Some(Stmt::Expr {
+            expr,
+            semicolon: self.eat(SemiColon),
+        })
     }
 
     fn expr(&mut self) -> Option<Box<Expr>> {
@@ -666,12 +665,10 @@ mod tests {
     fn add() {
         assert_eq!(
             parse("1 + 1"),
-            vec![Stmt::Expr(binop!(
-                Add,
-                litint!(1, (0, 1)),
-                litint!(1, (4, 5)),
-                (0, 5)
-            ))]
+            vec![Stmt::Expr {
+                expr: binop!(Add, litint!(1, (0, 1)), litint!(1, (4, 5)), (0, 5)),
+                semicolon: false
+            }]
         );
     }
 
@@ -679,17 +676,20 @@ mod tests {
     fn combine() {
         assert_eq!(
             parse("1 * 1 - 1 / 1 + 1"),
-            vec![Stmt::Expr(binop!(
-                Add,
-                binop!(
-                    Sub,
-                    binop!(Mul, litint!(1, (0, 1)), litint!(1, (4, 5)), (0, 5)),
-                    binop!(Div, litint!(1, (8, 9)), litint!(1, (12, 13)), (8, 13)),
-                    (0, 13)
+            vec![Stmt::Expr {
+                expr: binop!(
+                    Add,
+                    binop!(
+                        Sub,
+                        binop!(Mul, litint!(1, (0, 1)), litint!(1, (4, 5)), (0, 5)),
+                        binop!(Div, litint!(1, (8, 9)), litint!(1, (12, 13)), (8, 13)),
+                        (0, 13)
+                    ),
+                    litint!(1, (16, 17)),
+                    (0, 17)
                 ),
-                litint!(1, (16, 17)),
-                (0, 17)
-            ))]
+                semicolon: false
+            }]
         );
     }
 }

@@ -109,9 +109,10 @@ pub enum ExprKind {
 
 #[derive(Debug, PartialEq)]
 pub enum Stmt {
-    Expr(Box<Expr>),
-    // Semicolon terminated Expr statement
-    SemiExpr(Box<Expr>),
+    Expr {
+        expr: Box<Expr>,
+        semicolon: bool,
+    },
     Let {
         name: Token,
         ty: Ty,
@@ -126,6 +127,7 @@ pub enum Stmt {
         body: Block,
     },
     Return(Span, Option<Box<Expr>>),
+    Continue(Span),
 }
 
 #[derive(Default, Debug, PartialEq)]

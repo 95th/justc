@@ -54,7 +54,7 @@ impl Collector {
 
     fn collect_stmt(&mut self, stmt: &Stmt) {
         match stmt {
-            Stmt::Expr(e) | Stmt::SemiExpr(e) => self.collect_expr(e),
+            Stmt::Expr { expr, .. } => self.collect_expr(expr),
             Stmt::Let { name, ty, init } => {
                 if let Some(init) = init {
                     self.collect_expr(init);
@@ -91,6 +91,7 @@ impl Collector {
                     self.collect_expr(e);
                 }
             }
+            Stmt::Continue(_) => {}
         }
     }
 
@@ -312,12 +313,15 @@ impl Collector {
         }
 
         match block.stmts.last() {
-            Some(Stmt::Expr(e)) => {
+            Some(Stmt::Expr {
+                expr,
+                semicolon: false,
+            }) => {
                 self.constraints.insert(Constraint {
                     a: block.ty.clone(),
-                    b: e.ty.clone(),
+                    b: expr.ty.clone(),
                     span_a: block.span,
-                    span_b: e.span,
+                    span_b: expr.span,
                 });
             }
             Some(Stmt::Return(_, _)) => {}

@@ -15,6 +15,7 @@ struct Annotate<'a> {
     functions: &'a mut SymbolTable<Ty>,
     handler: &'a Handler,
     has_enclosing_fn: bool,
+    has_enclosing_loop: bool,
 }
 
 impl<'a> Annotate<'a> {
@@ -30,6 +31,7 @@ impl<'a> Annotate<'a> {
             functions,
             handler,
             has_enclosing_fn: false,
+            has_enclosing_loop: false,
         }
     }
 
@@ -46,8 +48,10 @@ impl<'a> Annotate<'a> {
 
     fn annotate_stmt(&mut self, stmt: ast::Stmt) -> Option<hir::Stmt> {
         match stmt {
-            ast::Stmt::Expr(e) => Some(hir::Stmt::Expr(self.annotate_expr(e)?)),
-            ast::Stmt::SemiExpr(e) => Some(hir::Stmt::SemiExpr(self.annotate_expr(e)?)),
+            ast::Stmt::Expr { expr, semicolon } => Some(hir::Stmt::Expr {
+                expr: self.annotate_expr(expr)?,
+                semicolon,
+            }),
             ast::Stmt::Let { name, init, ty } => {
                 let init = match init {
                     Some(e) => Some(self.annotate_expr(e)?),
@@ -67,10 +71,13 @@ impl<'a> Annotate<'a> {
                 name: self.annotate_expr(name)?,
                 val: self.annotate_expr(val)?,
             }),
-            ast::Stmt::While { cond, body } => Some(hir::Stmt::While {
-                cond: self.annotate_expr(cond)?,
-                body: self.annotate_block(body)?,
-            }),
+            ast::Stmt::While { cond, body } => {
+                let cond = self.annotate_expr(cond)?;
+                self.has_enclosing_loop = true;
+                let body = self.annotate_block(body)?;
+                self.has_enclosing_loop = false;
+                Some(hir::Stmt::While { cond, body })
+            }
             ast::Stmt::Return(span, Some(e)) => {
                 if self.has_enclosing_fn {
                     Some(hir::Stmt::Return(span, Some(self.annotate_expr(e)?)))
@@ -86,6 +93,15 @@ impl<'a> Annotate<'a> {
                 } else {
                     self.handler
                         .report(span, "Cannot return without enclosing function");
+                    None
+                }
+            }
+            ast::Stmt::Continue(span) => {
+                if self.has_enclosing_loop {
+                    Some(hir::Stmt::Continue(span))
+                } else {
+                    self.handler
+                        .report(span, "Cannot continue without an enclosing loop");
                     None
                 }
             }
@@ -229,10 +245,13 @@ impl<'a> Annotate<'a> {
         let functions = &mut *self.functions;
         let handler = self.handler;
         let has_enclosing_fn = self.has_enclosing_fn;
+        let has_enclosing_loop = self.has_enclosing_loop;
+
         self.bindings.enter_scope(|bindings| {
             functions.enter_scope(|functions| {
                 let mut this = Annotate::new(env, bindings, functions, handler);
                 this.has_enclosing_fn = has_enclosing_fn;
+                this.has_enclosing_loop = has_enclosing_loop;
                 f(&mut this)
             })
         })

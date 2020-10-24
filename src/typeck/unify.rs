@@ -169,7 +169,7 @@ impl Subst {
 
     fn fill_stmt(&self, stmt: &mut Stmt) {
         match stmt {
-            Stmt::Expr(e) | Stmt::SemiExpr(e) => self.fill_expr(e),
+            Stmt::Expr { expr, .. } => self.fill_expr(expr),
             Stmt::Let { ty, init, .. } => {
                 self.fill_ty(ty);
                 if let Some(init) = init {
@@ -189,6 +189,7 @@ impl Subst {
                     self.fill_expr(e);
                 }
             }
+            Stmt::Continue(_) => {}
         }
     }
 
