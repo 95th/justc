@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::lex::Spanned;
+use crate::{lex::Spanned, symbol::Symbol};
 
 pub struct TyContext {
     counter: u64,
@@ -16,6 +16,12 @@ impl TyContext {
         self.counter += 1;
         Ty::Var(n)
     }
+
+    pub fn new_struct(&mut self, name: Symbol) -> Ty {
+        let n = self.counter;
+        self.counter += 1;
+        Ty::Struct(name, n)
+    }
 }
 
 #[derive(Clone, Hash, Eq, PartialEq, PartialOrd, Ord)]
@@ -27,6 +33,7 @@ pub enum Ty {
     Float,
     Str,
     Fn(Vec<Spanned<Ty>>, Box<Spanned<Ty>>),
+    Struct(Symbol, u64),
 }
 
 impl fmt::Debug for Ty {
@@ -55,6 +62,7 @@ impl fmt::Debug for Ty {
                     ty => write!(f, " -> {:?}", ty)?,
                 }
             }
+            Ty::Struct(s, _) => write!(f, "{}", s)?,
         }
         Ok(())
     }

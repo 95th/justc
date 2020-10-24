@@ -64,8 +64,9 @@ pub enum ExprKind {
 
 #[derive(Debug)]
 pub struct Block {
-    pub stmts: Vec<Stmt>,
+    pub structs: Vec<Struct>,
     pub functions: Vec<Function>,
+    pub stmts: Vec<Stmt>,
     pub ty: Ty,
     pub span: Span,
 }
@@ -85,8 +86,27 @@ pub struct Function {
     pub ty: Ty,
 }
 
+#[derive(Debug, PartialEq)]
+pub struct Struct {
+    pub name: Token,
+    pub kind: AdtKind,
+    pub ty: Ty,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum AdtKind {
+    Struct { fields: Vec<StructField> },
+}
+
+#[derive(Debug, PartialEq)]
+pub struct StructField {
+    pub name: Token,
+    pub ty: Ty,
+}
+
 #[derive(Debug)]
 pub struct Ast {
+    pub structs: Vec<Struct>,
     pub functions: Vec<Function>,
     pub stmts: Vec<Stmt>,
 }

@@ -6,13 +6,15 @@ pub fn annotate(ast: ast::Ast, handler: &Handler) -> Option<hir::Ast> {
     let env = &mut TyContext::new();
     let bindings = &mut SymbolTable::new();
     let functions = &mut SymbolTable::new();
-    Annotate::new(env, bindings, functions, handler).annotate_ast(ast)
+    let structs = &mut SymbolTable::new();
+    Annotate::new(env, bindings, functions, structs, handler).annotate_ast(ast)
 }
 
 struct Annotate<'a> {
     env: &'a mut TyContext,
     bindings: &'a mut SymbolTable<Ty>,
     functions: &'a mut SymbolTable<Ty>,
+    structs: &'a mut SymbolTable<Ty>,
     handler: &'a Handler,
     has_enclosing_fn: bool,
     has_enclosing_loop: bool,
@@ -23,12 +25,14 @@ impl<'a> Annotate<'a> {
         env: &'a mut TyContext,
         bindings: &'a mut SymbolTable<Ty>,
         functions: &'a mut SymbolTable<Ty>,
+        structs: &'a mut SymbolTable<Ty>,
         handler: &'a Handler,
     ) -> Self {
         Self {
             env,
             bindings,
             functions,
+            structs,
             handler,
             has_enclosing_fn: false,
             has_enclosing_loop: false,
@@ -37,6 +41,7 @@ impl<'a> Annotate<'a> {
 
     fn annotate_ast(&mut self, ast: ast::Ast) -> Option<hir::Ast> {
         Some(hir::Ast {
+            structs: self.annotate_structs(ast.structs)?,
             functions: self.annotate_fns(ast.functions)?,
             stmts: self.annotate_stmts(ast.stmts)?,
         })
@@ -188,11 +193,13 @@ impl<'a> Annotate<'a> {
 
     fn annotate_block(&mut self, block: ast::Block) -> Option<hir::Block> {
         self.enter_scope(|this| {
+            let structs = this.annotate_structs(block.structs)?;
             let functions = this.annotate_fns(block.functions)?;
             let stmts = this.annotate_stmts(block.stmts)?;
             Some(hir::Block {
                 stmts,
                 functions,
+                structs,
                 ty: this.env.new_var(),
                 span: block.span,
             })
@@ -211,23 +218,26 @@ impl<'a> Annotate<'a> {
 
     fn annotate_fn(&mut self, func: ast::Function) -> Option<hir::Function> {
         let env = &mut *self.env;
+        let structs = &mut *self.structs;
         let handler = self.handler;
         self.functions.enter_scope(|functions| {
-            let bindings = &mut SymbolTable::new();
-            let mut this = Annotate::new(env, bindings, functions, handler);
+            structs.enter_scope(|structs| {
+                let bindings = &mut SymbolTable::new();
+                let mut this = Annotate::new(env, bindings, functions, structs, handler);
 
-            let ty = this.functions.get(&func.name.symbol).unwrap().clone();
-            let params = this.annotate_params(func.params)?;
-            let ret = this.ast_ty_to_ty(func.ret)?;
-            this.has_enclosing_fn = true;
-            let body = this.annotate_block(func.body)?;
-            this.has_enclosing_fn = false;
-            Some(hir::Function {
-                name: func.name,
-                params,
-                ret,
-                body,
-                ty,
+                let ty = this.functions.get(&func.name.symbol).unwrap().clone();
+                let params = this.annotate_params(func.params)?;
+                let ret = this.ast_ty_to_ty(func.ret)?;
+                this.has_enclosing_fn = true;
+                let body = this.annotate_block(func.body)?;
+                this.has_enclosing_fn = false;
+                Some(hir::Function {
+                    name: func.name,
+                    params,
+                    ret,
+                    body,
+                    ty,
+                })
             })
         })
     }
@@ -252,16 +262,19 @@ impl<'a> Annotate<'a> {
     {
         let env = &mut *self.env;
         let functions = &mut *self.functions;
+        let structs = &mut *self.structs;
         let handler = self.handler;
         let has_enclosing_fn = self.has_enclosing_fn;
         let has_enclosing_loop = self.has_enclosing_loop;
 
         self.bindings.enter_scope(|bindings| {
             functions.enter_scope(|functions| {
-                let mut this = Annotate::new(env, bindings, functions, handler);
-                this.has_enclosing_fn = has_enclosing_fn;
-                this.has_enclosing_loop = has_enclosing_loop;
-                f(&mut this)
+                structs.enter_scope(|structs| {
+                    let mut this = Annotate::new(env, bindings, functions, structs, handler);
+                    this.has_enclosing_fn = has_enclosing_fn;
+                    this.has_enclosing_loop = has_enclosing_loop;
+                    f(&mut this)
+                })
             })
         })
     }
@@ -276,6 +289,42 @@ impl<'a> Annotate<'a> {
         Some(ty)
     }
 
+    fn annotate_structs(&mut self, structs: Vec<ast::Struct>) -> Option<Vec<hir::Struct>> {
+        for s in &structs {
+            self.structs
+                .insert(s.name.symbol, self.env.new_struct(s.name.symbol));
+        }
+
+        structs
+            .into_iter()
+            .map(|s| self.annotate_struct(s))
+            .collect()
+    }
+
+    fn annotate_struct(&mut self, s: ast::Struct) -> Option<hir::Struct> {
+        let ty = self.structs.get(&s.name.symbol).unwrap().clone();
+        match s.kind {
+            ast::AdtKind::Struct { fields } => Some(hir::Struct {
+                name: s.name,
+                kind: hir::AdtKind::Struct {
+                    fields: self.annotate_fields(fields)?,
+                },
+                ty,
+            }),
+        }
+    }
+
+    fn annotate_fields(&mut self, fields: Vec<ast::StructField>) -> Option<Vec<hir::StructField>> {
+        fields.into_iter().map(|f| self.annotate_field(f)).collect()
+    }
+
+    fn annotate_field(&mut self, field: ast::StructField) -> Option<hir::StructField> {
+        Some(hir::StructField {
+            name: field.name,
+            ty: self.ast_ty_to_ty(field.ty)?,
+        })
+    }
+
     fn token_to_ty(&self, token: &Token) -> Option<Ty> {
         token.symbol.as_str_with(|s| {
             let ty = match s {
@@ -284,6 +333,10 @@ impl<'a> Annotate<'a> {
                 "str" => Ty::Str,
                 "float" => Ty::Float,
                 _ => {
+                    if let Some(ty) = self.structs.get(&token.symbol) {
+                        return Some(ty.clone());
+                    }
+
                     self.handler.report(token.span, "Unknown type");
                     return None;
                 }

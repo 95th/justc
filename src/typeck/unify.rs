@@ -45,6 +45,7 @@ impl<'a> Unify<'a> {
             | (Ty::Float, Ty::Float)
             | (Ty::Unit, Ty::Unit)
             | (Ty::Str, Ty::Str) => Some(Subst::empty()),
+            (Ty::Struct(_, tvar), Ty::Struct(_, tvar2)) if tvar == tvar2 => Some(Subst::empty()),
             (Ty::Var(tvar), ref mut ty) => self.unify_var(*tvar, ty, constraint.span_b),
             (ref mut ty, Ty::Var(tvar)) => self.unify_var(*tvar, ty, constraint.span_a),
             (Ty::Fn(params_1, ret_1), Ty::Fn(params_2, ret_2)) => {
@@ -273,6 +274,6 @@ fn substitute(ty: &mut Ty, tvar: u64, replacement: &Ty) {
                 .for_each(|p| substitute(&mut p.val, tvar, replacement));
             substitute(&mut ret.val, tvar, replacement);
         }
-        Ty::Unit | Ty::Bool | Ty::Int | Ty::Float | Ty::Str => {}
+        Ty::Unit | Ty::Bool | Ty::Int | Ty::Float | Ty::Str | Ty::Struct(..) => {}
     }
 }

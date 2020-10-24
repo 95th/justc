@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::{collections::HashMap, fmt, mem, str::FromStr};
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Hash, Eq, PartialEq, PartialOrd, Ord)]
 pub struct Symbol(u32);
 
 impl Symbol {
