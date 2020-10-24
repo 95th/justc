@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt};
+use std::{collections::BTreeMap, fmt};
 
 use crate::{
     lex::{Span, Spanned},
@@ -284,7 +284,7 @@ impl Collector {
                 }
             }
             ExprKind::Struct(name, fields, ty) => {
-                let mut field_map = HashMap::new();
+                let mut field_map = BTreeMap::new();
                 for f in fields {
                     self.collect_expr(&f.expr);
                     field_map.insert(f.name.symbol, Spanned::new(f.expr.ty.clone(), f.expr.span));

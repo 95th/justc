@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt};
+use std::{collections::BTreeMap, fmt};
 
 use crate::{lex::Spanned, symbol::Symbol};
 
@@ -27,7 +27,7 @@ pub enum Ty {
     Float,
     Str,
     Fn(Vec<Spanned<Ty>>, Box<Spanned<Ty>>),
-    Struct(Symbol, HashMap<Symbol, Spanned<Ty>>),
+    Struct(Symbol, BTreeMap<Symbol, Spanned<Ty>>),
 }
 
 impl fmt::Debug for Ty {
@@ -56,13 +56,7 @@ impl fmt::Debug for Ty {
                     ty => write!(f, " -> {:?}", ty)?,
                 }
             }
-            Ty::Struct(name, fields) => {
-                write!(f, "struct {} {{", name)?;
-                for (name, ty) in fields {
-                    write!(f, " {}: {:?},", name, ty.val)?;
-                }
-                write!(f, " }}")?;
-            }
+            Ty::Struct(name, _) => write!(f, "{}", name)?,
         }
         Ok(())
     }
