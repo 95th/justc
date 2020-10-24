@@ -1,7 +1,15 @@
-let i = 0;
-while i < 10 {
-    if i == 0 {
-        break;
+fn is_odd(a: int, x: bool) -> bool {
+    if a == 1 {
+        true
+    } else {
+        is_even(a - 1, x)
     }
-    i = i + 1;
+}
+
+fn is_even(a: int, x: bool) -> bool {
+    if a == 0 {
+        true
+    } else {
+        return is_odd(a - 1, x);
+    }
 }

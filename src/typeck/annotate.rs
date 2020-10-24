@@ -200,6 +200,9 @@ impl<'a> Annotate<'a> {
     }
 
     fn annotate_fns(&mut self, functions: Vec<ast::Function>) -> Option<Vec<hir::Function>> {
+        for func in &functions {
+            self.functions.insert(func.name.symbol, self.env.new_var());
+        }
         functions
             .into_iter()
             .map(|func| self.annotate_fn(func))
@@ -207,15 +210,13 @@ impl<'a> Annotate<'a> {
     }
 
     fn annotate_fn(&mut self, func: ast::Function) -> Option<hir::Function> {
-        let ty = self.env.new_var();
-        self.functions.insert(func.name.symbol, ty.clone());
-
         let env = &mut *self.env;
         let handler = self.handler;
         self.functions.enter_scope(|functions| {
             let bindings = &mut SymbolTable::new();
             let mut this = Annotate::new(env, bindings, functions, handler);
 
+            let ty = this.functions.get(&func.name.symbol).unwrap().clone();
             let params = this.annotate_params(func.params)?;
             let ret = this.ast_ty_to_ty(func.ret)?;
             this.has_enclosing_fn = true;
