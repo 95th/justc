@@ -27,7 +27,16 @@ pub enum Ty {
     Float,
     Str,
     Fn(Vec<Spanned<Ty>>, Box<Spanned<Ty>>),
-    Struct(Symbol, BTreeMap<Symbol, Spanned<Ty>>),
+    Struct(u64, Symbol, BTreeMap<Symbol, Spanned<Ty>>),
+}
+
+impl Ty {
+    pub fn tvar(&self) -> Option<u64> {
+        match self {
+            Ty::Var(v) | Ty::Struct(v, ..) => Some(*v),
+            _ => None,
+        }
+    }
 }
 
 impl fmt::Debug for Ty {
@@ -56,7 +65,7 @@ impl fmt::Debug for Ty {
                     ty => write!(f, " -> {:?}", ty)?,
                 }
             }
-            Ty::Struct(name, _) => write!(f, "{}", name)?,
+            Ty::Struct(_, name, _) => write!(f, "{}", name)?,
         }
         Ok(())
     }
@@ -71,28 +80,7 @@ impl PartialEq for Ty {
             | (Ty::Float, Ty::Float)
             | (Ty::Str, Ty::Str) => true,
             (Ty::Var(a), Ty::Var(b)) => a == b,
-            (Ty::Struct(name, fields), Ty::Struct(name2, fields2)) => {
-                if name != name2 {
-                    return false;
-                }
-
-                if fields.len() != fields2.len() {
-                    return false;
-                }
-
-                for (n, t) in fields {
-                    match fields.get(n) {
-                        Some(t2) => {
-                            if t.val != t2.val {
-                                return false;
-                            }
-                        }
-                        None => return false,
-                    }
-                }
-
-                true
-            }
+            (Ty::Struct(id, _, _), Ty::Struct(id2, _, _)) => id == id2,
             (Ty::Fn(params, ret), Ty::Fn(params2, ret2)) => {
                 for (a, b) in params.iter().zip(params2) {
                     if a.val != b.val {

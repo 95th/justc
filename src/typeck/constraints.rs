@@ -272,7 +272,10 @@ impl Collector {
 
                 self.constraints.push(Constraint::Eq {
                     expected: Spanned::new(ty.clone(), name.span),
-                    actual: Spanned::new(Ty::Struct(name.symbol, field_map), name.span),
+                    actual: Spanned::new(
+                        Ty::Struct(ty.tvar().unwrap(), name.symbol, field_map),
+                        name.span,
+                    ),
                 });
 
                 self.constraints.push(Constraint::Eq {
@@ -339,6 +342,7 @@ impl Collector {
         self.constraints.push(Constraint::Eq {
             expected: Spanned::new(
                 Ty::Struct(
+                    s.ty.tvar().unwrap(),
                     s.name.symbol,
                     s.fields
                         .iter()

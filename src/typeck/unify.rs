@@ -76,7 +76,7 @@ impl<'a> Unify<'a> {
                     });
                     self.unify(&mut constraints)
                 }
-                (Ty::Struct(name_1, fields_1), Ty::Struct(name_2, fields_2)) => {
+                (Ty::Struct(id_1, name_1, fields_1), Ty::Struct(id_2, name_2, fields_2)) => {
                     if name_1 != name_2 {
                         self.handler.report(
                             actual.span,
@@ -84,6 +84,7 @@ impl<'a> Unify<'a> {
                         );
                         return None;
                     }
+
                     if fields_1.len() != fields_2.len() {
                         self.handler.report(
                             actual.span,
@@ -95,6 +96,8 @@ impl<'a> Unify<'a> {
                         );
                         return None;
                     }
+
+                    *id_1 = *id_2;
 
                     let mut constraints = vec![];
                     for (name, a) in fields_1 {
@@ -127,7 +130,7 @@ impl<'a> Unify<'a> {
                 field,
                 field_ty,
             } => {
-                if let Ty::Struct(_, fields) = &mut expr_ty.val {
+                if let Ty::Struct(.., fields) = &mut expr_ty.val {
                     let a = match fields.get_mut(field) {
                         Some(e) => e,
                         None => {
@@ -364,7 +367,7 @@ impl Subst {
                 }
                 self.fill_ty(&mut ret.val);
             }
-            Ty::Struct(_, fields) => {
+            Ty::Struct(.., fields) => {
                 for f in fields.values_mut() {
                     self.fill_ty(&mut f.val);
                 }
@@ -386,7 +389,7 @@ fn substitute(ty: &mut Ty, tvar: u64, replacement: &Ty) {
             }
             substitute(&mut ret.val, tvar, replacement);
         }
-        Ty::Struct(_, fields) => {
+        Ty::Struct(.., fields) => {
             for (_, ty) in fields {
                 substitute(&mut ty.val, tvar, replacement);
             }
