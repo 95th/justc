@@ -128,7 +128,6 @@ impl<'a> Unify<'a> {
                 field_ty,
             } => {
                 if let Ty::Struct(_, fields) = &mut expr_ty.val {
-                    let mut constraints = vec![];
                     let a = match fields.get_mut(field) {
                         Some(e) => e,
                         None => {
@@ -140,11 +139,11 @@ impl<'a> Unify<'a> {
                         }
                     };
 
-                    constraints.push(Constraint::Eq {
+                    let constraint = Constraint::Eq {
                         expected: a.clone(),
                         actual: field_ty.clone(),
-                    });
-                    self.unify(&mut constraints)
+                    };
+                    self.unify(&mut [constraint])
                 } else {
                     self.handler.report(
                         field_ty.span,
