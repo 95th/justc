@@ -5,4 +5,5 @@ struct A {
 
 let a = 10;
 let b = "123";
-let a = A { a, b };
+
+while (A { a, b }) {}

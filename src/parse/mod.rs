@@ -496,7 +496,7 @@ impl Parser {
             return self.path_or_struct();
         } else if self.eat(OpenParen) {
             let lo = self.prev.span;
-            let expr = self.expr()?;
+            let expr = self.with_restrictions(Restrictions::empty(), |this| this.expr())?;
             self.consume(CloseParen, "Expected ')' after expr")?;
             let span = lo.to(self.prev.span);
 
@@ -699,7 +699,7 @@ impl Parser {
         F: FnOnce(&mut Self) -> R,
     {
         let save = self.restrictions;
-        self.restrictions.insert(new_restrictions);
+        self.restrictions = new_restrictions;
         let result = f(self);
         self.restrictions = save;
         result

@@ -76,6 +76,13 @@ impl Collector {
             }
             Stmt::While { cond, body } => {
                 self.collect_expr(cond);
+                self.constraints.push(Constraint {
+                    a: cond.ty.clone(),
+                    b: Ty::Bool,
+                    span_a: cond.span,
+                    span_b: cond.span,
+                });
+
                 self.collect_block(body);
                 self.constraints.push(Constraint {
                     a: body.ty.clone(),
