@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use crate::{err::Handler, lex::Span};
+use crate::{
+    err::Handler,
+    lex::{Span, Spanned},
+};
 
 use super::{
     constraints::Constraint,
@@ -39,22 +42,20 @@ impl<'a> Unify<'a> {
 
     fn unify_one(&self, constraint: &mut Constraint) -> Option<Subst> {
         let Constraint {
-            expected: a,
-            actual: b,
-            ..
+            expected, actual, ..
         } = constraint;
-        match (a, b) {
+        match (&mut expected.val, &mut actual.val) {
             (Ty::Int, Ty::Int)
             | (Ty::Bool, Ty::Bool)
             | (Ty::Float, Ty::Float)
             | (Ty::Unit, Ty::Unit)
             | (Ty::Str, Ty::Str) => Some(Subst::empty()),
-            (Ty::Var(tvar), ref mut ty) => self.unify_var(*tvar, ty, constraint.span_b),
-            (ref mut ty, Ty::Var(tvar)) => self.unify_var(*tvar, ty, constraint.span_a),
+            (Ty::Var(tvar), ref mut ty) => self.unify_var(*tvar, ty, actual.span),
+            (ref mut ty, Ty::Var(tvar)) => self.unify_var(*tvar, ty, expected.span),
             (Ty::Fn(params_1, ret_1), Ty::Fn(params_2, ret_2)) => {
                 if params_1.len() != params_2.len() {
                     self.handler.report(
-                        constraint.span_b,
+                        actual.span,
                         &format!(
                             "Number of arguments mismatch: Expected: {}, Actual: {}",
                             params_1.len(),
@@ -67,31 +68,27 @@ impl<'a> Unify<'a> {
                 let mut constraints = vec![];
                 for (a, b) in params_1.iter_mut().zip(params_2.iter_mut()) {
                     constraints.push(Constraint {
-                        expected: a.val.clone(),
-                        actual: b.val.clone(),
-                        span_a: a.span,
-                        span_b: b.span,
+                        expected: Spanned::new(a.val.clone(), expected.span),
+                        actual: Spanned::new(b.val.clone(), actual.span),
                     });
                 }
                 constraints.push(Constraint {
-                    expected: ret_1.val.clone(),
-                    actual: ret_2.val.clone(),
-                    span_a: ret_1.span,
-                    span_b: ret_2.span,
+                    expected: Spanned::new(ret_1.val.clone(), ret_1.span),
+                    actual: Spanned::new(ret_2.val.clone(), ret_2.span),
                 });
                 self.unify(&mut constraints)
             }
             (Ty::Struct(name_1, fields_1), Ty::Struct(name_2, fields_2)) => {
                 if name_1 != name_2 {
                     self.handler.report(
-                        constraint.span_b,
+                        actual.span,
                         &format!("Type mismatch: Expected: {}, Actual: {}", name_1, name_2),
                     );
                     return None;
                 }
                 if fields_1.len() != fields_2.len() {
                     self.handler.report(
-                        constraint.span_b,
+                        actual.span,
                         &format!(
                             "Number of fields mismatch: Expected: {}, Actual: {}",
                             fields_1.len(),
@@ -107,23 +104,21 @@ impl<'a> Unify<'a> {
                         Some(e) => e,
                         None => {
                             self.handler
-                                .report(constraint.span_b, &format!("Field {} missing", name));
+                                .report(actual.span, &format!("Field {} missing", name));
                             return None;
                         }
                     };
 
                     constraints.push(Constraint {
-                        expected: a.val.clone(),
-                        actual: b.val.clone(),
-                        span_a: a.span,
-                        span_b: b.span,
+                        expected: Spanned::new(a.val.clone(), a.span),
+                        actual: Spanned::new(b.val.clone(), b.span),
                     });
                 }
                 self.unify(&mut constraints)
             }
             (a, b) => {
                 self.handler.report(
-                    constraint.span_b,
+                    actual.span,
                     &format!("Type mismatch: Expected: {:?}, Actual: {:?}", a, b),
                 );
                 None
@@ -190,8 +185,8 @@ impl Subst {
     }
 
     fn apply_one(&self, constraint: &mut Constraint) {
-        self.apply_ty(&mut constraint.expected);
-        self.apply_ty(&mut constraint.actual);
+        self.apply_ty(&mut constraint.expected.val);
+        self.apply_ty(&mut constraint.actual.val);
     }
 
     fn apply_ty(&self, ty: &mut Ty) {

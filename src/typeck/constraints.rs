@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, fmt};
 
 use crate::{
-    lex::{Span, Spanned},
+    lex::Spanned,
     parse::ast::{BinOp, UnOp},
 };
 
@@ -11,10 +11,8 @@ use super::{
 };
 
 pub struct Constraint {
-    pub expected: Ty,
-    pub actual: Ty,
-    pub span_a: Span,
-    pub span_b: Span,
+    pub expected: Spanned<Ty>,
+    pub actual: Spanned<Ty>,
 }
 
 impl fmt::Debug for Constraint {
@@ -57,10 +55,8 @@ impl Collector {
                 if let Some(init) = init {
                     self.collect_expr(init);
                     self.constraints.push(Constraint {
-                        expected: ty.clone(),
-                        actual: init.ty.clone(),
-                        span_a: name.span,
-                        span_b: init.span,
+                        expected: Spanned::new(ty.clone(), name.span),
+                        actual: Spanned::new(init.ty.clone(), init.span),
                     });
                 }
             }
@@ -68,27 +64,21 @@ impl Collector {
                 self.collect_expr(name);
                 self.collect_expr(val);
                 self.constraints.push(Constraint {
-                    expected: name.ty.clone(),
-                    actual: val.ty.clone(),
-                    span_a: name.span,
-                    span_b: val.span,
+                    expected: Spanned::new(name.ty.clone(), name.span),
+                    actual: Spanned::new(val.ty.clone(), val.span),
                 });
             }
             Stmt::While { cond, body } => {
                 self.collect_expr(cond);
                 self.constraints.push(Constraint {
-                    expected: Ty::Bool,
-                    actual: cond.ty.clone(),
-                    span_a: cond.span,
-                    span_b: cond.span,
+                    expected: Spanned::new(Ty::Bool, cond.span),
+                    actual: Spanned::new(cond.ty.clone(), cond.span),
                 });
 
                 self.collect_block(body);
                 self.constraints.push(Constraint {
-                    expected: body.ty.clone(),
-                    actual: Ty::Unit,
-                    span_a: body.span,
-                    span_b: body.span,
+                    expected: Spanned::new(Ty::Unit, body.span),
+                    actual: Spanned::new(body.ty.clone(), body.span),
                 });
             }
             Stmt::Return(_, e) => {
@@ -108,58 +98,44 @@ impl Collector {
                 self.collect_expr(left);
                 self.collect_expr(right);
                 self.constraints.push(Constraint {
-                    expected: left.ty.clone(),
-                    actual: right.ty.clone(),
-                    span_a: left.span,
-                    span_b: right.span,
+                    expected: Spanned::new(left.ty.clone(), left.span),
+                    actual: Spanned::new(right.ty.clone(), right.span),
                 });
                 match op.val {
                     BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Rem => {
                         self.constraints.push(Constraint {
-                            expected: expr.ty.clone(),
-                            actual: left.ty.clone(),
-                            span_a: expr.span,
-                            span_b: left.span,
+                            expected: Spanned::new(expr.ty.clone(), expr.span),
+                            actual: Spanned::new(left.ty.clone(), left.span),
                         });
                     }
                     BinOp::Lt | BinOp::Gt | BinOp::Le | BinOp::Ge => {
                         self.constraints.push(Constraint {
-                            expected: expr.ty.clone(),
-                            actual: Ty::Bool,
-                            span_a: expr.span,
-                            span_b: expr.span,
+                            expected: Spanned::new(Ty::Bool, expr.span),
+                            actual: Spanned::new(expr.ty.clone(), expr.span),
                         });
                     }
                     BinOp::Ne | BinOp::Eq => {
                         self.constraints.push(Constraint {
-                            expected: expr.ty.clone(),
-                            actual: Ty::Bool,
-                            span_a: expr.span,
-                            span_b: expr.span,
+                            expected: Spanned::new(Ty::Bool, expr.span),
+                            actual: Spanned::new(expr.ty.clone(), expr.span),
                         });
                     }
                     BinOp::And | BinOp::Or => {
                         self.constraints.push(Constraint {
-                            expected: left.ty.clone(),
-                            actual: Ty::Bool,
-                            span_a: left.span,
-                            span_b: left.span,
+                            expected: Spanned::new(Ty::Bool, left.span),
+                            actual: Spanned::new(left.ty.clone(), left.span),
                         });
                         self.constraints.push(Constraint {
-                            expected: expr.ty.clone(),
-                            actual: Ty::Bool,
-                            span_a: expr.span,
-                            span_b: expr.span,
+                            expected: Spanned::new(Ty::Bool, expr.span),
+                            actual: Spanned::new(expr.ty.clone(), expr.span),
                         });
                     }
                 }
             }
             ExprKind::Literal(_, ty, span) => {
                 self.constraints.push(Constraint {
-                    expected: expr.ty.clone(),
-                    actual: ty.clone(),
-                    span_a: expr.span,
-                    span_b: *span,
+                    expected: Spanned::new(expr.ty.clone(), expr.span),
+                    actual: Spanned::new(ty.clone(), *span),
                 });
             }
             ExprKind::Unary { op, expr: e, .. } => {
@@ -167,43 +143,33 @@ impl Collector {
                 match op.val {
                     UnOp::Not => {
                         self.constraints.push(Constraint {
-                            expected: expr.ty.clone(),
-                            actual: Ty::Bool,
-                            span_a: expr.span,
-                            span_b: expr.span,
+                            expected: Spanned::new(Ty::Bool, expr.span),
+                            actual: Spanned::new(expr.ty.clone(), expr.span),
                         });
                         self.constraints.push(Constraint {
-                            expected: e.ty.clone(),
-                            actual: Ty::Bool,
-                            span_a: e.span,
-                            span_b: e.span,
+                            expected: Spanned::new(Ty::Bool, e.span),
+                            actual: Spanned::new(e.ty.clone(), e.span),
                         });
                     }
                     UnOp::Neg => {
                         self.constraints.push(Constraint {
-                            expected: expr.ty.clone(),
-                            actual: e.ty.clone(),
-                            span_a: expr.span,
-                            span_b: e.span,
+                            expected: Spanned::new(expr.ty.clone(), expr.span),
+                            actual: Spanned::new(e.ty.clone(), e.span),
                         });
                     }
                 }
             }
             ExprKind::Variable(name, ty) => {
                 self.constraints.push(Constraint {
-                    expected: expr.ty.clone(),
-                    actual: ty.clone(),
-                    span_a: expr.span,
-                    span_b: name.span,
+                    expected: Spanned::new(expr.ty.clone(), expr.span),
+                    actual: Spanned::new(ty.clone(), name.span),
                 });
             }
             ExprKind::Block(block) => {
                 self.collect_block(block);
                 self.constraints.push(Constraint {
-                    expected: expr.ty.clone(),
-                    actual: block.ty.clone(),
-                    span_a: expr.span,
-                    span_b: block.span,
+                    expected: Spanned::new(expr.ty.clone(), expr.span),
+                    actual: Spanned::new(block.ty.clone(), block.span),
                 });
             }
             ExprKind::If {
@@ -213,39 +179,29 @@ impl Collector {
             } => {
                 self.collect_expr(cond);
                 self.constraints.push(Constraint {
-                    expected: cond.ty.clone(),
-                    actual: Ty::Bool,
-                    span_a: cond.span,
-                    span_b: cond.span,
+                    expected: Spanned::new(Ty::Bool, cond.span),
+                    actual: Spanned::new(cond.ty.clone(), cond.span),
                 });
 
                 self.collect_block(then_clause);
                 if let Some(else_clause) = else_clause {
                     self.collect_expr(else_clause);
                     self.constraints.push(Constraint {
-                        expected: then_clause.ty.clone(),
-                        actual: else_clause.ty.clone(),
-                        span_a: then_clause.span,
-                        span_b: else_clause.span,
+                        expected: Spanned::new(then_clause.ty.clone(), then_clause.span),
+                        actual: Spanned::new(else_clause.ty.clone(), else_clause.span),
                     });
                     self.constraints.push(Constraint {
-                        expected: expr.ty.clone(),
-                        actual: then_clause.ty.clone(),
-                        span_a: expr.span,
-                        span_b: then_clause.span,
+                        expected: Spanned::new(expr.ty.clone(), expr.span),
+                        actual: Spanned::new(then_clause.ty.clone(), then_clause.span),
                     });
                 } else {
                     self.constraints.push(Constraint {
-                        expected: then_clause.ty.clone(),
-                        actual: Ty::Unit,
-                        span_a: then_clause.span,
-                        span_b: then_clause.span,
+                        expected: Spanned::new(Ty::Unit, then_clause.span),
+                        actual: Spanned::new(then_clause.ty.clone(), then_clause.span),
                     });
                     self.constraints.push(Constraint {
-                        expected: expr.ty.clone(),
-                        actual: Ty::Unit,
-                        span_a: expr.span,
-                        span_b: expr.span,
+                        expected: Spanned::new(Ty::Unit, expr.span),
+                        actual: Spanned::new(expr.ty.clone(), expr.span),
                     });
                 }
             }
@@ -253,37 +209,37 @@ impl Collector {
                 self.enter_fn_scope(ret.clone(), |this| {
                     this.collect_expr(body);
                     this.constraints.push(Constraint {
-                        expected: expr.ty.clone(),
-                        actual: Ty::Fn(
-                            params
-                                .iter()
-                                .map(|p| Spanned::new(p.ty.clone(), p.name.span))
-                                .collect(),
-                            Box::new(Spanned::new(body.ty.clone(), body.span)),
+                        expected: Spanned::new(
+                            Ty::Fn(
+                                params
+                                    .iter()
+                                    .map(|p| Spanned::new(p.ty.clone(), p.name.span))
+                                    .collect(),
+                                Box::new(Spanned::new(body.ty.clone(), body.span)),
+                            ),
+                            expr.span,
                         ),
-                        span_a: expr.span,
-                        span_b: expr.span,
+                        actual: Spanned::new(expr.ty.clone(), expr.span),
                     });
                     this.constraints.push(Constraint {
-                        expected: ret.clone(),
-                        actual: body.ty.clone(),
-                        span_a: body.span,
-                        span_b: body.span,
+                        expected: Spanned::new(ret.clone(), body.span),
+                        actual: Spanned::new(body.ty.clone(), body.span),
                     });
                 });
             }
             ExprKind::Call { callee, args } => {
                 self.collect_expr(callee);
                 self.constraints.push(Constraint {
-                    expected: callee.ty.clone(),
-                    actual: Ty::Fn(
-                        args.iter()
-                            .map(|arg| Spanned::new(arg.ty.clone(), arg.span))
-                            .collect(),
-                        Box::new(Spanned::new(expr.ty.clone(), expr.span)),
+                    expected: Spanned::new(
+                        Ty::Fn(
+                            args.iter()
+                                .map(|arg| Spanned::new(arg.ty.clone(), arg.span))
+                                .collect(),
+                            Box::new(Spanned::new(expr.ty.clone(), expr.span)),
+                        ),
+                        expr.span,
                     ),
-                    span_a: expr.span,
-                    span_b: expr.span,
+                    actual: Spanned::new(callee.ty.clone(), expr.span),
                 });
 
                 for arg in args {
@@ -298,17 +254,13 @@ impl Collector {
                 }
 
                 self.constraints.push(Constraint {
-                    expected: ty.clone(),
-                    actual: Ty::Struct(name.symbol, field_map),
-                    span_a: name.span,
-                    span_b: name.span,
+                    expected: Spanned::new(Ty::Struct(name.symbol, field_map), name.span),
+                    actual: Spanned::new(ty.clone(), name.span),
                 });
 
                 self.constraints.push(Constraint {
-                    expected: expr.ty.clone(),
-                    actual: ty.clone(),
-                    span_a: expr.span,
-                    span_b: name.span,
+                    expected: Spanned::new(expr.ty.clone(), expr.span),
+                    actual: Spanned::new(ty.clone(), name.span),
                 });
             }
         }
@@ -323,17 +275,13 @@ impl Collector {
             if let Stmt::Return(span, e) = stmt {
                 if let Some(e) = e {
                     self.constraints.push(Constraint {
-                        expected: self.enclosing_fn_ret_ty.clone().unwrap(),
-                        actual: e.ty.clone(),
-                        span_a: e.span,
-                        span_b: e.span,
+                        expected: Spanned::new(self.enclosing_fn_ret_ty.clone().unwrap(), e.span),
+                        actual: Spanned::new(e.ty.clone(), e.span),
                     });
                 } else {
                     self.constraints.push(Constraint {
-                        expected: self.enclosing_fn_ret_ty.clone().unwrap(),
-                        actual: Ty::Unit,
-                        span_a: *span,
-                        span_b: *span,
+                        expected: Spanned::new(self.enclosing_fn_ret_ty.clone().unwrap(), *span),
+                        actual: Spanned::new(Ty::Unit, *span),
                     });
                 }
             }
@@ -342,19 +290,15 @@ impl Collector {
         match block.stmts.last() {
             Some(Stmt::Expr(expr, false)) => {
                 self.constraints.push(Constraint {
-                    expected: block.ty.clone(),
-                    actual: expr.ty.clone(),
-                    span_a: block.span,
-                    span_b: expr.span,
+                    expected: Spanned::new(block.ty.clone(), block.span),
+                    actual: Spanned::new(expr.ty.clone(), expr.span),
                 });
             }
             Some(Stmt::Return(_, _)) => {}
             _ => {
                 self.constraints.push(Constraint {
-                    expected: block.ty.clone(),
-                    actual: Ty::Unit,
-                    span_a: block.span,
-                    span_b: block.span,
+                    expected: Spanned::new(Ty::Unit, block.span),
+                    actual: Spanned::new(block.ty.clone(), block.span),
                 });
             }
         }
@@ -368,16 +312,17 @@ impl Collector {
 
     fn collect_struct(&mut self, s: &Struct) {
         self.constraints.push(Constraint {
-            expected: s.ty.clone(),
-            actual: Ty::Struct(
-                s.name.symbol,
-                s.fields
-                    .iter()
-                    .map(|f| (f.name.symbol, Spanned::new(f.ty.clone(), f.name.span)))
-                    .collect(),
+            expected: Spanned::new(
+                Ty::Struct(
+                    s.name.symbol,
+                    s.fields
+                        .iter()
+                        .map(|f| (f.name.symbol, Spanned::new(f.ty.clone(), f.name.span)))
+                        .collect(),
+                ),
+                s.name.span,
             ),
-            span_a: s.name.span,
-            span_b: s.name.span,
+            actual: Spanned::new(s.ty.clone(), s.name.span),
         })
     }
 
@@ -390,23 +335,22 @@ impl Collector {
     fn collect_fn(&mut self, function: &Function) {
         self.collect_block(&function.body);
         self.constraints.push(Constraint {
-            expected: function.ty.clone(),
-            actual: Ty::Fn(
-                function
-                    .params
-                    .iter()
-                    .map(|p| Spanned::new(p.ty.clone(), p.name.span))
-                    .collect(),
-                Box::new(Spanned::new(function.body.ty.clone(), function.body.span)),
+            expected: Spanned::new(
+                Ty::Fn(
+                    function
+                        .params
+                        .iter()
+                        .map(|p| Spanned::new(p.ty.clone(), p.name.span))
+                        .collect(),
+                    Box::new(Spanned::new(function.body.ty.clone(), function.body.span)),
+                ),
+                function.name.span,
             ),
-            span_a: function.name.span,
-            span_b: function.name.span,
+            actual: Spanned::new(function.ty.clone(), function.name.span),
         });
         self.constraints.push(Constraint {
-            expected: function.ret.clone(),
-            actual: function.body.ty.clone(),
-            span_a: function.body.span,
-            span_b: function.body.span,
+            expected: Spanned::new(function.ret.clone(), function.body.span),
+            actual: Spanned::new(function.body.ty.clone(), function.body.span),
         });
     }
 
