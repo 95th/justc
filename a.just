@@ -1,8 +1,7 @@
 struct A {
     a: int,
-    b: float,
 }
 
-fn foo(a: A) -> int {
-    a.a
+fn foo(a: A, f: fn(A) -> fn(A) -> int) -> int {
+    f(a)(a)
 }

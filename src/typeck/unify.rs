@@ -351,9 +351,23 @@ impl Subst {
     }
 
     fn fill_ty(&self, ty: &mut Ty) {
-        if let Ty::Var(tvar) = ty {
-            if let Some(replacement) = self.solutions.get(tvar) {
-                *ty = replacement.clone();
+        match ty {
+            Ty::Var(tvar) => {
+                if let Some(replacement) = self.solutions.get(tvar) {
+                    *ty = replacement.clone();
+                }
+            }
+            Ty::Unit | Ty::Bool | Ty::Int | Ty::Float | Ty::Str => {}
+            Ty::Fn(params, ret) => {
+                for p in params {
+                    self.fill_ty(&mut p.val);
+                }
+                self.fill_ty(&mut ret.val);
+            }
+            Ty::Struct(_, fields) => {
+                for f in fields.values_mut() {
+                    self.fill_ty(&mut f.val);
+                }
             }
         }
     }

@@ -1,4 +1,9 @@
-use crate::{err::Handler, lex::Token, parse::ast, symbol::SymbolTable};
+use crate::{
+    err::Handler,
+    lex::{Spanned, Token},
+    parse::ast,
+    symbol::SymbolTable,
+};
 
 use super::{hir, ty::Ty, ty::TyContext};
 
@@ -294,6 +299,18 @@ impl<'a> Annotate<'a> {
 
     fn ast_ty_to_ty(&mut self, ty: ast::Ty) -> Option<Ty> {
         let ty = match ty.kind {
+            ast::TyKind::Fn(params, ret) => {
+                let params = params
+                    .into_iter()
+                    .map(|p| {
+                        let span = p.span;
+                        self.ast_ty_to_ty(p).map(|t| Spanned::new(t, span))
+                    })
+                    .collect::<Option<_>>()?;
+                let span = ret.span;
+                let ret = Box::new(Spanned::new(self.ast_ty_to_ty(*ret)?, span));
+                Ty::Fn(params, ret)
+            }
             ast::TyKind::Ident(t) => self.token_to_ty(&t)?,
             ast::TyKind::Infer => self.env.new_var(),
             ast::TyKind::Unit => Ty::Unit,

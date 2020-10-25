@@ -152,6 +152,7 @@ pub struct Ty {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TyKind {
+    Fn(Vec<Ty>, Box<Ty>),
     Ident(Token),
     Infer,
     Unit,

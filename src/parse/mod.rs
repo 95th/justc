@@ -674,6 +674,35 @@ impl Parser {
     }
 
     fn parse_ty(&mut self) -> Option<Ty> {
+        if self.eat(Fn) {
+            let lo = self.prev.span;
+            self.consume(OpenParen, "Expected '('")?;
+            let mut params = vec![];
+
+            while !self.check(CloseParen) && !self.eof() {
+                let param = self.parse_ty()?;
+                params.push(param);
+
+                if !self.eat(Comma) {
+                    break;
+                }
+            }
+
+            self.consume(CloseParen, "Expected ')'")?;
+
+            let ret = if self.eat(Arrow) {
+                self.parse_ty()?
+            } else {
+                TyKind::Unit.into()
+            };
+
+            let span = lo.to(self.prev.span);
+            return Some(Ty {
+                kind: TyKind::Fn(params, Box::new(ret)),
+                span,
+            });
+        }
+
         let token = self.consume(Ident, "Expected Type name")?;
         let symbol = token.symbol;
 
