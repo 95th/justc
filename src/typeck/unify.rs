@@ -272,6 +272,9 @@ impl Subst {
                 }
                 self.fill_ty(ty);
             }
+            ExprKind::Field(expr, _) => {
+                self.fill_expr(expr);
+            }
         }
         self.fill_ty(&mut expr.ty);
     }

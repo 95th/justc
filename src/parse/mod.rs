@@ -445,8 +445,19 @@ impl Parser {
     fn call(&mut self) -> Option<Box<Expr>> {
         let mut expr = self.primary()?;
 
-        while self.eat(OpenParen) {
-            expr = self.finish_call(expr)?;
+        loop {
+            if self.eat(OpenParen) {
+                expr = self.finish_call(expr)?;
+            } else if self.eat(Dot) {
+                let name = self.consume(Ident, "Expected field or method name")?;
+                let span = expr.span.to(name.span);
+                expr = Box::new(Expr {
+                    kind: ExprKind::Field(expr, name),
+                    span,
+                })
+            } else {
+                break;
+            }
         }
 
         Some(expr)

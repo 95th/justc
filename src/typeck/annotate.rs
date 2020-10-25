@@ -193,6 +193,9 @@ impl<'a> Annotate<'a> {
                 };
                 hir::ExprKind::Struct(name, self.annotate_fields(fields)?, ty)
             }
+            ast::ExprKind::Field(expr, name) => {
+                hir::ExprKind::Field(self.annotate_expr(expr)?, name)
+            }
         };
         Some(Box::new(hir::Expr {
             kind,

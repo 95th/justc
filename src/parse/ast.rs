@@ -106,6 +106,7 @@ pub enum ExprKind {
         args: Vec<Box<Expr>>,
     },
     Struct(Token, Vec<Field>),
+    Field(Box<Expr>, Token),
 }
 
 #[derive(Debug, PartialEq)]

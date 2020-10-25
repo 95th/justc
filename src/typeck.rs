@@ -157,6 +157,10 @@ impl<'a> Typeck<'a> {
 
                 Some(())
             }
+            Field(expr, _) => {
+                self.typeck_expr(expr)?;
+                Some(())
+            }
         }
     }
 

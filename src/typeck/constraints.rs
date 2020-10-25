@@ -263,6 +263,7 @@ impl Collector {
                     actual: Spanned::new(ty.clone(), name.span),
                 });
             }
+            ExprKind::Field(_expr, _name) => todo!(),
         }
     }
 
