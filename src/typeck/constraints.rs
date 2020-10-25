@@ -26,12 +26,14 @@ pub enum Constraint {
 impl fmt::Debug for Constraint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Constraint::Eq { expected, actual } => write!(f, "{:?} == {:?}", expected, actual),
+            Constraint::Eq { expected, actual } => {
+                write!(f, "{:?} == {:?}", expected.val, actual.val)
+            }
             Constraint::FieldAccess {
                 expr_ty,
                 field,
                 field_ty,
-            } => write!(f, "{:?}.{} == {:?}", expr_ty, field, field_ty),
+            } => write!(f, "{:?}.{} == {:?}", expr_ty.val, field, field_ty.val),
         }
     }
 }

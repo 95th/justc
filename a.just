@@ -2,6 +2,8 @@ struct A {
     a: int,
 }
 
-fn foo(a: A, f: fn(A) -> fn(A) -> int) -> int {
-    f(a)(a)
-}
+let a: fn(A, A) -> int = |a, b| a.a + b.a;
+
+// fn foo(a: A, b: A) -> int {
+//     a.a + b.a
+// }

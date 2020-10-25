@@ -21,10 +21,14 @@ impl<'a> Typeck<'a> {
 
     pub fn typeck(&self, ast: ast::Ast) -> Option<Ast> {
         let mut ast = self::annotate::annotate(ast, self.handler)?;
-        let mut constraints = self::constraints::collect(&mut ast);
+        let mut constraints = self::constraints::collect(&ast);
+
+        dbg!(&constraints);
 
         let subst = self::unify::unify(&mut constraints, self.handler)?;
         subst.fill_ast(&mut ast);
+
+        dbg!(&subst);
 
         self.typeck_fns(&ast.functions)?;
         self.typeck_stmts(&ast.stmts)?;
