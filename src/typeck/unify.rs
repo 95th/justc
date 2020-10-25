@@ -38,7 +38,11 @@ impl<'a> Unify<'a> {
     }
 
     fn unify_one(&self, constraint: &mut Constraint) -> Option<Subst> {
-        let Constraint { a, b, .. } = constraint;
+        let Constraint {
+            expected: a,
+            actual: b,
+            ..
+        } = constraint;
         match (a, b) {
             (Ty::Int, Ty::Int)
             | (Ty::Bool, Ty::Bool)
@@ -63,15 +67,15 @@ impl<'a> Unify<'a> {
                 let mut constraints = vec![];
                 for (a, b) in params_1.iter_mut().zip(params_2.iter_mut()) {
                     constraints.push(Constraint {
-                        a: a.val.clone(),
-                        b: b.val.clone(),
+                        expected: a.val.clone(),
+                        actual: b.val.clone(),
                         span_a: a.span,
                         span_b: b.span,
                     });
                 }
                 constraints.push(Constraint {
-                    a: ret_1.val.clone(),
-                    b: ret_2.val.clone(),
+                    expected: ret_1.val.clone(),
+                    actual: ret_2.val.clone(),
                     span_a: ret_1.span,
                     span_b: ret_2.span,
                 });
@@ -109,8 +113,8 @@ impl<'a> Unify<'a> {
                     };
 
                     constraints.push(Constraint {
-                        a: a.val.clone(),
-                        b: b.val.clone(),
+                        expected: a.val.clone(),
+                        actual: b.val.clone(),
                         span_a: a.span,
                         span_b: b.span,
                     });
@@ -186,8 +190,8 @@ impl Subst {
     }
 
     fn apply_one(&self, constraint: &mut Constraint) {
-        self.apply_ty(&mut constraint.a);
-        self.apply_ty(&mut constraint.b);
+        self.apply_ty(&mut constraint.expected);
+        self.apply_ty(&mut constraint.actual);
     }
 
     fn apply_ty(&self, ty: &mut Ty) {

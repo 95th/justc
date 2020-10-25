@@ -57,7 +57,7 @@ impl<'a> Typeck<'a> {
             }
             While { cond, body } => {
                 self.typeck_expr(cond)?;
-                self.typeck_eq(&cond.ty, &Ty::Bool, &cond.span)?;
+                self.typeck_eq(&Ty::Bool, &cond.ty, &cond.span)?;
                 self.typeck_block(body)
             }
             Return(_, e) => {
