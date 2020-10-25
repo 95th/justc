@@ -18,7 +18,7 @@ impl TyContext {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone)]
 pub enum Ty {
     Var(u64),
     Unit,
@@ -59,5 +59,50 @@ impl fmt::Debug for Ty {
             Ty::Struct(name, _) => write!(f, "{}", name)?,
         }
         Ok(())
+    }
+}
+
+impl PartialEq for Ty {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Ty::Unit, Ty::Unit)
+            | (Ty::Bool, Ty::Bool)
+            | (Ty::Int, Ty::Int)
+            | (Ty::Float, Ty::Float)
+            | (Ty::Str, Ty::Str) => true,
+            (Ty::Var(a), Ty::Var(b)) => a == b,
+            (Ty::Struct(name, fields), Ty::Struct(name2, fields2)) => {
+                if name != name2 {
+                    return false;
+                }
+
+                if fields.len() != fields2.len() {
+                    return false;
+                }
+
+                for (n, t) in fields {
+                    match fields.get(n) {
+                        Some(t2) => {
+                            if t.val != t2.val {
+                                return false;
+                            }
+                        }
+                        None => return false,
+                    }
+                }
+
+                true
+            }
+            (Ty::Fn(params, ret), Ty::Fn(params2, ret2)) => {
+                for (a, b) in params.iter().zip(params2) {
+                    if a.val != b.val {
+                        return false;
+                    }
+                }
+
+                ret.val == ret2.val
+            }
+            _ => false,
+        }
     }
 }
