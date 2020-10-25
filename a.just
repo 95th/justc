@@ -1,7 +1,8 @@
 struct A {
     a: int,
-    b: str,
+    b: float,
 }
 
-let a = A { a: 10, b: "123" };
-a.a
+fn foo(a: A) -> int {
+    a.a
+}

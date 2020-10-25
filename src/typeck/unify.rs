@@ -41,87 +41,117 @@ impl<'a> Unify<'a> {
     }
 
     fn unify_one(&self, constraint: &mut Constraint) -> Option<Subst> {
-        let Constraint {
-            expected, actual, ..
-        } = constraint;
-        match (&mut expected.val, &mut actual.val) {
-            (Ty::Int, Ty::Int)
-            | (Ty::Bool, Ty::Bool)
-            | (Ty::Float, Ty::Float)
-            | (Ty::Unit, Ty::Unit)
-            | (Ty::Str, Ty::Str) => Some(Subst::empty()),
-            (Ty::Var(tvar), ref mut ty) => self.unify_var(*tvar, ty, actual.span),
-            (ref mut ty, Ty::Var(tvar)) => self.unify_var(*tvar, ty, expected.span),
-            (Ty::Fn(params_1, ret_1), Ty::Fn(params_2, ret_2)) => {
-                if params_1.len() != params_2.len() {
-                    self.handler.report(
-                        actual.span,
-                        &format!(
-                            "Number of arguments mismatch: Expected: {}, Actual: {}",
-                            params_1.len(),
-                            params_2.len()
-                        ),
-                    );
-                    return None;
-                }
+        match constraint {
+            Constraint::Eq { expected, actual } => match (&mut expected.val, &mut actual.val) {
+                (Ty::Int, Ty::Int)
+                | (Ty::Bool, Ty::Bool)
+                | (Ty::Float, Ty::Float)
+                | (Ty::Unit, Ty::Unit)
+                | (Ty::Str, Ty::Str) => Some(Subst::empty()),
+                (Ty::Var(tvar), ref mut ty) => self.unify_var(*tvar, ty, actual.span),
+                (ref mut ty, Ty::Var(tvar)) => self.unify_var(*tvar, ty, expected.span),
+                (Ty::Fn(params_1, ret_1), Ty::Fn(params_2, ret_2)) => {
+                    if params_1.len() != params_2.len() {
+                        self.handler.report(
+                            actual.span,
+                            &format!(
+                                "Number of arguments mismatch: Expected: {}, Actual: {}",
+                                params_1.len(),
+                                params_2.len()
+                            ),
+                        );
+                        return None;
+                    }
 
-                let mut constraints = vec![];
-                for (a, b) in params_1.iter_mut().zip(params_2.iter_mut()) {
-                    constraints.push(Constraint {
-                        expected: Spanned::new(a.val.clone(), expected.span),
-                        actual: Spanned::new(b.val.clone(), actual.span),
+                    let mut constraints = vec![];
+                    for (a, b) in params_1.iter_mut().zip(params_2.iter_mut()) {
+                        constraints.push(Constraint::Eq {
+                            expected: Spanned::new(a.val.clone(), expected.span),
+                            actual: Spanned::new(b.val.clone(), actual.span),
+                        });
+                    }
+                    constraints.push(Constraint::Eq {
+                        expected: Spanned::new(ret_1.val.clone(), ret_1.span),
+                        actual: Spanned::new(ret_2.val.clone(), ret_2.span),
                     });
+                    self.unify(&mut constraints)
                 }
-                constraints.push(Constraint {
-                    expected: Spanned::new(ret_1.val.clone(), ret_1.span),
-                    actual: Spanned::new(ret_2.val.clone(), ret_2.span),
-                });
-                self.unify(&mut constraints)
-            }
-            (Ty::Struct(name_1, fields_1), Ty::Struct(name_2, fields_2)) => {
-                if name_1 != name_2 {
-                    self.handler.report(
-                        actual.span,
-                        &format!("Type mismatch: Expected: {}, Actual: {}", name_1, name_2),
-                    );
-                    return None;
-                }
-                if fields_1.len() != fields_2.len() {
-                    self.handler.report(
-                        actual.span,
-                        &format!(
-                            "Number of fields mismatch: Expected: {}, Actual: {}",
-                            fields_1.len(),
-                            fields_2.len()
-                        ),
-                    );
-                    return None;
-                }
+                (Ty::Struct(name_1, fields_1), Ty::Struct(name_2, fields_2)) => {
+                    if name_1 != name_2 {
+                        self.handler.report(
+                            actual.span,
+                            &format!("Type mismatch: Expected: {}, Actual: {}", name_1, name_2),
+                        );
+                        return None;
+                    }
+                    if fields_1.len() != fields_2.len() {
+                        self.handler.report(
+                            actual.span,
+                            &format!(
+                                "Number of fields mismatch: Expected: `{}`, Actual: `{}`",
+                                fields_1.len(),
+                                fields_2.len()
+                            ),
+                        );
+                        return None;
+                    }
 
-                let mut constraints = vec![];
-                for (name, a) in fields_1 {
-                    let b = match fields_2.get_mut(name) {
+                    let mut constraints = vec![];
+                    for (name, a) in fields_1 {
+                        let b = match fields_2.get_mut(name) {
+                            Some(e) => e,
+                            None => {
+                                self.handler
+                                    .report(actual.span, &format!("Field `{}` missing", name));
+                                return None;
+                            }
+                        };
+
+                        constraints.push(Constraint::Eq {
+                            expected: Spanned::new(a.val.clone(), a.span),
+                            actual: Spanned::new(b.val.clone(), b.span),
+                        });
+                    }
+                    self.unify(&mut constraints)
+                }
+                (a, b) => {
+                    self.handler.report(
+                        actual.span,
+                        &format!("Type mismatch: Expected: {:?}, Actual: {:?}", a, b),
+                    );
+                    None
+                }
+            },
+            Constraint::FieldAccess {
+                expr_ty,
+                field,
+                field_ty,
+            } => {
+                if let Ty::Struct(_, fields) = &mut expr_ty.val {
+                    let mut constraints = vec![];
+                    let a = match fields.get_mut(field) {
                         Some(e) => e,
                         None => {
-                            self.handler
-                                .report(actual.span, &format!("Field {} missing", name));
+                            self.handler.report(
+                                field_ty.span,
+                                &format!("Field or Method `{}` not found", field),
+                            );
                             return None;
                         }
                     };
 
-                    constraints.push(Constraint {
-                        expected: Spanned::new(a.val.clone(), a.span),
-                        actual: Spanned::new(b.val.clone(), b.span),
+                    constraints.push(Constraint::Eq {
+                        expected: a.clone(),
+                        actual: field_ty.clone(),
                     });
+                    self.unify(&mut constraints)
+                } else {
+                    self.handler.report(
+                        field_ty.span,
+                        &format!("Field or Method `{}` not found", field),
+                    );
+                    None
                 }
-                self.unify(&mut constraints)
-            }
-            (a, b) => {
-                self.handler.report(
-                    actual.span,
-                    &format!("Type mismatch: Expected: {:?}, Actual: {:?}", a, b),
-                );
-                None
             }
         }
     }
@@ -185,8 +215,18 @@ impl Subst {
     }
 
     fn apply_one(&self, constraint: &mut Constraint) {
-        self.apply_ty(&mut constraint.expected.val);
-        self.apply_ty(&mut constraint.actual.val);
+        match constraint {
+            Constraint::Eq { expected, actual } => {
+                self.apply_ty(&mut expected.val);
+                self.apply_ty(&mut actual.val);
+            }
+            Constraint::FieldAccess {
+                expr_ty, field_ty, ..
+            } => {
+                self.apply_ty(&mut expr_ty.val);
+                self.apply_ty(&mut field_ty.val);
+            }
+        }
     }
 
     fn apply_ty(&self, ty: &mut Ty) {
