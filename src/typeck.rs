@@ -139,7 +139,10 @@ impl<'a> Typeck<'a> {
                 }
                 Some(())
             }
-            Closure { ret, body, .. } => {
+            Closure { params, ret, body } => {
+                for p in params {
+                    self.typeck_no_var(&p.ty, &p.name.span)?;
+                }
                 self.typeck_expr(body)?;
                 self.typeck_eq(ret, &body.ty, &body.span)
             }
@@ -188,13 +191,9 @@ impl<'a> Typeck<'a> {
     }
 
     fn typeck_eq(&self, a: &Ty, b: &Ty, span: &Span) -> Option<()> {
-        if matches!(a, Ty::Var(_)) || matches!(b, Ty::Var(_)) {
-            self.handler.report(
-                *span,
-                "Type cannot be inferred. Please add type annotations",
-            );
-            return None;
-        }
+        self.typeck_no_var(a, span)?;
+        self.typeck_no_var(b, span)?;
+
         if a == b {
             Some(())
         } else {
@@ -203,6 +202,18 @@ impl<'a> Typeck<'a> {
                 &format!("Type mismatch: Expected: {:?}, Actual: {:?}", a, b),
             );
             None
+        }
+    }
+
+    fn typeck_no_var(&self, ty: &Ty, span: &Span) -> Option<()> {
+        if matches!(ty, Ty::Var(_)) {
+            self.handler.report(
+                *span,
+                "Type cannot be inferred. Please add type annotations",
+            );
+            None
+        } else {
+            Some(())
         }
     }
 }

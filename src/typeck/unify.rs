@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 use crate::{
     err::Handler,
@@ -14,42 +14,62 @@ use super::{
     ty::Ty,
 };
 
-pub fn unify(constraints: &mut [Constraint], handler: &Handler) -> Option<Subst> {
-    Unify::new(handler).unify(constraints)
+pub fn unify(constraints: &mut VecDeque<Constraint>, handler: &Handler) -> Option<Subst> {
+    let mut unifier = Unifier::new(handler);
+    unifier.unify(constraints).ok()?;
+    Some(unifier.subst)
 }
 
-struct Unify<'a> {
+struct Unifier<'a> {
+    subst: Subst,
+    deferred: VecDeque<Constraint>,
     handler: &'a Handler,
 }
 
-impl<'a> Unify<'a> {
-    fn new(handler: &'a Handler) -> Self {
-        Self { handler }
-    }
+type UnifyResult<T> = Result<T, ()>;
 
-    fn unify(&self, constraints: &mut [Constraint]) -> Option<Subst> {
-        match constraints {
-            [] => Some(Subst::empty()),
-            [head, tail @ ..] => {
-                let mut subst = self.unify_one(head)?;
-                subst.apply(tail);
-                let subst_tail = self.unify(tail)?;
-                subst.compose(subst_tail);
-                Some(subst)
-            }
+impl<'a> Unifier<'a> {
+    fn new(handler: &'a Handler) -> Self {
+        Self {
+            subst: Subst::empty(),
+            deferred: VecDeque::new(),
+            handler,
         }
     }
 
-    fn unify_one(&self, constraint: &mut Constraint) -> Option<Subst> {
-        match constraint {
-            Constraint::Eq { expected, actual } => match (&mut expected.val, &mut actual.val) {
+    fn unify(&mut self, constraints: &mut VecDeque<Constraint>) -> UnifyResult<()> {
+        let mut deferred_count = 0;
+        loop {
+            while let Some(c) = constraints.pop_front() {
+                self.unify_one(c, constraints)?;
+                self.subst.apply(constraints);
+            }
+
+            if deferred_count == self.deferred.len() {
+                // Nothing else to solve or doesn't solve any further
+                break;
+            }
+
+            deferred_count = self.deferred.len();
+            constraints.append(&mut self.deferred);
+        }
+        Ok(())
+    }
+
+    fn unify_one(
+        &mut self,
+        constraint: Constraint,
+        constraints: &mut VecDeque<Constraint>,
+    ) -> UnifyResult<()> {
+        match &constraint {
+            Constraint::Eq { expected, actual } => match (&expected.val, &actual.val) {
                 (Ty::Int, Ty::Int)
                 | (Ty::Bool, Ty::Bool)
                 | (Ty::Float, Ty::Float)
                 | (Ty::Unit, Ty::Unit)
-                | (Ty::Str, Ty::Str) => Some(Subst::empty()),
-                (Ty::Var(tvar), ref mut ty) => self.unify_var(*tvar, ty, actual.span),
-                (ref mut ty, Ty::Var(tvar)) => self.unify_var(*tvar, ty, expected.span),
+                | (Ty::Str, Ty::Str) => Ok(()),
+                (Ty::Var(tvar), ty) => self.unify_var(*tvar, ty, actual.span),
+                (ty, Ty::Var(tvar)) => self.unify_var(*tvar, ty, expected.span),
                 (Ty::Fn(params_1, ret_1), Ty::Fn(params_2, ret_2)) => {
                     if params_1.len() != params_2.len() {
                         self.handler.report(
@@ -60,29 +80,28 @@ impl<'a> Unify<'a> {
                                 params_2.len()
                             ),
                         );
-                        return None;
+                        return Err(());
                     }
 
-                    let mut constraints = vec![];
-                    for (a, b) in params_1.iter_mut().zip(params_2.iter_mut()) {
-                        constraints.push(Constraint::Eq {
+                    for (a, b) in params_1.iter().zip(params_2.iter()) {
+                        constraints.push_back(Constraint::Eq {
                             expected: Spanned::new(a.val.clone(), expected.span),
                             actual: Spanned::new(b.val.clone(), actual.span),
                         });
                     }
-                    constraints.push(Constraint::Eq {
+                    constraints.push_back(Constraint::Eq {
                         expected: Spanned::new(ret_1.val.clone(), ret_1.span),
                         actual: Spanned::new(ret_2.val.clone(), ret_2.span),
                     });
-                    self.unify(&mut constraints)
+                    Ok(())
                 }
-                (Ty::Struct(id_1, name_1, fields_1), Ty::Struct(id_2, name_2, fields_2)) => {
+                (Ty::Struct(_, name_1, fields_1), Ty::Struct(_, name_2, fields_2)) => {
                     if name_1 != name_2 {
                         self.handler.report(
                             actual.span,
                             &format!("Type mismatch: Expected: {}, Actual: {}", name_1, name_2),
                         );
-                        return None;
+                        return Err(());
                     }
 
                     if fields_1.len() != fields_2.len() {
@@ -94,19 +113,17 @@ impl<'a> Unify<'a> {
                                 fields_2.len()
                             ),
                         );
-                        return None;
+                        return Err(());
                     }
-
-                    *id_1 = *id_2;
 
                     let mut constraints = vec![];
                     for (name, a) in fields_1 {
-                        let b = match fields_2.get_mut(name) {
+                        let b = match fields_2.get(name) {
                             Some(e) => e,
                             None => {
                                 self.handler
                                     .report(actual.span, &format!("Field `{}` missing", name));
-                                return None;
+                                return Err(());
                             }
                         };
 
@@ -115,64 +132,71 @@ impl<'a> Unify<'a> {
                             actual: Spanned::new(b.val.clone(), b.span),
                         });
                     }
-                    self.unify(&mut constraints)
+                    Ok(())
                 }
                 (a, b) => {
                     self.handler.report(
                         actual.span,
                         &format!("Type mismatch: Expected: {:?}, Actual: {:?}", a, b),
                     );
-                    None
+                    Err(())
                 }
             },
             Constraint::FieldAccess {
                 expr_ty,
                 field,
                 field_ty,
-            } => {
-                if let Ty::Struct(.., fields) = &mut expr_ty.val {
-                    let a = match fields.get_mut(field) {
+            } => match &expr_ty.val {
+                Ty::Struct(.., fields) => {
+                    let a = match fields.get(&field) {
                         Some(e) => e,
                         None => {
                             self.handler.report(
                                 field_ty.span,
                                 &format!("Field or Method `{}` not found", field),
                             );
-                            return None;
+                            return Err(());
                         }
                     };
 
-                    let constraint = Constraint::Eq {
+                    constraints.push_back(Constraint::Eq {
                         expected: a.clone(),
                         actual: field_ty.clone(),
-                    };
-                    self.unify(&mut [constraint])
-                } else {
+                    });
+                    Ok(())
+                }
+                Ty::Var(_) => {
+                    self.deferred.push_back(constraint);
+                    Ok(())
+                }
+                _ => {
                     self.handler.report(
                         field_ty.span,
                         &format!("Field or Method `{}` not found", field),
                     );
-                    None
+                    Err(())
                 }
-            }
+            },
         }
     }
 
-    fn unify_var(&self, tvar: u64, ty: &Ty, span: Span) -> Option<Subst> {
+    fn unify_var(&mut self, tvar: u64, ty: &Ty, span: Span) -> UnifyResult<()> {
         match ty {
             Ty::Var(tvar2) => {
-                if tvar == *tvar2 {
-                    Some(Subst::empty())
-                } else {
-                    Some(Subst::new(tvar, ty))
+                if tvar != *tvar2 {
+                    self.subst.add(tvar, ty);
                 }
+                Ok(())
             }
             ty if occurs(tvar, ty) => {
                 self.handler
                     .report(span, &format!("Type is of infinite size: {:?}", ty));
-                None
+                Err(())
             }
-            ty => Some(Subst::new(tvar, ty)),
+            ty => {
+                self.subst.add(tvar, ty);
+                Ok(())
+            }
         }
     }
 }
@@ -199,18 +223,14 @@ impl Subst {
         }
     }
 
-    pub fn new(tvar: u64, ty: &Ty) -> Self {
-        let mut solutions = HashMap::new();
-        solutions.insert(tvar, ty.clone());
-        Self { solutions }
+    pub fn add(&mut self, tvar: u64, ty: &Ty) {
+        for t in self.solutions.values_mut() {
+            substitute(t, tvar, ty);
+        }
+        self.solutions.insert(tvar, ty.clone());
     }
 
-    pub fn compose(&mut self, other: Self) {
-        self.solutions.values_mut().for_each(|t| other.apply_ty(t));
-        self.solutions.extend(other.solutions);
-    }
-
-    pub fn apply(&self, constraints: &mut [Constraint]) {
+    pub fn apply(&self, constraints: &mut VecDeque<Constraint>) {
         for constraint in constraints {
             self.apply_one(constraint);
         }

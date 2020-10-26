@@ -2,4 +2,5 @@ struct A {
     a: int,
 }
 
-let a: fn(A, A) -> int = |a, b| a.a + b.a;
+let f = |a, b| a.a + b.a;
+f(A {a:1}, A{a:1})
