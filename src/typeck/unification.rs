@@ -219,7 +219,12 @@ impl<'a> Unifier<'a> {
     fn unify_fn(&mut self, function: &Function) -> Option<()> {
         self.unify_block(&function.body)?;
         self.env
-            .unify(function.ret, function.body.ty, function.body.span)
+            .unify(function.ret, function.body.ty, function.body.span)?;
+        self.env.unify_ty(
+            function.ty,
+            TyKind::Fn(function.params.iter().map(|p| p.ty).collect(), function.ret),
+            function.name.span,
+        )
     }
 
     fn enter_fn_scope<F, R>(&mut self, ty: Tvar, f: F) -> R
