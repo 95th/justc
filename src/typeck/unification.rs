@@ -4,23 +4,24 @@ use crate::{
 };
 
 use super::{
-    hir::{Ast, Block, Expr, ExprKind, Function, Stmt},
+    hir::{Ast, Block, Expr, ExprKind, Function, Stmt, Struct},
     ty::{Tvar, TyContext, TyKind},
 };
 
-struct Collector<'a> {
+struct Unifier<'a> {
     enclosing_fn_ret_ty: Option<Tvar>,
     env: &'a mut TyContext,
     handler: &'a Handler,
 }
 
-pub fn collect(ast: &Ast, env: &mut TyContext, handler: &Handler) -> Option<()> {
-    let mut collector = Collector::new(env, handler);
-    collector.collect_fns(&ast.functions)?;
-    collector.collect_stmts(&ast.stmts)
+pub fn unify(ast: &Ast, env: &mut TyContext, handler: &Handler) -> Option<()> {
+    let mut unifier = Unifier::new(env, handler);
+    unifier.unify_structs(&ast.structs)?;
+    unifier.unify_fns(&ast.functions)?;
+    unifier.unify_stmts(&ast.stmts)
 }
 
-impl<'a> Collector<'a> {
+impl<'a> Unifier<'a> {
     fn new(env: &'a mut TyContext, handler: &'a Handler) -> Self {
         Self {
             enclosing_fn_ret_ty: None,
@@ -29,36 +30,36 @@ impl<'a> Collector<'a> {
         }
     }
 
-    fn collect_stmts(&mut self, ast: &[Stmt]) -> Option<()> {
+    fn unify_stmts(&mut self, ast: &[Stmt]) -> Option<()> {
         for stmt in ast {
-            self.collect_stmt(stmt)?;
+            self.unify_stmt(stmt)?;
         }
         Some(())
     }
 
-    fn collect_stmt(&mut self, stmt: &Stmt) -> Option<()> {
+    fn unify_stmt(&mut self, stmt: &Stmt) -> Option<()> {
         match stmt {
-            Stmt::Expr(expr, ..) => self.collect_expr(expr),
+            Stmt::Expr(expr, ..) => self.unify_expr(expr),
             Stmt::Let { ty, init, .. } => {
                 if let Some(init) = init {
-                    self.collect_expr(init)?;
+                    self.unify_expr(init)?;
                     self.env.unify(*ty, init.ty, init.span)?;
                 }
                 Some(())
             }
             Stmt::Assign { name, val } => {
-                self.collect_expr(name)?;
-                self.collect_expr(val)?;
+                self.unify_expr(name)?;
+                self.unify_expr(val)?;
                 self.env.unify(name.ty, val.ty, val.span)
             }
             Stmt::While { cond, body } => {
-                self.collect_expr(cond)?;
-                self.collect_block(body)?;
+                self.unify_expr(cond)?;
+                self.unify_block(body)?;
                 self.env.unify_ty(cond.ty, TyKind::Bool, cond.span)
             }
             Stmt::Return(_, e) => {
                 if let Some(e) = e {
-                    self.collect_expr(e)?;
+                    self.unify_expr(e)?;
                 }
                 Some(())
             }
@@ -66,13 +67,13 @@ impl<'a> Collector<'a> {
         }
     }
 
-    fn collect_expr(&mut self, expr: &Expr) -> Option<()> {
+    fn unify_expr(&mut self, expr: &Expr) -> Option<()> {
         match &expr.kind {
             ExprKind::Binary {
                 op, left, right, ..
             } => {
-                self.collect_expr(left)?;
-                self.collect_expr(right)?;
+                self.unify_expr(left)?;
+                self.unify_expr(right)?;
                 self.env.unify(left.ty, right.ty, right.span)?;
                 match op.val {
                     BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Rem => {
@@ -89,7 +90,7 @@ impl<'a> Collector<'a> {
             }
             ExprKind::Literal(_, ty, _) => self.env.unify(expr.ty, *ty, expr.span),
             ExprKind::Unary { op, expr: e, .. } => {
-                self.collect_expr(e)?;
+                self.unify_expr(e)?;
                 match op.val {
                     UnOp::Not => {
                         self.env.unify_ty(expr.ty, TyKind::Bool, expr.span)?;
@@ -100,7 +101,7 @@ impl<'a> Collector<'a> {
             }
             ExprKind::Variable(.., ty) => self.env.unify(expr.ty, *ty, expr.span),
             ExprKind::Block(block) => {
-                self.collect_block(block)?;
+                self.unify_block(block)?;
                 self.env.unify(expr.ty, block.ty, block.span)
             }
             ExprKind::If {
@@ -108,12 +109,12 @@ impl<'a> Collector<'a> {
                 then_clause,
                 else_clause,
             } => {
-                self.collect_expr(cond)?;
+                self.unify_expr(cond)?;
                 self.env.unify_ty(cond.ty, TyKind::Bool, cond.span)?;
 
-                self.collect_block(then_clause)?;
+                self.unify_block(then_clause)?;
                 if let Some(else_clause) = else_clause {
-                    self.collect_expr(else_clause)?;
+                    self.unify_expr(else_clause)?;
                     self.env
                         .unify(then_clause.ty, else_clause.ty, else_clause.span)?;
                     self.env.unify(expr.ty, then_clause.ty, then_clause.span)
@@ -123,59 +124,55 @@ impl<'a> Collector<'a> {
                     self.env.unify_ty(expr.ty, TyKind::Unit, expr.span)
                 }
             }
-            ExprKind::Closure { ret, body, .. } => self.enter_fn_scope(*ret, |this| {
-                this.collect_expr(body)?;
-                this.env.unify(*ret, body.ty.clone(), body.span)
+            ExprKind::Closure { params, ret, body } => self.enter_fn_scope(*ret, |this| {
+                this.unify_expr(body)?;
+                this.env.unify(*ret, body.ty.clone(), body.span)?;
+                this.env.unify_ty(
+                    expr.ty,
+                    TyKind::Fn(params.iter().map(|p| p.ty).collect(), *ret),
+                    expr.span,
+                )
             }),
             ExprKind::Call { callee, args } => {
-                self.collect_expr(callee)?;
+                self.unify_expr(callee)?;
                 for arg in args {
-                    self.collect_expr(arg)?;
+                    self.unify_expr(arg)?;
+                }
+
+                let ty = self.env.get_ty(callee.ty, callee.span)?;
+                match &*ty.0 {
+                    TyKind::Fn(params, ret) => {
+                        for (param, arg) in params.iter().zip(args) {
+                            self.env.unify(*param, arg.ty, arg.span)?;
+                        }
+                        self.env.unify(*ret, expr.ty, expr.span)?;
+                    }
+                    ty => {
+                        self.handler.report(
+                            callee.span,
+                            &format!("Type error: Expected Function, Actual: {:?}", ty,),
+                        );
+                        return None;
+                    }
                 }
                 Some(())
             }
             ExprKind::Struct(.., fields, ty) => {
                 for f in fields {
-                    self.collect_expr(&f.expr)?;
+                    self.unify_expr(&f.expr)?;
                 }
 
                 self.env.unify(expr.ty, *ty, expr.span)
             }
-            ExprKind::Field(e, name) => {
-                self.collect_expr(e)?;
-                let ty = self.env.get_ty(e.ty, e.span)?;
-                match &*ty.0 {
-                    TyKind::Struct(struct_name, fields) => {
-                        let fty = match fields.get(&name.symbol) {
-                            Some(t) => t,
-                            None => {
-                                self.handler.report(
-                                    name.span,
-                                    &format!(
-                                        "Field {} not found on type {}",
-                                        name.symbol, struct_name
-                                    ),
-                                );
-                                return None;
-                            }
-                        };
-                        self.env.unify(expr.ty, *fty, expr.span)
-                    }
-                    _ => {
-                        self.handler
-                            .report(name.span, &format!("Not a struct: {:?}", ty));
-                        None
-                    }
-                }
-            }
+            ExprKind::Field(e, ..) => self.unify_expr(e),
         }
     }
 
-    fn collect_block(&mut self, block: &Block) -> Option<()> {
-        self.collect_fns(&block.functions);
+    fn unify_block(&mut self, block: &Block) -> Option<()> {
+        self.unify_fns(&block.functions);
 
         for stmt in &block.stmts {
-            self.collect_stmt(stmt);
+            self.unify_stmt(stmt);
             if let Stmt::Return(span, e) = stmt {
                 if let Some(e) = e {
                     self.env
@@ -194,15 +191,33 @@ impl<'a> Collector<'a> {
         }
     }
 
-    fn collect_fns(&mut self, items: &[Function]) -> Option<()> {
-        for item in items {
-            self.enter_fn_scope(item.ret, |this| this.collect_fn(item))?;
+    fn unify_structs(&mut self, structs: &[Struct]) -> Option<()> {
+        for s in structs {
+            self.unify_struct(s)?;
         }
         Some(())
     }
 
-    fn collect_fn(&mut self, function: &Function) -> Option<()> {
-        self.collect_block(&function.body)?;
+    fn unify_struct(&mut self, s: &Struct) -> Option<()> {
+        self.env.unify_ty(
+            s.ty,
+            TyKind::Struct(
+                s.name.symbol,
+                s.fields.iter().map(|f| (f.name.symbol, f.ty)).collect(),
+            ),
+            s.name.span,
+        )
+    }
+
+    fn unify_fns(&mut self, items: &[Function]) -> Option<()> {
+        for item in items {
+            self.enter_fn_scope(item.ret, |this| this.unify_fn(item))?;
+        }
+        Some(())
+    }
+
+    fn unify_fn(&mut self, function: &Function) -> Option<()> {
+        self.unify_block(&function.body)?;
         self.env
             .unify(function.ret, function.body.ty, function.body.span)
     }

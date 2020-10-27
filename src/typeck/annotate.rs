@@ -124,6 +124,7 @@ impl<'a> Annotate<'a> {
     }
 
     fn annotate_expr(&mut self, expr: Box<ast::Expr>) -> Option<Box<hir::Expr>> {
+        let ty = self.env.new_tvar();
         let (kind, span) = (expr.kind, expr.span);
         let kind = match kind {
             ast::ExprKind::Binary { op, left, right } => hir::ExprKind::Binary {
@@ -199,11 +200,7 @@ impl<'a> Annotate<'a> {
                 hir::ExprKind::Field(self.annotate_expr(expr)?, name)
             }
         };
-        Some(Box::new(hir::Expr {
-            kind,
-            span,
-            ty: self.env.new_tvar(),
-        }))
+        Some(Box::new(hir::Expr { kind, span, ty }))
     }
 
     fn annotate_block(&mut self, block: ast::Block) -> Option<hir::Block> {
@@ -326,11 +323,6 @@ impl<'a> Annotate<'a> {
     fn annotate_struct(&mut self, s: ast::Struct) -> Option<hir::Struct> {
         let ty = *self.structs.get(&s.name.symbol).unwrap();
         let fields = self.annotate_struct_fields(s.fields)?;
-        let ty2 = self.env.new_tvar_with_ty(TyKind::Struct(
-            s.name.symbol,
-            fields.iter().map(|f| (f.name.symbol, f.ty)).collect(),
-        ));
-        self.env.unify(ty, ty2, s.name.span)?;
         Some(hir::Struct {
             name: s.name,
             fields,

@@ -4,9 +4,9 @@ use self::{hir::Ast, ty::TyContext};
 use crate::{err::Handler, parse::ast};
 
 mod annotate;
-mod constraints;
 mod hir;
 mod ty;
+mod unification;
 
 pub struct Typeck {
     handler: Rc<Handler>,
@@ -24,7 +24,14 @@ impl Typeck {
         let ast = self::annotate::annotate(ast, &mut env, &self.handler)?;
         dbg!(&ast);
 
-        self::constraints::collect(&ast, &mut env, &self.handler)?;
+        self::unification::unify(&ast, &mut env, &self.handler)?;
+
+        for i in 0..env.len() {
+            match env.get_ty_direct(i as u32) {
+                Some(t) => println!("{} = {:?}", i, t),
+                None => println!("{} = {:?}", i, env.find_root(i as u32)),
+            }
+        }
 
         // self.typeck_fns(&ast.functions)?;
         // self.typeck_stmts(&ast.stmts)?;

@@ -64,6 +64,10 @@ impl TyContext {
         }
     }
 
+    pub fn len(&self) -> usize {
+        self.table.len()
+    }
+
     pub fn new_tvar(&mut self) -> Tvar {
         self.table.new_key(None)
     }
@@ -99,6 +103,14 @@ impl TyContext {
                 None
             }
         }
+    }
+
+    pub fn get_ty_direct(&mut self, t: impl Into<Tvar>) -> Option<Ty> {
+        self.table.probe_value(t)
+    }
+
+    pub fn find_root(&mut self, t: impl Into<Tvar>) -> Tvar {
+        self.table.find(t)
     }
 }
 
