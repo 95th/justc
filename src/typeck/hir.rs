@@ -2,14 +2,14 @@ use crate::{
     lex::Span, lex::Spanned, lex::Token, parse::ast::BinOp, parse::ast::Lit, parse::ast::UnOp,
 };
 
-use super::ty::Ty;
+use super::ty::Tvar;
 
 #[derive(Debug)]
 pub enum Stmt {
     Expr(Box<Expr>, bool),
     Let {
         name: Token,
-        ty: Ty,
+        ty: Tvar,
         init: Option<Box<Expr>>,
     },
     Assign {
@@ -29,7 +29,7 @@ pub enum Stmt {
 pub struct Expr {
     pub kind: ExprKind,
     pub span: Span,
-    pub ty: Ty,
+    pub ty: Tvar,
 }
 
 #[derive(Debug)]
@@ -39,12 +39,12 @@ pub enum ExprKind {
         left: Box<Expr>,
         right: Box<Expr>,
     },
-    Literal(Lit, Ty, Span),
+    Literal(Lit, Tvar, Span),
     Unary {
         op: Spanned<UnOp>,
         expr: Box<Expr>,
     },
-    Variable(Token, Ty),
+    Variable(Token, Tvar),
     Block(Block),
     If {
         cond: Box<Expr>,
@@ -53,14 +53,14 @@ pub enum ExprKind {
     },
     Closure {
         params: Vec<Param>,
-        ret: Ty,
+        ret: Tvar,
         body: Box<Expr>,
     },
     Call {
         callee: Box<Expr>,
         args: Vec<Box<Expr>>,
     },
-    Struct(Token, Vec<Field>, Ty),
+    Struct(Token, Vec<Field>, Tvar),
     Field(Box<Expr>, Token),
 }
 
@@ -75,36 +75,36 @@ pub struct Block {
     pub structs: Vec<Struct>,
     pub functions: Vec<Function>,
     pub stmts: Vec<Stmt>,
-    pub ty: Ty,
+    pub ty: Tvar,
     pub span: Span,
 }
 
 #[derive(Debug)]
 pub struct Param {
     pub name: Token,
-    pub ty: Ty,
+    pub ty: Tvar,
 }
 
 #[derive(Debug)]
 pub struct Function {
     pub name: Token,
     pub params: Vec<Param>,
-    pub ret: Ty,
+    pub ret: Tvar,
     pub body: Block,
-    pub ty: Ty,
+    pub ty: Tvar,
 }
 
 #[derive(Debug)]
 pub struct Struct {
     pub name: Token,
     pub fields: Vec<StructField>,
-    pub ty: Ty,
+    pub ty: Tvar,
 }
 
 #[derive(Debug)]
 pub struct StructField {
     pub name: Token,
-    pub ty: Ty,
+    pub ty: Tvar,
 }
 
 #[derive(Debug)]

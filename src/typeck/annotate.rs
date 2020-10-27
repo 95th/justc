@@ -1,14 +1,11 @@
-use crate::{
-    err::Handler,
-    lex::{Spanned, Token},
-    parse::ast,
-    symbol::SymbolTable,
+use crate::{err::Handler, lex::Token, parse::ast, symbol::SymbolTable};
+
+use super::{
+    hir,
+    ty::{Tvar, TyContext, TyKind},
 };
 
-use super::{hir, ty::Ty, ty::TyContext};
-
-pub fn annotate(ast: ast::Ast, handler: &Handler) -> Option<hir::Ast> {
-    let env = &mut TyContext::new();
+pub fn annotate(ast: ast::Ast, env: &mut TyContext, handler: &Handler) -> Option<hir::Ast> {
     let bindings = &mut SymbolTable::new();
     let functions = &mut SymbolTable::new();
     let structs = &mut SymbolTable::new();
@@ -17,9 +14,9 @@ pub fn annotate(ast: ast::Ast, handler: &Handler) -> Option<hir::Ast> {
 
 struct Annotate<'a> {
     env: &'a mut TyContext,
-    bindings: &'a mut SymbolTable<Ty>,
-    functions: &'a mut SymbolTable<Ty>,
-    structs: &'a mut SymbolTable<Ty>,
+    bindings: &'a mut SymbolTable<Tvar>,
+    functions: &'a mut SymbolTable<Tvar>,
+    structs: &'a mut SymbolTable<Tvar>,
     handler: &'a Handler,
     has_enclosing_fn: bool,
     has_enclosing_loop: bool,
@@ -28,9 +25,9 @@ struct Annotate<'a> {
 impl<'a> Annotate<'a> {
     fn new(
         env: &'a mut TyContext,
-        bindings: &'a mut SymbolTable<Ty>,
-        functions: &'a mut SymbolTable<Ty>,
-        structs: &'a mut SymbolTable<Ty>,
+        bindings: &'a mut SymbolTable<Tvar>,
+        functions: &'a mut SymbolTable<Tvar>,
+        structs: &'a mut SymbolTable<Tvar>,
         handler: &'a Handler,
     ) -> Self {
         Self {
@@ -137,11 +134,11 @@ impl<'a> Annotate<'a> {
             ast::ExprKind::Grouping(e) => return self.annotate_expr(e),
             ast::ExprKind::Literal(lit, span) => {
                 let ty = match &lit {
-                    ast::Lit::Str(_) => Ty::Str,
-                    ast::Lit::Integer(_) => Ty::Int,
-                    ast::Lit::Float(_) => Ty::Float,
-                    ast::Lit::Bool(_) => Ty::Bool,
-                    ast::Lit::Err => self.env.new_var(),
+                    ast::Lit::Str(_) => self.env.new_key(Some(TyKind::Str.into())),
+                    ast::Lit::Integer(_) => self.env.new_key(Some(TyKind::Int.into())),
+                    ast::Lit::Float(_) => self.env.new_key(Some(TyKind::Float.into())),
+                    ast::Lit::Bool(_) => self.env.new_key(Some(TyKind::Bool.into())),
+                    ast::Lit::Err => self.env.new_key(None),
                 };
                 hir::ExprKind::Literal(lit, ty, span)
             }
@@ -205,7 +202,7 @@ impl<'a> Annotate<'a> {
         Some(Box::new(hir::Expr {
             kind,
             span,
-            ty: self.env.new_var(),
+            ty: self.env.new_key(None),
         }))
     }
 
@@ -218,7 +215,7 @@ impl<'a> Annotate<'a> {
                 stmts,
                 functions,
                 structs,
-                ty: this.env.new_var(),
+                ty: this.env.new_key(None),
                 span: block.span,
             })
         })
@@ -226,7 +223,8 @@ impl<'a> Annotate<'a> {
 
     fn annotate_fns(&mut self, functions: Vec<ast::Function>) -> Option<Vec<hir::Function>> {
         for func in &functions {
-            self.functions.insert(func.name.symbol, self.env.new_var());
+            self.functions
+                .insert(func.name.symbol, self.env.new_key(None));
         }
         functions
             .into_iter()
@@ -297,23 +295,19 @@ impl<'a> Annotate<'a> {
         })
     }
 
-    fn ast_ty_to_ty(&mut self, ty: ast::Ty) -> Option<Ty> {
+    fn ast_ty_to_ty(&mut self, ty: ast::Ty) -> Option<Tvar> {
         let ty = match ty.kind {
             ast::TyKind::Fn(params, ret) => {
                 let params = params
                     .into_iter()
-                    .map(|p| {
-                        let span = p.span;
-                        self.ast_ty_to_ty(p).map(|t| Spanned::new(t, span))
-                    })
+                    .map(|p| self.ast_ty_to_ty(p))
                     .collect::<Option<_>>()?;
-                let span = ret.span;
-                let ret = Box::new(Spanned::new(self.ast_ty_to_ty(*ret)?, span));
-                Ty::Fn(params, ret)
+                let ret = self.ast_ty_to_ty(*ret)?;
+                self.env.new_key(Some(TyKind::Fn(params, ret).into()))
             }
             ast::TyKind::Ident(t) => self.token_to_ty(&t)?,
-            ast::TyKind::Infer => self.env.new_var(),
-            ast::TyKind::Unit => Ty::Unit,
+            ast::TyKind::Infer => self.env.new_key(None),
+            ast::TyKind::Unit => self.env.new_key(Some(TyKind::Unit.into())),
         };
 
         Some(ty)
@@ -321,7 +315,7 @@ impl<'a> Annotate<'a> {
 
     fn annotate_structs(&mut self, structs: Vec<ast::Struct>) -> Option<Vec<hir::Struct>> {
         for s in &structs {
-            self.structs.insert(s.name.symbol, self.env.new_var());
+            self.structs.insert(s.name.symbol, self.env.new_key(None));
         }
 
         structs
@@ -331,10 +325,19 @@ impl<'a> Annotate<'a> {
     }
 
     fn annotate_struct(&mut self, s: ast::Struct) -> Option<hir::Struct> {
-        let ty = self.structs.get(&s.name.symbol).unwrap().clone();
+        let ty = *self.structs.get(&s.name.symbol).unwrap();
+        let fields = self.annotate_struct_fields(s.fields)?;
+        let ty2 = self.env.new_key(Some(
+            TyKind::Struct(
+                s.name.symbol,
+                fields.iter().map(|f| (f.name.symbol, f.ty)).collect(),
+            )
+            .into(),
+        ));
+        self.env.unify_var_var(ty, ty2).unwrap();
         Some(hir::Struct {
             name: s.name,
-            fields: self.annotate_struct_fields(s.fields)?,
+            fields,
             ty,
         })
     }
@@ -367,20 +370,20 @@ impl<'a> Annotate<'a> {
         })
     }
 
-    fn token_to_ty(&self, token: &Token) -> Option<Ty> {
+    fn token_to_ty(&mut self, token: &Token) -> Option<Tvar> {
         token.symbol.as_str_with(|s| {
             let ty = match s {
-                "bool" => Ty::Bool,
-                "int" => Ty::Int,
-                "str" => Ty::Str,
-                "float" => Ty::Float,
+                "bool" => self.env.new_key(Some(TyKind::Bool.into())),
+                "int" => self.env.new_key(Some(TyKind::Int.into())),
+                "str" => self.env.new_key(Some(TyKind::Str.into())),
+                "float" => self.env.new_key(Some(TyKind::Float.into())),
                 _ => {
                     if let Some(ty) = self.structs.get(&token.symbol) {
-                        return Some(ty.clone());
+                        ty.clone()
+                    } else {
+                        self.handler.report(token.span, "Unknown type");
+                        return None;
                     }
-
-                    self.handler.report(token.span, "Unknown type");
-                    return None;
                 }
             };
             Some(ty)
