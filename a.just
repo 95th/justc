@@ -1,7 +1,5 @@
 struct A { a: int }
-fn f(a:A, b:A) -> int {
-    a.a + b.a
-}
+let f = |a: A, b: A, c: fn(A, A) -> int| c(a, b);
 
 let a = A { a: 1 };
-f(a, a);
+f(a, a, |a: A, b: A| a.a + b.a);

@@ -164,7 +164,30 @@ impl<'a> Unifier<'a> {
 
                 self.env.unify(expr.ty, *ty, expr.span)
             }
-            ExprKind::Field(e, ..) => self.unify_expr(e),
+            ExprKind::Field(e, field_name) => {
+                self.unify_expr(e)?;
+                let ty = self.env.get_ty(e.ty, e.span)?;
+                match &*ty.0 {
+                    TyKind::Struct(name, fields) => {
+                        if let Some(f) = fields.get(&field_name.symbol) {
+                            self.env.unify(*f, expr.ty, field_name.span)
+                        } else {
+                            self.handler.report(
+                                field_name.span,
+                                &format!("Field {} not found on type {}", field_name.symbol, name),
+                            );
+                            None
+                        }
+                    }
+                    ty => {
+                        self.handler.report(
+                            field_name.span,
+                            &format!("Field {} not found on type {:?}", field_name.symbol, ty),
+                        );
+                        None
+                    }
+                }
+            }
         }
     }
 
