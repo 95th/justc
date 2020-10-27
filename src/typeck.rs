@@ -1,9 +1,6 @@
 use std::rc::Rc;
 
-use self::{
-    hir::{Ast, Block, Expr, ExprKind, Function, Stmt},
-    ty::{Ty, TyContext},
-};
+use self::{hir::Ast, ty::TyContext};
 use crate::{err::Handler, parse::ast};
 
 mod annotate;

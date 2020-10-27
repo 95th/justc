@@ -123,7 +123,7 @@ impl<'a> Collector<'a> {
                     self.env.unify_ty(expr.ty, TyKind::Unit, expr.span)
                 }
             }
-            ExprKind::Closure { params, ret, body } => self.enter_fn_scope(*ret, |this| {
+            ExprKind::Closure { ret, body, .. } => self.enter_fn_scope(*ret, |this| {
                 this.collect_expr(body)?;
                 this.env.unify(*ret, body.ty.clone(), body.span)
             }),
@@ -134,7 +134,7 @@ impl<'a> Collector<'a> {
                 }
                 Some(())
             }
-            ExprKind::Struct(name, fields, ty) => {
+            ExprKind::Struct(.., fields, ty) => {
                 for f in fields {
                     self.collect_expr(&f.expr)?;
                 }

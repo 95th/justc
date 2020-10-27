@@ -65,7 +65,7 @@ impl<'a> Annotate<'a> {
                 };
 
                 let let_ty = self.ast_ty_to_ty(ty)?;
-                self.bindings.insert(name.symbol, let_ty.clone());
+                self.bindings.insert(name.symbol, let_ty);
 
                 Some(hir::Stmt::Let {
                     name,
@@ -151,7 +151,7 @@ impl<'a> Annotate<'a> {
                 .get(&t.symbol)
                 .or_else(|| self.functions.get(&t.symbol))
             {
-                Some(ty) => hir::ExprKind::Variable(t, ty.clone()),
+                Some(ty) => hir::ExprKind::Variable(t, *ty),
                 None => {
                     self.handler.report(t.span, "Not found in this scope");
                     return None;
@@ -187,7 +187,7 @@ impl<'a> Annotate<'a> {
             },
             ast::ExprKind::Struct(name, fields) => {
                 let ty = match self.structs.get(&name.symbol) {
-                    Some(ty) => ty.clone(),
+                    Some(ty) => *ty,
                     None => {
                         self.handler.report(name.span, "not found in this scope");
                         return None;
@@ -240,7 +240,7 @@ impl<'a> Annotate<'a> {
                 let bindings = &mut SymbolTable::new();
                 let mut this = Annotate::new(env, bindings, functions, structs, handler);
 
-                let ty = this.functions.get(&func.name.symbol).unwrap().clone();
+                let ty = *this.functions.get(&func.name.symbol).unwrap();
                 let params = this.annotate_params(func.params)?;
                 let ret = this.ast_ty_to_ty(func.ret)?;
                 this.has_enclosing_fn = true;
@@ -262,7 +262,7 @@ impl<'a> Annotate<'a> {
             .into_iter()
             .map(|p| {
                 let param_ty = self.ast_ty_to_ty(p.ty)?;
-                self.bindings.insert(p.name.symbol, param_ty.clone());
+                self.bindings.insert(p.name.symbol, param_ty);
                 Some(hir::Param {
                     name: p.name,
                     ty: param_ty,

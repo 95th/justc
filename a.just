@@ -1,3 +1,5 @@
 struct A { a: int }
-let f = |a: A, b| a.a + b.a;
-f(A {a: 1}, A{b: 1});
+let f = |a, b| a.a + b.a;
+
+let a = A { a: 1 };
+f(a, a);
