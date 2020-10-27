@@ -1,4 +1,4 @@
-use crate::symbol::Symbol;
+use crate::{err::Handler, lex::Span, symbol::Symbol};
 use ena::unify::{InPlaceUnificationTable, UnifyKey, UnifyValue};
 use std::{collections::BTreeMap, fmt, rc::Rc};
 
@@ -27,7 +27,80 @@ impl UnifyKey for Tvar {
     }
 }
 
-pub type TyContext = InPlaceUnificationTable<Tvar>;
+pub struct CommonTypes {
+    pub unit: Tvar,
+    pub bool: Tvar,
+    pub int: Tvar,
+    pub float: Tvar,
+    pub str: Tvar,
+}
+
+impl CommonTypes {
+    fn new(table: &mut InPlaceUnificationTable<Tvar>) -> Self {
+        Self {
+            unit: table.new_key(Some(TyKind::Unit.into())),
+            bool: table.new_key(Some(TyKind::Bool.into())),
+            int: table.new_key(Some(TyKind::Int.into())),
+            float: table.new_key(Some(TyKind::Float.into())),
+            str: table.new_key(Some(TyKind::Str.into())),
+        }
+    }
+}
+
+pub struct TyContext {
+    table: InPlaceUnificationTable<Tvar>,
+    handler: Rc<Handler>,
+    pub common: CommonTypes,
+}
+
+impl TyContext {
+    pub fn new(handler: &Rc<Handler>) -> Self {
+        let mut table = InPlaceUnificationTable::new();
+        let common = CommonTypes::new(&mut table);
+        Self {
+            table,
+            handler: handler.clone(),
+            common,
+        }
+    }
+
+    pub fn new_tvar(&mut self) -> Tvar {
+        self.table.new_key(None)
+    }
+
+    pub fn new_tvar_with_ty(&mut self, ty: TyKind) -> Tvar {
+        self.table.new_key(Some(ty.into()))
+    }
+
+    pub fn unify(&mut self, a: Tvar, b: Tvar, span: Span) -> Option<()> {
+        if let Err(e) = self.table.unify_var_var(a, b) {
+            self.handler.report(span, &e);
+            None
+        } else {
+            Some(())
+        }
+    }
+
+    pub fn unify_ty(&mut self, a: Tvar, ty: TyKind, span: Span) -> Option<()> {
+        if let Err(e) = self.table.unify_var_value(a, Some(ty.into())) {
+            self.handler.report(span, &e);
+            None
+        } else {
+            Some(())
+        }
+    }
+
+    pub fn get_ty(&mut self, t: Tvar, span: Span) -> Option<Ty> {
+        match self.table.probe_value(t) {
+            Some(t) => Some(t),
+            None => {
+                self.handler
+                    .report(span, &format!("Type not found: {:?}", t));
+                None
+            }
+        }
+    }
+}
 
 #[derive(Clone, PartialEq)]
 pub enum TyKind {

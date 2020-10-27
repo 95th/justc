@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use self::{
     hir::{Ast, Block, Expr, ExprKind, Function, Stmt},
     ty::{Ty, TyContext},
@@ -9,21 +11,23 @@ mod constraints;
 mod hir;
 mod ty;
 
-pub struct Typeck<'a> {
-    handler: &'a Handler,
+pub struct Typeck {
+    handler: Rc<Handler>,
 }
 
-impl<'a> Typeck<'a> {
-    pub fn new(handler: &'a Handler) -> Self {
-        Self { handler }
+impl Typeck {
+    pub fn new(handler: &Rc<Handler>) -> Self {
+        Self {
+            handler: handler.clone(),
+        }
     }
 
     pub fn typeck(&self, ast: ast::Ast) -> Option<Ast> {
-        let mut env = TyContext::new();
-        let ast = self::annotate::annotate(ast, &mut env, self.handler)?;
+        let mut env = TyContext::new(&self.handler);
+        let ast = self::annotate::annotate(ast, &mut env, &self.handler)?;
         dbg!(&ast);
 
-        self::constraints::collect(&ast, &mut env, self.handler)?;
+        self::constraints::collect(&ast, &mut env, &self.handler)?;
 
         // self.typeck_fns(&ast.functions)?;
         // self.typeck_stmts(&ast.stmts)?;

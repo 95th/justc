@@ -1,12 +1,11 @@
 use crate::{
     err::Handler,
-    lex::Span,
     parse::ast::{BinOp, UnOp},
 };
 
 use super::{
     hir::{Ast, Block, Expr, ExprKind, Function, Stmt},
-    ty::{Tvar, Ty, TyContext, TyKind},
+    ty::{Tvar, TyContext, TyKind},
 };
 
 struct Collector<'a> {
@@ -43,19 +42,19 @@ impl<'a> Collector<'a> {
             Stmt::Let { ty, init, .. } => {
                 if let Some(init) = init {
                     self.collect_expr(init)?;
-                    self.unify(*ty, init.ty, init.span)?;
+                    self.env.unify(*ty, init.ty, init.span)?;
                 }
                 Some(())
             }
             Stmt::Assign { name, val } => {
                 self.collect_expr(name)?;
                 self.collect_expr(val)?;
-                self.unify(name.ty, val.ty, val.span)
+                self.env.unify(name.ty, val.ty, val.span)
             }
             Stmt::While { cond, body } => {
                 self.collect_expr(cond)?;
                 self.collect_block(body)?;
-                self.unify_ty(cond.ty, TyKind::Bool, cond.span)
+                self.env.unify_ty(cond.ty, TyKind::Bool, cond.span)
             }
             Stmt::Return(_, e) => {
                 if let Some(e) = e {
@@ -74,35 +73,35 @@ impl<'a> Collector<'a> {
             } => {
                 self.collect_expr(left)?;
                 self.collect_expr(right)?;
-                self.unify(left.ty, right.ty, right.span)?;
+                self.env.unify(left.ty, right.ty, right.span)?;
                 match op.val {
                     BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Rem => {
-                        self.unify(expr.ty, left.ty, left.span)
+                        self.env.unify(expr.ty, left.ty, left.span)
                     }
                     BinOp::Lt | BinOp::Gt | BinOp::Le | BinOp::Ge | BinOp::Ne | BinOp::Eq => {
-                        self.unify_ty(expr.ty, TyKind::Bool, expr.span)
+                        self.env.unify_ty(expr.ty, TyKind::Bool, expr.span)
                     }
                     BinOp::And | BinOp::Or => {
-                        self.unify_ty(left.ty, TyKind::Bool, left.span)?;
-                        self.unify_ty(right.ty, TyKind::Bool, right.span)
+                        self.env.unify_ty(left.ty, TyKind::Bool, left.span)?;
+                        self.env.unify_ty(right.ty, TyKind::Bool, right.span)
                     }
                 }
             }
-            ExprKind::Literal(_, ty, _) => self.unify(expr.ty, *ty, expr.span),
+            ExprKind::Literal(_, ty, _) => self.env.unify(expr.ty, *ty, expr.span),
             ExprKind::Unary { op, expr: e, .. } => {
                 self.collect_expr(e)?;
                 match op.val {
                     UnOp::Not => {
-                        self.unify_ty(expr.ty, TyKind::Bool, expr.span)?;
-                        self.unify_ty(e.ty, TyKind::Bool, e.span)
+                        self.env.unify_ty(expr.ty, TyKind::Bool, expr.span)?;
+                        self.env.unify_ty(e.ty, TyKind::Bool, e.span)
                     }
-                    UnOp::Neg => self.unify(expr.ty, e.ty, e.span),
+                    UnOp::Neg => self.env.unify(expr.ty, e.ty, e.span),
                 }
             }
-            ExprKind::Variable(.., ty) => self.unify(expr.ty, *ty, expr.span),
+            ExprKind::Variable(.., ty) => self.env.unify(expr.ty, *ty, expr.span),
             ExprKind::Block(block) => {
                 self.collect_block(block)?;
-                self.unify(expr.ty, block.ty, block.span)
+                self.env.unify(expr.ty, block.ty, block.span)
             }
             ExprKind::If {
                 cond,
@@ -110,21 +109,23 @@ impl<'a> Collector<'a> {
                 else_clause,
             } => {
                 self.collect_expr(cond)?;
-                self.unify_ty(cond.ty, TyKind::Bool, cond.span)?;
+                self.env.unify_ty(cond.ty, TyKind::Bool, cond.span)?;
 
                 self.collect_block(then_clause)?;
                 if let Some(else_clause) = else_clause {
                     self.collect_expr(else_clause)?;
-                    self.unify(then_clause.ty, else_clause.ty, else_clause.span)?;
-                    self.unify(expr.ty, then_clause.ty, then_clause.span)
+                    self.env
+                        .unify(then_clause.ty, else_clause.ty, else_clause.span)?;
+                    self.env.unify(expr.ty, then_clause.ty, then_clause.span)
                 } else {
-                    self.unify_ty(then_clause.ty, TyKind::Unit, then_clause.span)?;
-                    self.unify_ty(expr.ty, TyKind::Unit, expr.span)
+                    self.env
+                        .unify_ty(then_clause.ty, TyKind::Unit, then_clause.span)?;
+                    self.env.unify_ty(expr.ty, TyKind::Unit, expr.span)
                 }
             }
             ExprKind::Closure { params, ret, body } => self.enter_fn_scope(*ret, |this| {
                 this.collect_expr(body)?;
-                this.unify(*ret, body.ty.clone(), body.span)
+                this.env.unify(*ret, body.ty.clone(), body.span)
             }),
             ExprKind::Call { callee, args } => {
                 self.collect_expr(callee)?;
@@ -138,11 +139,11 @@ impl<'a> Collector<'a> {
                     self.collect_expr(&f.expr)?;
                 }
 
-                self.unify(expr.ty, *ty, expr.span)
+                self.env.unify(expr.ty, *ty, expr.span)
             }
             ExprKind::Field(e, name) => {
                 self.collect_expr(e)?;
-                let ty = self.get_ty(e.ty, e.span)?;
+                let ty = self.env.get_ty(e.ty, e.span)?;
                 match &*ty.0 {
                     TyKind::Struct(struct_name, fields) => {
                         let fty = match fields.get(&name.symbol) {
@@ -158,7 +159,7 @@ impl<'a> Collector<'a> {
                                 return None;
                             }
                         };
-                        self.unify(expr.ty, *fty, expr.span)
+                        self.env.unify(expr.ty, *fty, expr.span)
                     }
                     _ => {
                         self.handler
@@ -177,17 +178,19 @@ impl<'a> Collector<'a> {
             self.collect_stmt(stmt);
             if let Stmt::Return(span, e) = stmt {
                 if let Some(e) = e {
-                    self.unify(self.enclosing_fn_ret_ty.unwrap(), e.ty, e.span)?;
+                    self.env
+                        .unify(self.enclosing_fn_ret_ty.unwrap(), e.ty, e.span)?;
                 } else {
-                    self.unify_ty(self.enclosing_fn_ret_ty.unwrap(), TyKind::Unit, *span)?;
+                    self.env
+                        .unify_ty(self.enclosing_fn_ret_ty.unwrap(), TyKind::Unit, *span)?;
                 }
             }
         }
 
         match block.stmts.last() {
-            Some(Stmt::Expr(expr, false)) => self.unify(block.ty, expr.ty, expr.span),
+            Some(Stmt::Expr(expr, false)) => self.env.unify(block.ty, expr.ty, expr.span),
             Some(Stmt::Return(_, _)) => Some(()),
-            _ => self.unify_ty(block.ty, TyKind::Unit, block.span),
+            _ => self.env.unify_ty(block.ty, TyKind::Unit, block.span),
         }
     }
 
@@ -200,7 +203,8 @@ impl<'a> Collector<'a> {
 
     fn collect_fn(&mut self, function: &Function) -> Option<()> {
         self.collect_block(&function.body)?;
-        self.unify(function.ret, function.body.ty, function.body.span)
+        self.env
+            .unify(function.ret, function.body.ty, function.body.span)
     }
 
     fn enter_fn_scope<F, R>(&mut self, ty: Tvar, f: F) -> R
@@ -212,34 +216,5 @@ impl<'a> Collector<'a> {
         let result = f(self);
         self.enclosing_fn_ret_ty = save_ret_ty;
         result
-    }
-
-    fn unify(&mut self, a: Tvar, b: Tvar, span: Span) -> Option<()> {
-        if let Err(e) = self.env.unify_var_var(a, b) {
-            self.handler.report(span, &e);
-            None
-        } else {
-            Some(())
-        }
-    }
-
-    fn unify_ty(&mut self, a: Tvar, ty: TyKind, span: Span) -> Option<()> {
-        if let Err(e) = self.env.unify_var_value(a, Some(ty.into())) {
-            self.handler.report(span, &e);
-            None
-        } else {
-            Some(())
-        }
-    }
-
-    fn get_ty(&mut self, t: Tvar, span: Span) -> Option<Ty> {
-        match self.env.probe_value(t) {
-            Some(t) => Some(t),
-            None => {
-                self.handler
-                    .report(span, &format!("Type not found: {:?}", t));
-                None
-            }
-        }
     }
 }
