@@ -150,7 +150,7 @@ impl<'a> Unifier<'a> {
                     ty => {
                         self.handler.report(
                             callee.span,
-                            &format!("Type error: Expected Function, Actual: {:?}", ty,),
+                            &format!("Type error: Expected Function, Actual: {:?}", ty),
                         );
                         return None;
                     }

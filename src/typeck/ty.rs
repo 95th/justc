@@ -98,8 +98,7 @@ impl TyContext {
         match self.table.probe_value(t) {
             Some(t) => Some(t),
             None => {
-                self.handler
-                    .report(span, &format!("Type not found: {:?}", t));
+                self.handler.report(span, "Cannot infer type");
                 None
             }
         }
