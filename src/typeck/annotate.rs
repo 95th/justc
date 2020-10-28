@@ -2,7 +2,7 @@ use crate::{err::Handler, lex::Token, parse::ast, symbol::SymbolTable};
 
 use super::{
     hir,
-    ty::{Tvar, TyContext, TyKind},
+    ty::{Ty, TyContext},
 };
 
 pub fn annotate(ast: ast::Ast, env: &mut TyContext, handler: &Handler) -> Option<hir::Ast> {
@@ -14,9 +14,9 @@ pub fn annotate(ast: ast::Ast, env: &mut TyContext, handler: &Handler) -> Option
 
 struct Annotate<'a> {
     env: &'a mut TyContext,
-    bindings: &'a mut SymbolTable<Tvar>,
-    functions: &'a mut SymbolTable<Tvar>,
-    structs: &'a mut SymbolTable<Tvar>,
+    bindings: &'a mut SymbolTable<Ty>,
+    functions: &'a mut SymbolTable<Ty>,
+    structs: &'a mut SymbolTable<Ty>,
     handler: &'a Handler,
     has_enclosing_fn: bool,
     has_enclosing_loop: bool,
@@ -25,9 +25,9 @@ struct Annotate<'a> {
 impl<'a> Annotate<'a> {
     fn new(
         env: &'a mut TyContext,
-        bindings: &'a mut SymbolTable<Tvar>,
-        functions: &'a mut SymbolTable<Tvar>,
-        structs: &'a mut SymbolTable<Tvar>,
+        bindings: &'a mut SymbolTable<Ty>,
+        functions: &'a mut SymbolTable<Ty>,
+        structs: &'a mut SymbolTable<Ty>,
         handler: &'a Handler,
     ) -> Self {
         Self {
@@ -65,7 +65,7 @@ impl<'a> Annotate<'a> {
                 };
 
                 let let_ty = self.ast_ty_to_ty(ty)?;
-                self.bindings.insert(name.symbol, let_ty);
+                self.bindings.insert(name.symbol, let_ty.clone());
 
                 Some(hir::Stmt::Let {
                     name,
@@ -124,7 +124,7 @@ impl<'a> Annotate<'a> {
     }
 
     fn annotate_expr(&mut self, expr: Box<ast::Expr>) -> Option<Box<hir::Expr>> {
-        let ty = self.env.new_tvar();
+        let ty = self.env.new_type_var();
         let (kind, span) = (expr.kind, expr.span);
         let kind = match kind {
             ast::ExprKind::Binary { op, left, right } => hir::ExprKind::Binary {
@@ -135,11 +135,11 @@ impl<'a> Annotate<'a> {
             ast::ExprKind::Grouping(e) => return self.annotate_expr(e),
             ast::ExprKind::Literal(lit, span) => {
                 let ty = match &lit {
-                    ast::Lit::Str(_) => self.env.common.str,
-                    ast::Lit::Integer(_) => self.env.common.int,
-                    ast::Lit::Float(_) => self.env.common.float,
-                    ast::Lit::Bool(_) => self.env.common.bool,
-                    ast::Lit::Err => self.env.new_tvar(),
+                    ast::Lit::Str(_) => Ty::Str,
+                    ast::Lit::Integer(_) => Ty::Int,
+                    ast::Lit::Float(_) => Ty::Float,
+                    ast::Lit::Bool(_) => Ty::Bool,
+                    ast::Lit::Err => self.env.new_type_var(),
                 };
                 hir::ExprKind::Literal(lit, ty, span)
             }
@@ -152,7 +152,7 @@ impl<'a> Annotate<'a> {
                 .get(&t.symbol)
                 .or_else(|| self.functions.get(&t.symbol))
             {
-                Some(ty) => hir::ExprKind::Variable(t, *ty),
+                Some(ty) => hir::ExprKind::Variable(t, ty.clone()),
                 None => {
                     self.handler.report(t.span, "Not found in this scope");
                     return None;
@@ -188,7 +188,7 @@ impl<'a> Annotate<'a> {
             },
             ast::ExprKind::Struct(name, fields) => {
                 let ty = match self.structs.get(&name.symbol) {
-                    Some(ty) => *ty,
+                    Some(ty) => ty.clone(),
                     None => {
                         self.handler.report(name.span, "not found in this scope");
                         return None;
@@ -212,7 +212,7 @@ impl<'a> Annotate<'a> {
                 stmts,
                 functions,
                 structs,
-                ty: this.env.new_tvar(),
+                ty: this.env.new_type_var(),
                 span: block.span,
             })
         })
@@ -220,7 +220,8 @@ impl<'a> Annotate<'a> {
 
     fn annotate_fns(&mut self, functions: Vec<ast::Function>) -> Option<Vec<hir::Function>> {
         for func in &functions {
-            self.functions.insert(func.name.symbol, self.env.new_tvar());
+            self.functions
+                .insert(func.name.symbol, self.env.new_type_var());
         }
         functions
             .into_iter()
@@ -237,7 +238,7 @@ impl<'a> Annotate<'a> {
                 let bindings = &mut SymbolTable::new();
                 let mut this = Annotate::new(env, bindings, functions, structs, handler);
 
-                let ty = *this.functions.get(&func.name.symbol).unwrap();
+                let ty = this.functions.get(&func.name.symbol).unwrap().clone();
                 let params = this.annotate_params(func.params)?;
                 let ret = this.ast_ty_to_ty(func.ret)?;
                 this.has_enclosing_fn = true;
@@ -259,7 +260,7 @@ impl<'a> Annotate<'a> {
             .into_iter()
             .map(|p| {
                 let param_ty = self.ast_ty_to_ty(p.ty)?;
-                self.bindings.insert(p.name.symbol, param_ty);
+                self.bindings.insert(p.name.symbol, param_ty.clone());
                 Some(hir::Param {
                     name: p.name,
                     ty: param_ty,
@@ -291,7 +292,7 @@ impl<'a> Annotate<'a> {
         })
     }
 
-    fn ast_ty_to_ty(&mut self, ty: ast::Ty) -> Option<Tvar> {
+    fn ast_ty_to_ty(&mut self, ty: ast::Ty) -> Option<Ty> {
         let ty = match ty.kind {
             ast::TyKind::Fn(params, ret) => {
                 let params = params
@@ -299,11 +300,11 @@ impl<'a> Annotate<'a> {
                     .map(|p| self.ast_ty_to_ty(p))
                     .collect::<Option<_>>()?;
                 let ret = self.ast_ty_to_ty(*ret)?;
-                self.env.new_tvar_with_ty(TyKind::Fn(params, ret))
+                Ty::Fn(params, Box::new(ret))
             }
             ast::TyKind::Ident(t) => self.token_to_ty(&t)?,
-            ast::TyKind::Infer => self.env.new_tvar(),
-            ast::TyKind::Unit => self.env.common.unit,
+            ast::TyKind::Infer => self.env.new_type_var(),
+            ast::TyKind::Unit => Ty::Unit,
         };
 
         Some(ty)
@@ -311,7 +312,7 @@ impl<'a> Annotate<'a> {
 
     fn annotate_structs(&mut self, structs: Vec<ast::Struct>) -> Option<Vec<hir::Struct>> {
         for s in &structs {
-            self.structs.insert(s.name.symbol, self.env.new_tvar());
+            self.structs.insert(s.name.symbol, self.env.new_type_var());
         }
 
         structs
@@ -321,11 +322,12 @@ impl<'a> Annotate<'a> {
     }
 
     fn annotate_struct(&mut self, s: ast::Struct) -> Option<hir::Struct> {
-        let ty = *self.structs.get(&s.name.symbol).unwrap();
+        let ty = self.structs.get(&s.name.symbol).unwrap().clone();
         let fields = self.annotate_struct_fields(s.fields)?;
         Some(hir::Struct {
             name: s.name,
             fields,
+            id: ty.type_var_id().unwrap_or_default(),
             ty,
         })
     }
@@ -358,16 +360,16 @@ impl<'a> Annotate<'a> {
         })
     }
 
-    fn token_to_ty(&mut self, token: &Token) -> Option<Tvar> {
+    fn token_to_ty(&mut self, token: &Token) -> Option<Ty> {
         token.symbol.as_str_with(|s| {
             let ty = match s {
-                "bool" => self.env.common.bool,
-                "int" => self.env.common.int,
-                "str" => self.env.common.str,
-                "float" => self.env.common.float,
+                "bool" => Ty::Bool,
+                "int" => Ty::Int,
+                "str" => Ty::Str,
+                "float" => Ty::Float,
                 _ => {
                     if let Some(ty) = self.structs.get(&token.symbol) {
-                        *ty
+                        ty.clone()
                     } else {
                         self.handler.report(token.span, "Unknown type");
                         return None;
