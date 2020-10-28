@@ -167,25 +167,52 @@ impl<'a> Unifier<'a> {
                 }
                 Some(())
             }
-            ExprKind::Struct(.., fields, ty) => {
+            ExprKind::Struct(name, fields, ty) => {
+                let ty = self.env.resolve_ty(ty);
+                match &*ty {
+                    Ty::Struct(.., name2, fields2) => {
+                        assert!(name.symbol == *name2);
+                        if fields.len() != fields2.len() {
+                            self.handler.report(expr.span, "Number of fields mismatch");
+                            return None;
+                        }
+
+                        for f in fields {
+                            match fields2.get(&f.name.symbol) {
+                                Some(t) => self.env.unify(t, &f.expr.ty, f.expr.span)?,
+                                None => {
+                                    self.handler.report(f.name.span, "Field not found");
+                                    return None;
+                                }
+                            }
+                        }
+                    }
+                    Ty::Infer(_) => {
+                        self.handler
+                            .report(name.span, "Type not found in this scope");
+                        return None;
+                    }
+                    ty => {
+                        self.handler.report(
+                            name.span,
+                            &format!("Expected Struct, found on type {:?}", ty),
+                        );
+                        return None;
+                    }
+                }
+
                 for f in fields {
                     self.unify_expr(&f.expr)?;
                 }
 
-                self.env.unify(&expr.ty, ty, expr.span)
+                self.env.unify(&expr.ty, &*ty, expr.span)
             }
             ExprKind::Field(e, field_name) => {
                 self.unify_expr(e)?;
                 let ty = self.env.resolve_ty(&e.ty);
                 match &*ty {
                     Ty::Struct(.., name, fields) => {
-                        if let Some(f) = fields.iter().find_map(|(name, ty)| {
-                            if *name == field_name.symbol {
-                                Some(ty)
-                            } else {
-                                None
-                            }
-                        }) {
+                        if let Some(f) = fields.get(&field_name.symbol) {
                             self.env.unify(f, &expr.ty, field_name.span)
                         } else {
                             self.handler.report(

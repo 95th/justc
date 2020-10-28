@@ -1,6 +1,6 @@
 use crate::{err::Handler, lex::Span, symbol::Symbol};
 use ena::unify::{InPlaceUnificationTable, NoError, UnifyKey, UnifyValue};
-use std::{borrow::Cow, fmt, rc::Rc};
+use std::{borrow::Cow, collections::BTreeMap, fmt, rc::Rc};
 
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct TypeVar(u32);
@@ -127,7 +127,7 @@ pub enum Ty {
     Float,
     Str,
     Fn(Vec<Ty>, Box<Ty>),
-    Struct(u32, Symbol, Vec<(Symbol, Ty)>),
+    Struct(u32, Symbol, BTreeMap<Symbol, Ty>),
 }
 
 impl Ty {
