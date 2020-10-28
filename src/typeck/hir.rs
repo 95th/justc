@@ -99,6 +99,7 @@ pub struct Struct {
     pub name: Token,
     pub fields: Vec<StructField>,
     pub ty: Ty,
+    pub id: u32,
 }
 
 #[derive(Debug)]

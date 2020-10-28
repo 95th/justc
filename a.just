@@ -1,6 +1,11 @@
-struct A {
-    a: int,
-}
+struct A { a: int }
 
-let f = |a, b| a.a + b.a;
-f(A {a:1}, A{a:1})
+fn bar() -> A {
+    struct A { a: float }
+   
+    fn foo() -> A {
+        if true { A { a: 1.0 } } else { A { a: 1.0 } }
+    }
+
+    foo()
+}

@@ -22,7 +22,7 @@ impl Compiler {
         let src = Rc::new(src);
         let handler = Rc::new(Handler::new(&src));
         let ast = Parser::new(src, &handler).parse()?;
-        Typeck::new(&handler).typeck(ast)?;
+        Typeck::new(&handler).typeck(ast).ok()?;
         Some(())
     }
 }
