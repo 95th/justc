@@ -295,9 +295,6 @@ impl<'a> Unifier<'a> {
     }
 
     fn unify_fn(&mut self, function: &Function) -> Result<()> {
-        self.unify_block(&function.body)?;
-        self.env
-            .unify(&function.ret, &function.body.ty, function.body.span)?;
         self.env.unify(
             &function.ty,
             &Ty::Fn(
@@ -305,7 +302,10 @@ impl<'a> Unifier<'a> {
                 Box::new(function.ret.clone()),
             ),
             function.name.span,
-        )
+        )?;
+        self.unify_block(&function.body)?;
+        self.env
+            .unify(&function.ret, &function.body.ty, function.body.span)
     }
 
     fn enter_fn_scope<F, R>(&mut self, ty: Ty, f: F) -> R

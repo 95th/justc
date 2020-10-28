@@ -1,11 +1,7 @@
-struct A { a: int }
-
-fn bar() -> A {
-    struct A { a: float }
-   
-    fn foo() -> A {
-        if true { A { a: 1.0 } } else { A { a: 1.0 } }
+fn fib(a: int) -> int {
+    if a < 2 {
+        1
+    } else {
+        fib(a - 1) + fib(a - 2)
     }
-
-    foo()
 }
