@@ -1,11 +1,16 @@
-use crate::{err::Handler, lex::Token, parse::ast, symbol::SymbolTable};
+use crate::{
+    err::{Handler, Result},
+    lex::Token,
+    parse::ast,
+    symbol::SymbolTable,
+};
 
 use super::{
     hir,
     ty::{Ty, TyContext},
 };
 
-pub fn annotate(ast: ast::Ast, env: &mut TyContext, handler: &Handler) -> Option<hir::Ast> {
+pub fn annotate(ast: ast::Ast, env: &mut TyContext, handler: &Handler) -> Result<hir::Ast> {
     let bindings = &mut SymbolTable::new();
     let functions = &mut SymbolTable::new();
     let structs = &mut SymbolTable::new();
@@ -41,22 +46,22 @@ impl<'a> Annotate<'a> {
         }
     }
 
-    fn annotate_ast(&mut self, ast: ast::Ast) -> Option<hir::Ast> {
-        Some(hir::Ast {
+    fn annotate_ast(&mut self, ast: ast::Ast) -> Result<hir::Ast> {
+        Ok(hir::Ast {
             structs: self.annotate_structs(ast.structs)?,
             functions: self.annotate_fns(ast.functions)?,
             stmts: self.annotate_stmts(ast.stmts)?,
         })
     }
 
-    fn annotate_stmts(&mut self, stmts: Vec<ast::Stmt>) -> Option<Vec<hir::Stmt>> {
+    fn annotate_stmts(&mut self, stmts: Vec<ast::Stmt>) -> Result<Vec<hir::Stmt>> {
         stmts.into_iter().map(|s| self.annotate_stmt(s)).collect()
     }
 
-    fn annotate_stmt(&mut self, stmt: ast::Stmt) -> Option<hir::Stmt> {
+    fn annotate_stmt(&mut self, stmt: ast::Stmt) -> Result<hir::Stmt> {
         match stmt {
             ast::Stmt::Expr(expr, semicolon) => {
-                Some(hir::Stmt::Expr(self.annotate_expr(expr)?, semicolon))
+                Ok(hir::Stmt::Expr(self.annotate_expr(expr)?, semicolon))
             }
             ast::Stmt::Let { name, init, ty } => {
                 let init = match init {
@@ -67,13 +72,13 @@ impl<'a> Annotate<'a> {
                 let let_ty = self.ast_ty_to_ty(ty)?;
                 self.bindings.insert(name.symbol, let_ty.clone());
 
-                Some(hir::Stmt::Let {
+                Ok(hir::Stmt::Let {
                     name,
                     ty: let_ty,
                     init,
                 })
             }
-            ast::Stmt::Assign { name, val } => Some(hir::Stmt::Assign {
+            ast::Stmt::Assign { name, val } => Ok(hir::Stmt::Assign {
                 name: self.annotate_expr(name)?,
                 val: self.annotate_expr(val)?,
             }),
@@ -82,48 +87,48 @@ impl<'a> Annotate<'a> {
                 self.has_enclosing_loop = true;
                 let body = self.annotate_block(body)?;
                 self.has_enclosing_loop = false;
-                Some(hir::Stmt::While { cond, body })
+                Ok(hir::Stmt::While { cond, body })
             }
             ast::Stmt::Return(span, Some(e)) => {
                 if self.has_enclosing_fn {
-                    Some(hir::Stmt::Return(span, Some(self.annotate_expr(e)?)))
+                    Ok(hir::Stmt::Return(span, Some(self.annotate_expr(e)?)))
                 } else {
                     self.handler
                         .report(span, "Cannot return without enclosing function");
-                    None
+                    Err(())
                 }
             }
             ast::Stmt::Return(span, None) => {
                 if self.has_enclosing_fn {
-                    Some(hir::Stmt::Return(span, None))
+                    Ok(hir::Stmt::Return(span, None))
                 } else {
                     self.handler
                         .report(span, "Cannot return without enclosing function");
-                    None
+                    Err(())
                 }
             }
             ast::Stmt::Continue(span) => {
                 if self.has_enclosing_loop {
-                    Some(hir::Stmt::Continue(span))
+                    Ok(hir::Stmt::Continue(span))
                 } else {
                     self.handler
                         .report(span, "Cannot continue without an enclosing loop");
-                    None
+                    Err(())
                 }
             }
             ast::Stmt::Break(span) => {
                 if self.has_enclosing_loop {
-                    Some(hir::Stmt::Break(span))
+                    Ok(hir::Stmt::Break(span))
                 } else {
                     self.handler
                         .report(span, "Cannot break without an enclosing loop");
-                    None
+                    Err(())
                 }
             }
         }
     }
 
-    fn annotate_expr(&mut self, expr: Box<ast::Expr>) -> Option<Box<hir::Expr>> {
+    fn annotate_expr(&mut self, expr: Box<ast::Expr>) -> Result<Box<hir::Expr>> {
         let ty = self.env.new_type_var();
         let (kind, span) = (expr.kind, expr.span);
         let kind = match kind {
@@ -155,7 +160,7 @@ impl<'a> Annotate<'a> {
                 Some(ty) => hir::ExprKind::Variable(t, ty.clone()),
                 None => {
                     self.handler.report(t.span, "Not found in this scope");
-                    return None;
+                    return Err(());
                 }
             },
             ast::ExprKind::Block(block) => hir::ExprKind::Block(self.annotate_block(block)?),
@@ -177,21 +182,21 @@ impl<'a> Annotate<'a> {
                 this.has_enclosing_fn = true;
                 let body = this.annotate_expr(body)?;
                 this.has_enclosing_fn = false;
-                Some(hir::ExprKind::Closure { params, ret, body })
+                Ok(hir::ExprKind::Closure { params, ret, body })
             })?,
             ast::ExprKind::Call { callee, args } => hir::ExprKind::Call {
                 callee: self.annotate_expr(callee)?,
                 args: args
                     .into_iter()
                     .map(|arg| self.annotate_expr(arg))
-                    .collect::<Option<Vec<_>>>()?,
+                    .collect::<Result<Vec<_>>>()?,
             },
             ast::ExprKind::Struct(name, fields) => {
                 let ty = match self.structs.get(&name.symbol) {
                     Some(ty) => ty.clone(),
                     None => {
                         self.handler.report(name.span, "not found in this scope");
-                        return None;
+                        return Err(());
                     }
                 };
                 hir::ExprKind::Struct(name, self.annotate_fields(fields)?, ty)
@@ -200,15 +205,15 @@ impl<'a> Annotate<'a> {
                 hir::ExprKind::Field(self.annotate_expr(expr)?, name)
             }
         };
-        Some(Box::new(hir::Expr { kind, span, ty }))
+        Ok(Box::new(hir::Expr { kind, span, ty }))
     }
 
-    fn annotate_block(&mut self, block: ast::Block) -> Option<hir::Block> {
+    fn annotate_block(&mut self, block: ast::Block) -> Result<hir::Block> {
         self.enter_scope(|this| {
             let structs = this.annotate_structs(block.structs)?;
             let functions = this.annotate_fns(block.functions)?;
             let stmts = this.annotate_stmts(block.stmts)?;
-            Some(hir::Block {
+            Ok(hir::Block {
                 stmts,
                 functions,
                 structs,
@@ -218,7 +223,7 @@ impl<'a> Annotate<'a> {
         })
     }
 
-    fn annotate_fns(&mut self, functions: Vec<ast::Function>) -> Option<Vec<hir::Function>> {
+    fn annotate_fns(&mut self, functions: Vec<ast::Function>) -> Result<Vec<hir::Function>> {
         for func in &functions {
             self.functions
                 .insert(func.name.symbol, self.env.new_type_var());
@@ -226,10 +231,10 @@ impl<'a> Annotate<'a> {
         functions
             .into_iter()
             .map(|func| self.annotate_fn(func))
-            .collect::<Option<Vec<_>>>()
+            .collect::<Result<Vec<_>>>()
     }
 
-    fn annotate_fn(&mut self, func: ast::Function) -> Option<hir::Function> {
+    fn annotate_fn(&mut self, func: ast::Function) -> Result<hir::Function> {
         let env = &mut *self.env;
         let structs = &mut *self.structs;
         let handler = self.handler;
@@ -244,7 +249,7 @@ impl<'a> Annotate<'a> {
                 this.has_enclosing_fn = true;
                 let body = this.annotate_block(func.body)?;
                 this.has_enclosing_fn = false;
-                Some(hir::Function {
+                Ok(hir::Function {
                     name: func.name,
                     params,
                     ret,
@@ -255,13 +260,13 @@ impl<'a> Annotate<'a> {
         })
     }
 
-    fn annotate_params(&mut self, params: Vec<ast::Param>) -> Option<Vec<hir::Param>> {
+    fn annotate_params(&mut self, params: Vec<ast::Param>) -> Result<Vec<hir::Param>> {
         params
             .into_iter()
             .map(|p| {
                 let param_ty = self.ast_ty_to_ty(p.ty)?;
                 self.bindings.insert(p.name.symbol, param_ty.clone());
-                Some(hir::Param {
+                Ok(hir::Param {
                     name: p.name,
                     ty: param_ty,
                 })
@@ -292,13 +297,13 @@ impl<'a> Annotate<'a> {
         })
     }
 
-    fn ast_ty_to_ty(&mut self, ty: ast::Ty) -> Option<Ty> {
+    fn ast_ty_to_ty(&mut self, ty: ast::Ty) -> Result<Ty> {
         let ty = match ty.kind {
             ast::TyKind::Fn(params, ret) => {
                 let params = params
                     .into_iter()
                     .map(|p| self.ast_ty_to_ty(p))
-                    .collect::<Option<_>>()?;
+                    .collect::<Result<_>>()?;
                 let ret = self.ast_ty_to_ty(*ret)?;
                 Ty::Fn(params, Box::new(ret))
             }
@@ -307,10 +312,10 @@ impl<'a> Annotate<'a> {
             ast::TyKind::Unit => Ty::Unit,
         };
 
-        Some(ty)
+        Ok(ty)
     }
 
-    fn annotate_structs(&mut self, structs: Vec<ast::Struct>) -> Option<Vec<hir::Struct>> {
+    fn annotate_structs(&mut self, structs: Vec<ast::Struct>) -> Result<Vec<hir::Struct>> {
         for s in &structs {
             self.structs.insert(s.name.symbol, self.env.new_type_var());
         }
@@ -321,10 +326,10 @@ impl<'a> Annotate<'a> {
             .collect()
     }
 
-    fn annotate_struct(&mut self, s: ast::Struct) -> Option<hir::Struct> {
+    fn annotate_struct(&mut self, s: ast::Struct) -> Result<hir::Struct> {
         let ty = self.structs.get(&s.name.symbol).unwrap().clone();
         let fields = self.annotate_struct_fields(s.fields)?;
-        Some(hir::Struct {
+        Ok(hir::Struct {
             name: s.name,
             fields,
             id: ty.type_var_id().unwrap_or_default(),
@@ -335,32 +340,32 @@ impl<'a> Annotate<'a> {
     fn annotate_struct_fields(
         &mut self,
         fields: Vec<ast::StructField>,
-    ) -> Option<Vec<hir::StructField>> {
+    ) -> Result<Vec<hir::StructField>> {
         fields
             .into_iter()
             .map(|f| self.annotate_struct_field(f))
             .collect()
     }
 
-    fn annotate_struct_field(&mut self, field: ast::StructField) -> Option<hir::StructField> {
-        Some(hir::StructField {
+    fn annotate_struct_field(&mut self, field: ast::StructField) -> Result<hir::StructField> {
+        Ok(hir::StructField {
             name: field.name,
             ty: self.ast_ty_to_ty(field.ty)?,
         })
     }
 
-    fn annotate_fields(&mut self, fields: Vec<ast::Field>) -> Option<Vec<hir::Field>> {
+    fn annotate_fields(&mut self, fields: Vec<ast::Field>) -> Result<Vec<hir::Field>> {
         fields.into_iter().map(|f| self.annotate_field(f)).collect()
     }
 
-    fn annotate_field(&mut self, field: ast::Field) -> Option<hir::Field> {
-        Some(hir::Field {
+    fn annotate_field(&mut self, field: ast::Field) -> Result<hir::Field> {
+        Ok(hir::Field {
             name: field.name,
             expr: self.annotate_expr(field.expr)?,
         })
     }
 
-    fn token_to_ty(&mut self, token: &Token) -> Option<Ty> {
+    fn token_to_ty(&mut self, token: &Token) -> Result<Ty> {
         token.symbol.as_str_with(|s| {
             let ty = match s {
                 "bool" => Ty::Bool,
@@ -372,11 +377,11 @@ impl<'a> Annotate<'a> {
                         ty.clone()
                     } else {
                         self.handler.report(token.span, "Unknown type");
-                        return None;
+                        return Err(());
                     }
                 }
             };
-            Some(ty)
+            Ok(ty)
         })
     }
 }

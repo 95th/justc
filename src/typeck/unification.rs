@@ -1,5 +1,5 @@
 use crate::{
-    err::Handler,
+    err::{Handler, Result},
     parse::ast::{BinOp, UnOp},
 };
 
@@ -14,7 +14,7 @@ struct Unifier<'a> {
     handler: &'a Handler,
 }
 
-pub fn unify(ast: &Ast, env: &mut TyContext, handler: &Handler) -> Option<()> {
+pub fn unify(ast: &Ast, env: &mut TyContext, handler: &Handler) -> Result<()> {
     let mut unifier = Unifier::new(env, handler);
     unifier.unify_structs(&ast.structs)?;
     unifier.unify_fns(&ast.functions)?;
@@ -30,14 +30,14 @@ impl<'a> Unifier<'a> {
         }
     }
 
-    fn unify_stmts(&mut self, ast: &[Stmt]) -> Option<()> {
+    fn unify_stmts(&mut self, ast: &[Stmt]) -> Result<()> {
         for stmt in ast {
             self.unify_stmt(stmt)?;
         }
-        Some(())
+        Ok(())
     }
 
-    fn unify_stmt(&mut self, stmt: &Stmt) -> Option<()> {
+    fn unify_stmt(&mut self, stmt: &Stmt) -> Result<()> {
         match stmt {
             Stmt::Expr(expr, ..) => self.unify_expr(expr),
             Stmt::Let { ty, init, .. } => {
@@ -45,7 +45,7 @@ impl<'a> Unifier<'a> {
                     self.unify_expr(init)?;
                     self.env.unify(ty, &init.ty, init.span)?;
                 }
-                Some(())
+                Ok(())
             }
             Stmt::Assign { name, val } => {
                 self.unify_expr(name)?;
@@ -61,13 +61,13 @@ impl<'a> Unifier<'a> {
                 if let Some(e) = e {
                     self.unify_expr(e)?;
                 }
-                Some(())
+                Ok(())
             }
-            Stmt::Continue(_) | Stmt::Break(_) => Some(()),
+            Stmt::Continue(_) | Stmt::Break(_) => Ok(()),
         }
     }
 
-    fn unify_expr(&mut self, expr: &Expr) -> Option<()> {
+    fn unify_expr(&mut self, expr: &Expr) -> Result<()> {
         match &expr.kind {
             ExprKind::Binary {
                 op, left, right, ..
@@ -152,20 +152,20 @@ impl<'a> Unifier<'a> {
                             callee.span,
                             "Type cannot be inferred. Please add type annotations",
                         );
-                        return None;
+                        return Err(());
                     }
                     ty => {
                         self.handler.report(
                             callee.span,
                             &format!("Type error: Expected Function, Actual: {:?}", ty),
                         );
-                        return None;
+                        return Err(());
                     }
                 }
                 for arg in args {
                     self.unify_expr(arg)?;
                 }
-                Some(())
+                Ok(())
             }
             ExprKind::Struct(name, fields, ty) => {
                 let ty = self.env.resolve_ty(ty);
@@ -174,7 +174,7 @@ impl<'a> Unifier<'a> {
                         assert!(name.symbol == *name2);
                         if fields.len() != fields2.len() {
                             self.handler.report(expr.span, "Number of fields mismatch");
-                            return None;
+                            return Err(());
                         }
 
                         for f in fields {
@@ -182,7 +182,7 @@ impl<'a> Unifier<'a> {
                                 Some(t) => self.env.unify(t, &f.expr.ty, f.expr.span)?,
                                 None => {
                                     self.handler.report(f.name.span, "Field not found");
-                                    return None;
+                                    return Err(());
                                 }
                             }
                         }
@@ -190,14 +190,14 @@ impl<'a> Unifier<'a> {
                     Ty::Infer(_) => {
                         self.handler
                             .report(name.span, "Type not found in this scope");
-                        return None;
+                        return Err(());
                     }
                     ty => {
                         self.handler.report(
                             name.span,
                             &format!("Expected Struct, found on type {:?}", ty),
                         );
-                        return None;
+                        return Err(());
                     }
                 }
 
@@ -219,7 +219,7 @@ impl<'a> Unifier<'a> {
                                 field_name.span,
                                 &format!("Field {} not found on type {}", field_name.symbol, name),
                             );
-                            None
+                            Err(())
                         }
                     }
                     Ty::Infer(_) => {
@@ -227,26 +227,26 @@ impl<'a> Unifier<'a> {
                             e.span,
                             "Type cannot be inferred. Please add type annotations",
                         );
-                        None
+                        Err(())
                     }
                     ty => {
                         self.handler.report(
                             field_name.span,
                             &format!("Field {} not found on type {:?}", field_name.symbol, ty),
                         );
-                        None
+                        Err(())
                     }
                 }
             }
         }
     }
 
-    fn unify_block(&mut self, block: &Block) -> Option<()> {
-        self.unify_structs(&block.structs);
-        self.unify_fns(&block.functions);
+    fn unify_block(&mut self, block: &Block) -> Result<()> {
+        self.unify_structs(&block.structs)?;
+        self.unify_fns(&block.functions)?;
 
         for stmt in &block.stmts {
-            self.unify_stmt(stmt);
+            self.unify_stmt(stmt)?;
             if let Stmt::Return(span, e) = stmt {
                 if let Some(e) = e {
                     self.env
@@ -260,19 +260,19 @@ impl<'a> Unifier<'a> {
 
         match block.stmts.last() {
             Some(Stmt::Expr(expr, false)) => self.env.unify(&block.ty, &expr.ty, expr.span),
-            Some(Stmt::Return(_, _)) => Some(()),
+            Some(Stmt::Return(_, _)) => Ok(()),
             _ => self.env.unify(&block.ty, &Ty::Unit, block.span),
         }
     }
 
-    fn unify_structs(&mut self, structs: &[Struct]) -> Option<()> {
+    fn unify_structs(&mut self, structs: &[Struct]) -> Result<()> {
         for s in structs {
             self.unify_struct(s)?;
         }
-        Some(())
+        Ok(())
     }
 
-    fn unify_struct(&mut self, s: &Struct) -> Option<()> {
+    fn unify_struct(&mut self, s: &Struct) -> Result<()> {
         self.env.unify(
             &s.ty,
             &Ty::Struct(
@@ -287,14 +287,14 @@ impl<'a> Unifier<'a> {
         )
     }
 
-    fn unify_fns(&mut self, items: &[Function]) -> Option<()> {
+    fn unify_fns(&mut self, items: &[Function]) -> Result<()> {
         for item in items {
             self.enter_fn_scope(item.ret.clone(), |this| this.unify_fn(item))?;
         }
-        Some(())
+        Ok(())
     }
 
-    fn unify_fn(&mut self, function: &Function) -> Option<()> {
+    fn unify_fn(&mut self, function: &Function) -> Result<()> {
         self.unify_block(&function.body)?;
         self.env
             .unify(&function.ret, &function.body.ty, function.body.span)?;

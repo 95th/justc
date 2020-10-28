@@ -1,4 +1,8 @@
-use crate::{err::Handler, lex::Span, symbol::Symbol};
+use crate::{
+    err::{Handler, Result},
+    lex::Span,
+    symbol::Symbol,
+};
 use ena::unify::{InPlaceUnificationTable, NoError, UnifyKey, UnifyValue};
 use std::{borrow::Cow, collections::BTreeMap, fmt, rc::Rc};
 
@@ -54,7 +58,7 @@ impl TyContext {
         }
     }
 
-    pub fn unify(&mut self, a: &Ty, b: &Ty, span: Span) -> Option<()> {
+    pub fn unify(&mut self, a: &Ty, b: &Ty, span: Span) -> Result<()> {
         let a = self.resolve_ty(a);
         let b = self.resolve_ty(b);
 
@@ -73,7 +77,7 @@ impl TyContext {
                 if id != id2 {
                     self.handler
                         .report(span, &format!("Expected type {}, Actual: {}", name, name2));
-                    return None;
+                    return Err(());
                 }
                 for ((_, f1), (_, f2)) in fields.iter().zip(fields2) {
                     self.unify(f1, f2, span)?;
@@ -87,11 +91,11 @@ impl TyContext {
             (a, b) => {
                 self.handler
                     .report(span, &format!("Expected type {:?}, Actual: {:?}", a, b));
-                return None;
+                return Err(());
             }
         }
 
-        Some(())
+        Ok(())
     }
 
     pub fn fill_ty(&mut self, ty: &mut Ty) {
@@ -157,7 +161,7 @@ impl TypeVarValue {
 impl UnifyValue for TypeVarValue {
     type Error = NoError;
 
-    fn unify_values(t1: &Self, t2: &Self) -> Result<Self, Self::Error> {
+    fn unify_values(t1: &Self, t2: &Self) -> std::result::Result<Self, Self::Error> {
         match (t1, t2) {
             (TypeVarValue::Known(..), TypeVarValue::Known(..)) => panic!(
                 "equating two type variables, both of which have known types: {:?} and {:?}",
@@ -193,19 +197,7 @@ impl fmt::Debug for Ty {
                 f.write_str(")")?;
                 write!(f, " -> {:?}", ret)?;
             }
-            Ty::Struct(.., name, fields) => {
-                write!(f, "struct {} {{ ", name)?;
-                let mut first = true;
-                for (n, t) in fields {
-                    if first {
-                        first = false;
-                    } else {
-                        f.write_str(", ")?;
-                    }
-                    write!(f, "{}: {:?}", n, t)?;
-                }
-                write!(f, " }}")?;
-            }
+            Ty::Struct(_, name, _) => write!(f, "{}", name)?,
         }
         Ok(())
     }
