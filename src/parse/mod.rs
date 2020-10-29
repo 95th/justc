@@ -163,7 +163,7 @@ impl Parser {
     fn function(&mut self, declared_fns: &mut HashSet<Symbol>) -> Result<Function> {
         let name = self.consume(Ident, "Expected function name")?;
         if !declared_fns.insert(name.symbol) {
-            self.handler.report(
+            return self.handler.error(
                 name.span,
                 "Function with same name already defined in this scope",
             );
@@ -224,7 +224,7 @@ impl Parser {
     fn struct_item_inner(&mut self, declared_structs: &mut HashSet<Symbol>) -> Result<ast::Struct> {
         let name = self.consume(Ident, "Expected struct name")?;
         if !declared_structs.insert(name.symbol) {
-            self.handler.report(
+            return self.handler.error(
                 name.span,
                 "Struct with same name already defined in this scope",
             );
@@ -251,7 +251,7 @@ impl Parser {
         if ty.kind == TyKind::Infer {
             return self
                 .handler
-                .raise(ty.span, "not allowed in type signatures");
+                .error(ty.span, "not allowed in type signatures");
         }
 
         Ok(ast::StructField { name, ty })
@@ -284,7 +284,7 @@ impl Parser {
                 self.consume(SemiColon, "Expected ';' after assignment.")?;
                 return Ok(Stmt::Assign { name: expr, val });
             } else {
-                return self.handler.raise(expr.span, "Invalid assignment target.");
+                return self.handler.error(expr.span, "Invalid assignment target.");
             }
         }
         Ok(Stmt::Expr(expr, self.eat(SemiColon)))
@@ -543,7 +543,7 @@ impl Parser {
             if !self.restrictions.contains(Restrictions::ALLOW_SELF) {
                 return self
                     .handler
-                    .raise(self.prev.span, "`Self` not allowed here");
+                    .error(self.prev.span, "`Self` not allowed here");
             }
             return self.path_or_struct();
         } else if self.eat(SelfParam) {
@@ -578,7 +578,7 @@ impl Parser {
         } else if self.eat(Or) || self.eat(OrOr) {
             return self.closure();
         } else {
-            return self.handler.raise(self.curr.span, "Expected expression");
+            return self.handler.error(self.curr.span, "Expected expression");
         };
 
         Ok(Box::new(Expr {
@@ -616,7 +616,7 @@ impl Parser {
             span = span.to(self.prev.span);
 
             if self.restrictions.contains(Restrictions::NO_STRUCT_LITERAL) {
-                return self.handler.raise(
+                return self.handler.error(
                     span,
                     "struct literal not allowed here. Use parentheses around it",
                 );
@@ -708,7 +708,7 @@ impl Parser {
         if self.eat(SelfParam) {
             let span = self.prev.span;
             if !self.restrictions.contains(Restrictions::ALLOW_SELF) {
-                return self.handler.raise(span, "`self` not allowed here");
+                return self.handler.error(span, "`self` not allowed here");
             }
 
             let name = self.prev.clone();
@@ -728,7 +728,7 @@ impl Parser {
         } else {
             return self
                 .handler
-                .raise(self.curr.span, "Expected parameter type");
+                .error(self.curr.span, "Expected parameter type");
         };
 
         Ok(Param { name, ty })
@@ -766,7 +766,7 @@ impl Parser {
             if !self.restrictions.contains(Restrictions::ALLOW_SELF) {
                 return self
                     .handler
-                    .raise(self.prev.span, "`Self` not allowed here");
+                    .error(self.prev.span, "`Self` not allowed here");
             }
             return Ok(Ty {
                 span: self.prev.span,
@@ -839,7 +839,7 @@ impl Parser {
             return Ok(self.prev.clone());
         }
 
-        return self.handler.raise(self.curr.span, msg);
+        return self.handler.error(self.curr.span, msg);
     }
 
     fn eat(&mut self, kind: TokenKind) -> bool {

@@ -75,9 +75,9 @@ impl TyContext {
             }
             (Ty::Struct(id, name, fields), Ty::Struct(id2, name2, fields2)) => {
                 if id != id2 {
-                    self.handler
-                        .report(span, &format!("Expected type {}, Actual: {}", name, name2));
-                    return Err(());
+                    return self
+                        .handler
+                        .error(span, &format!("Expected type {}, Actual: {}", name, name2));
                 }
                 for ((_, f1), (_, f2)) in fields.iter().zip(fields2) {
                     self.unify(f1, f2, span)?;
@@ -88,11 +88,9 @@ impl TyContext {
             | (Ty::Int, Ty::Int)
             | (Ty::Float, Ty::Float)
             | (Ty::Str, Ty::Str) => {}
-            (a, b) => {
-                self.handler
-                    .report(span, &format!("Expected type {:?}, Actual: {:?}", a, b));
-                return Err(());
-            }
+            (a, b) => self
+                .handler
+                .error(span, &format!("Expected type {:?}, Actual: {:?}", a, b))?,
         }
 
         Ok(())

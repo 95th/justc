@@ -152,18 +152,16 @@ impl<'a> Unifier<'a> {
                         self.env.unify(ret, &expr.ty, expr.span)?;
                     }
                     Ty::Infer(_) => {
-                        self.handler.report(
+                        return self.handler.error(
                             callee.span,
                             "Type cannot be inferred. Please add type annotations",
                         );
-                        return Err(());
                     }
                     ty => {
-                        self.handler.report(
+                        return self.handler.error(
                             callee.span,
                             &format!("Type error: Expected Function, Actual: {:?}", ty),
                         );
-                        return Err(());
                     }
                 }
                 for arg in args {
@@ -180,31 +178,28 @@ impl<'a> Unifier<'a> {
                 match &*ty {
                     Ty::Struct(.., fields2) => {
                         if fields.len() != fields2.len() {
-                            self.handler.report(expr.span, "Number of fields mismatch");
-                            return Err(());
+                            return self.handler.error(expr.span, "Number of fields mismatch");
                         }
 
                         for f in fields {
                             match fields2.get(&f.name.symbol) {
                                 Some(t) => self.env.unify(t, &f.expr.ty, f.expr.span)?,
                                 None => {
-                                    self.handler.report(f.name.span, "Field not found");
-                                    return Err(());
+                                    return self.handler.error(f.name.span, "Field not found");
                                 }
                             }
                         }
                     }
                     Ty::Infer(_) => {
-                        self.handler
-                            .report(name.span, "Type not found in this scope");
-                        return Err(());
+                        return self
+                            .handler
+                            .error(name.span, "Type not found in this scope");
                     }
                     ty => {
-                        self.handler.report(
+                        return self.handler.error(
                             name.span,
                             &format!("Expected Struct, found on type {:?}", ty),
                         );
-                        return Err(());
                     }
                 }
 
@@ -222,27 +217,20 @@ impl<'a> Unifier<'a> {
                         if let Some(f) = fields.get(&field_name.symbol) {
                             self.env.unify(f, &expr.ty, field_name.span)
                         } else {
-                            self.handler.report(
+                            self.handler.error(
                                 field_name.span,
                                 &format!("Field {} not found on type {}", field_name.symbol, name),
-                            );
-                            Err(())
+                            )
                         }
                     }
-                    Ty::Infer(_) => {
-                        self.handler.report(
-                            e.span,
-                            "Type cannot be inferred. Please add type annotations",
-                        );
-                        Err(())
-                    }
-                    ty => {
-                        self.handler.report(
-                            field_name.span,
-                            &format!("Field {} not found on type {:?}", field_name.symbol, ty),
-                        );
-                        Err(())
-                    }
+                    Ty::Infer(_) => self.handler.error(
+                        e.span,
+                        "Type cannot be inferred. Please add type annotations",
+                    ),
+                    ty => self.handler.error(
+                        field_name.span,
+                        &format!("Field {} not found on type {:?}", field_name.symbol, ty),
+                    ),
                 }
             }
         }
@@ -307,15 +295,15 @@ impl<'a> Unifier<'a> {
         for (idx, p) in function.params.iter().enumerate() {
             if p.name.kind == TokenKind::SelfParam {
                 if idx != 0 {
-                    self.handler
-                        .report(p.name.span, "`self` must be the first parameter");
-                    return Err(());
+                    return self
+                        .handler
+                        .error(p.name.span, "`self` must be the first parameter");
                 }
 
                 if has_self_param {
-                    self.handler
-                        .report(p.name.span, "Multiple `self` not allowed");
-                    return Err(());
+                    return self
+                        .handler
+                        .error(p.name.span, "Multiple `self` not allowed");
                 }
 
                 self.env.unify(
@@ -338,7 +326,11 @@ impl<'a> Unifier<'a> {
         self.env.unify(
             &function.ty,
             &Ty::Fn(
-                function.params.iter().map(|p| p.param_ty.ty.clone()).collect(),
+                function
+                    .params
+                    .iter()
+                    .map(|p| p.param_ty.ty.clone())
+                    .collect(),
                 Box::new(function.ret.ty.clone()),
             ),
             function.name.span,

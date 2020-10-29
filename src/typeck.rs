@@ -1,6 +1,9 @@
 use std::rc::Rc;
 
-use self::{hir::{Ast, Block, Expr, ExprKind, Function, Impl, Stmt, Struct}, ty::{Ty, TyContext}};
+use self::{
+    hir::{Ast, Block, Expr, ExprKind, Function, Impl, Stmt, Struct},
+    ty::{Ty, TyContext},
+};
 use crate::{
     err::{Handler, Result},
     lex::Span,
@@ -90,28 +93,22 @@ impl Typeck {
                 match op.val {
                     Add | Sub | Mul | Div | Rem | Lt | Gt | Le | Ge => match &left.ty {
                         Ty::Int | Ty::Float => Ok(()),
-                        ty => {
-                            self.handler
-                                .report(op.span, &format!("Not supported for {:?}", ty));
-                            Err(())
-                        }
+                        ty => self
+                            .handler
+                            .error(op.span, &format!("Not supported for {:?}", ty)),
                     },
 
                     Ne | Eq => match &left.ty {
                         Ty::Int | Ty::Float | Ty::Bool => Ok(()),
-                        ty => {
-                            self.handler
-                                .report(op.span, &format!("Not supported for {:?}", ty));
-                            Err(())
-                        }
+                        ty => self
+                            .handler
+                            .error(op.span, &format!("Not supported for {:?}", ty)),
                     },
                     And | Or => match &left.ty {
                         Ty::Bool => Ok(()),
-                        ty => {
-                            self.handler
-                                .report(op.span, &format!("Not supported for {:?}", ty));
-                            Err(())
-                        }
+                        ty => self
+                            .handler
+                            .error(op.span, &format!("Not supported for {:?}", ty)),
                     },
                 }
             }
@@ -119,19 +116,15 @@ impl Typeck {
             Unary { op, expr } => match op.val {
                 ast::UnOp::Not => match &expr.ty {
                     Ty::Bool => Ok(()),
-                    ty => {
-                        self.handler
-                            .report(op.span, &format!("Not supported for {:?}", ty));
-                        Err(())
-                    }
+                    ty => self
+                        .handler
+                        .error(op.span, &format!("Not supported for {:?}", ty)),
                 },
                 ast::UnOp::Neg => match &expr.ty {
                     Ty::Int | Ty::Float => Ok(()),
-                    ty => {
-                        self.handler
-                            .report(op.span, &format!("Not supported for {:?}", ty));
-                        Err(())
-                    }
+                    ty => self
+                        .handler
+                        .error(op.span, &format!("Not supported for {:?}", ty)),
                 },
             },
             Variable(_, _) => Ok(()),
@@ -230,23 +223,19 @@ impl Typeck {
         if a == b {
             Ok(())
         } else {
-            self.handler.report(
+            self.handler.error(
                 *span,
                 &format!("Type mismatch: Expected: {:?}, Actual: {:?}", a, b),
-            );
-            Err(())
+            )
         }
     }
 
     fn typeck_no_var(&self, ty: &Ty, span: &Span) -> Result<()> {
         match ty {
-            Ty::Infer(_) => {
-                self.handler.report(
-                    *span,
-                    "Type cannot be inferred. Please add type annotations",
-                );
-                Err(())
-            }
+            Ty::Infer(_) => self.handler.error(
+                *span,
+                "Type cannot be inferred. Please add type annotations",
+            ),
             Ty::Unit | Ty::Bool | Ty::Int | Ty::Float | Ty::Str => Ok(()),
             Ty::Fn(params, ret) => {
                 for p in params {

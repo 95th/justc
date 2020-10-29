@@ -16,7 +16,7 @@ impl Handler {
         }
     }
 
-    pub fn raise<T>(&self, span: Span, msg: &str) -> Result<T> {
+    pub fn error<T>(&self, span: Span, msg: &str) -> Result<T> {
         self.report(span, msg);
         Err(())
     }
