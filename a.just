@@ -1,12 +1,7 @@
 struct A { a: int }
-struct B {
-    a: A,
-    b: fn(int) -> int,
+
+impl A {
+    fn new() -> A {
+        A { a: 1 }
+    }
 }
-
-let b = B {
-    a: A { a: 1 },
-    b: |a| a + 1,
-};
-
-b.b();

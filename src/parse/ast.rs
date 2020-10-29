@@ -142,6 +142,7 @@ pub struct Block {
     pub span: Span,
     pub functions: Vec<Function>,
     pub structs: Vec<Struct>,
+    pub impls: Vec<Impl>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -188,6 +189,12 @@ pub struct Struct {
 }
 
 #[derive(Debug, PartialEq)]
+pub struct Impl {
+    pub ty: Ty,
+    pub functions: Vec<Function>,
+}
+
+#[derive(Debug, PartialEq)]
 pub struct StructField {
     pub name: Token,
     pub ty: Ty,
@@ -198,4 +205,5 @@ pub struct Ast {
     pub stmts: Vec<Stmt>,
     pub functions: Vec<Function>,
     pub structs: Vec<Struct>,
+    pub impls: Vec<Impl>,
 }

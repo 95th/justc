@@ -75,6 +75,7 @@ pub struct Block {
     pub structs: Vec<Struct>,
     pub functions: Vec<Function>,
     pub stmts: Vec<Stmt>,
+    pub impls: Vec<Impl>,
     pub ty: Ty,
     pub span: Span,
 }
@@ -113,4 +114,11 @@ pub struct Ast {
     pub structs: Vec<Struct>,
     pub functions: Vec<Function>,
     pub stmts: Vec<Stmt>,
+    pub impls: Vec<Impl>,
+}
+
+#[derive(Debug)]
+pub struct Impl {
+    pub ty: Ty,
+    pub functions: Vec<Function>,
 }

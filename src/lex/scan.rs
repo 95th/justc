@@ -299,6 +299,7 @@ fn keywords() -> HashMap<Symbol, TokenKind> {
     m.insert(Symbol::intern("break"), Break);
     m.insert(Symbol::intern("continue"), Continue);
     m.insert(Symbol::intern("print"), Print);
+    m.insert(Symbol::intern("impl"), Impl);
     m.insert(Symbol::intern("eof"), Eof);
     m
 }

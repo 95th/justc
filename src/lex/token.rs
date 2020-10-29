@@ -78,6 +78,7 @@ pub enum TokenKind {
     Break,
     Continue,
     Print,
+    Impl,
     Eof,
 }
 

@@ -41,6 +41,7 @@ impl Parser {
         let mut stmts = vec![];
         let mut functions = vec![];
         let mut structs = vec![];
+        let mut impls = vec![];
         let mut declared_fns = HashSet::new();
         let mut declared_structs = HashSet::new();
 
@@ -49,8 +50,11 @@ impl Parser {
                 let fun = self.function(&mut declared_fns)?;
                 functions.push(fun);
             } else if self.eat(Struct) {
-                let s = self.struct_item(&mut declared_structs)?;
-                structs.push(s);
+                let item = self.struct_item(&mut declared_structs)?;
+                structs.push(item);
+            } else if self.eat(Impl) {
+                let item = self.impl_item()?;
+                impls.push(item);
             } else {
                 let stmt = self.stmt()?;
                 stmts.push(stmt);
@@ -64,6 +68,7 @@ impl Parser {
                 stmts,
                 functions,
                 structs,
+                impls,
             })
         }
     }
@@ -124,6 +129,7 @@ impl Parser {
         let mut stmts = vec![];
         let mut functions = vec![];
         let mut structs = vec![];
+        let mut impls = vec![];
         let mut declared_fns = HashSet::new();
         let mut declared_structs = HashSet::new();
 
@@ -134,6 +140,9 @@ impl Parser {
             } else if self.eat(Struct) {
                 let s = self.struct_item(&mut declared_structs)?;
                 structs.push(s);
+            } else if self.eat(Impl) {
+                let item = self.impl_item()?;
+                impls.push(item);
             } else {
                 let s = self.full_stmt_without_recovery()?;
                 stmts.push(s);
@@ -146,6 +155,7 @@ impl Parser {
             span,
             functions,
             structs,
+            impls,
         })
     }
 
@@ -184,6 +194,23 @@ impl Parser {
             ret,
             body,
         })
+    }
+
+    fn impl_item(&mut self) -> Option<ast::Impl> {
+        let ty = self.parse_ty()?;
+        self.consume(OpenBrace, "Expected '{'")?;
+
+        let mut functions = vec![];
+        let mut declared_fns = HashSet::new();
+
+        while self.eat(Fn) {
+            let fun = self.function(&mut declared_fns)?;
+            functions.push(fun);
+        }
+
+        self.consume(CloseBrace, "Expected '}'")?;
+
+        Some(ast::Impl { ty, functions })
     }
 
     fn struct_item(&mut self, declared_structs: &mut HashSet<Symbol>) -> Option<ast::Struct> {

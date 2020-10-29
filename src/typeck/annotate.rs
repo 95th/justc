@@ -49,6 +49,7 @@ impl<'a> Annotate<'a> {
     fn annotate_ast(&mut self, ast: ast::Ast) -> Result<hir::Ast> {
         Ok(hir::Ast {
             structs: self.annotate_structs(ast.structs)?,
+            impls: self.annotate_impls(ast.impls)?,
             functions: self.annotate_fns(ast.functions)?,
             stmts: self.annotate_stmts(ast.stmts)?,
         })
@@ -211,12 +212,14 @@ impl<'a> Annotate<'a> {
     fn annotate_block(&mut self, block: ast::Block) -> Result<hir::Block> {
         self.enter_scope(|this| {
             let structs = this.annotate_structs(block.structs)?;
+            let impls = this.annotate_impls(block.impls)?;
             let functions = this.annotate_fns(block.functions)?;
             let stmts = this.annotate_stmts(block.stmts)?;
             Ok(hir::Block {
                 stmts,
                 functions,
                 structs,
+                impls,
                 ty: this.env.new_type_var(),
                 span: block.span,
             })
@@ -313,6 +316,19 @@ impl<'a> Annotate<'a> {
         };
 
         Ok(ty)
+    }
+
+    fn annotate_impls(&mut self, impls: Vec<ast::Impl>) -> Result<Vec<hir::Impl>> {
+        impls
+            .into_iter()
+            .map(|item| self.annotate_impl(item))
+            .collect()
+    }
+
+    fn annotate_impl(&mut self, item: ast::Impl) -> Result<hir::Impl> {
+        let ty = self.ast_ty_to_ty(item.ty)?;
+        let functions = self.annotate_fns(item.functions)?;
+        Ok(hir::Impl { ty, functions })
     }
 
     fn annotate_structs(&mut self, structs: Vec<ast::Struct>) -> Result<Vec<hir::Struct>> {
