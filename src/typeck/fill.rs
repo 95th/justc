@@ -33,7 +33,6 @@ impl TyContext {
     fn fill_fn(&mut self, f: &mut Function) {
         self.fill_ty(&mut f.ty);
         for p in &mut f.params {
-            dbg!(&p);
             self.fill_ty(&mut p.param_ty.ty);
         }
         self.fill_ty(&mut f.ret.ty);
