@@ -285,7 +285,7 @@ impl<'a> Unifier<'a> {
 
     fn unify_fns(&mut self, items: &[Function]) -> Result<()> {
         for item in items {
-            self.enter_fn_scope(item.ret.ty.clone(), |this| this.unify_fn_header(item))?;
+            self.unify_fn_header(item)?;
         }
 
         for item in items {
