@@ -6,7 +6,7 @@ use crate::{
 };
 
 use super::{
-    hir,
+    hir::{self, FnReturnTy},
     ty::{Ty, TyContext},
 };
 
@@ -248,7 +248,11 @@ impl<'a> Annotate<'a> {
 
                 let ty = this.functions.get(&func.name.symbol).unwrap().clone();
                 let params = this.annotate_params(func.params)?;
-                let ret = this.ast_ty_to_ty(func.ret)?;
+                let ret = FnReturnTy {
+                    span: func.ret.span,
+                    is_self: matches!(func.ret.kind, ast::TyKind::Celf),
+                    ty: this.ast_ty_to_ty(func.ret)?,
+                };
                 this.has_enclosing_fn = true;
                 let body = this.annotate_block(func.body)?;
                 this.has_enclosing_fn = false;

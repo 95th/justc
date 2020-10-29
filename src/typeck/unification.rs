@@ -294,7 +294,7 @@ impl<'a> Unifier<'a> {
 
     fn unify_fns(&mut self, items: &[Function]) -> Result<()> {
         for item in items {
-            self.enter_fn_scope(item.ret.clone(), |this| this.unify_fn(item))?;
+            self.enter_fn_scope(item.ret.ty.clone(), |this| this.unify_fn(item))?;
         }
         Ok(())
     }
@@ -319,13 +319,20 @@ impl<'a> Unifier<'a> {
             &function.ty,
             &Ty::Fn(
                 function.params.iter().map(|p| p.ty.clone()).collect(),
-                Box::new(function.ret.clone()),
+                Box::new(function.ret.ty.clone()),
             ),
             function.name.span,
         )?;
         self.unify_block(&function.body)?;
+        if function.ret.is_self {
+            self.env.unify(
+                self.enclosing_impl_ty.as_ref().unwrap(),
+                &function.ret.ty,
+                function.ret.span,
+            )?;
+        }
         self.env
-            .unify(&function.ret, &function.body.ty, function.body.span)
+            .unify(&function.ret.ty, &function.body.ty, function.body.span)
     }
 
     fn unify_impls(&mut self, impls: &[Impl]) -> Result<()> {

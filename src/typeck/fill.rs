@@ -34,7 +34,7 @@ fn fill_fn(f: &mut Function, env: &mut TyContext) {
     for p in &mut f.params {
         env.fill_ty(&mut p.ty);
     }
-    env.fill_ty(&mut f.ret);
+    env.fill_ty(&mut f.ret.ty);
     fill_block(&mut f.body, env);
 }
 

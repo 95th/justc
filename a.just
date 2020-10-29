@@ -1,11 +1,7 @@
-struct A { a: int }
+struct X { a: int }
 
-impl A {
-    fn new() -> A {
-        A { a: 1 }
-    }
-
-    fn int_value(self) -> int {
-        self.a
+impl X {
+    fn value(self) -> Self {
+        Self { a: self.a + 1 }
     }
 }

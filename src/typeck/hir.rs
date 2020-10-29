@@ -90,9 +90,16 @@ pub struct Param {
 pub struct Function {
     pub name: Token,
     pub params: Vec<Param>,
-    pub ret: Ty,
+    pub ret: FnReturnTy,
     pub body: Block,
     pub ty: Ty,
+}
+
+#[derive(Debug)]
+pub struct FnReturnTy {
+    pub ty: Ty,
+    pub span: Span,
+    pub is_self: bool,
 }
 
 #[derive(Debug)]

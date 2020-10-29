@@ -761,6 +761,7 @@ impl Parser {
 
         let kind = symbol.as_str_with(|s| match s {
             "_" => TyKind::Infer,
+            "Self" => TyKind::Celf,
             _ => TyKind::Ident(token),
         });
 

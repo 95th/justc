@@ -196,7 +196,7 @@ impl Typeck {
     }
 
     fn typeck_fn(&self, func: &Function) -> Result<()> {
-        self.typeck_eq(&func.ret, &func.body.ty, &func.body.span)?;
+        self.typeck_eq(&func.ret.ty, &func.body.ty, &func.body.span)?;
         self.typeck_block(&func.body)
     }
 
