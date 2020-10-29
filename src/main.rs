@@ -14,7 +14,7 @@ fn main() {
 fn run_file(file_name: PathBuf) {
     let source = fs::read_to_string(file_name).unwrap();
     let mut c = Compiler::new();
-    c.run(source);
+    c.run(source).ok();
 }
 
 fn run_prompt() {
@@ -23,7 +23,7 @@ fn run_prompt() {
     loop {
         match editor.readline("$ ") {
             Ok(line) => {
-                c.run(line);
+                c.run(line).ok();
             }
             Err(_) => break,
         }

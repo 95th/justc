@@ -1,6 +1,9 @@
 use crate::typeck::Typeck;
 
-use self::{err::Handler, parse::Parser};
+use self::{
+    err::{Handler, Result},
+    parse::Parser,
+};
 use std::rc::Rc;
 pub use util::Args;
 
@@ -18,11 +21,11 @@ impl Compiler {
         Self {}
     }
 
-    pub fn run(&mut self, src: String) -> Option<()> {
+    pub fn run(&mut self, src: String) -> Result<()> {
         let src = Rc::new(src);
         let handler = Rc::new(Handler::new(&src));
         let ast = Parser::new(src, &handler).parse()?;
-        Typeck::new(&handler).typeck(ast).ok()?;
-        Some(())
+        Typeck::new(&handler).typeck(ast)?;
+        Ok(())
     }
 }
