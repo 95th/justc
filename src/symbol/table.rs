@@ -20,8 +20,8 @@ impl<T> SymbolTable<T> {
         self.changes.push((key, old));
     }
 
-    pub fn get(&self, key: &Symbol) -> Option<&T> {
-        self.map.get(key)
+    pub fn get(&self, key: Symbol) -> Option<&T> {
+        self.map.get(&key)
     }
 
     pub fn enter_scope<F, R>(&mut self, f: F) -> R

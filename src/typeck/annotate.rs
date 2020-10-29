@@ -151,8 +151,8 @@ impl<'a> Annotate<'a> {
             },
             ast::ExprKind::Variable(t) => match self
                 .bindings
-                .get(&t.symbol)
-                .or_else(|| self.functions.get(&t.symbol))
+                .get(t.symbol)
+                .or_else(|| self.functions.get(t.symbol))
             {
                 Some(ty) => hir::ExprKind::Variable(t, ty.clone()),
                 None => return self.handler.mk_err(t.span, "Not found in this scope"),
@@ -189,7 +189,7 @@ impl<'a> Annotate<'a> {
                 let ty = if name.kind == TokenKind::SelfTy {
                     self.env.new_type_var()
                 } else {
-                    match self.structs.get(&name.symbol) {
+                    match self.structs.get(name.symbol) {
                         Some(ty) => ty.clone(),
                         None => {
                             return self.handler.mk_err(name.span, "Not found in this scope");
@@ -242,7 +242,7 @@ impl<'a> Annotate<'a> {
                 let bindings = &mut SymbolTable::new();
                 let mut this = Annotate::new(env, bindings, functions, structs, handler);
 
-                let ty = this.functions.get(&func.name.symbol).unwrap().clone();
+                let ty = this.functions.get(func.name.symbol).unwrap().clone();
                 let params = this.annotate_params(func.params)?;
                 let ret = this.ast_ty_to_spanned_ty(func.ret)?;
                 this.has_enclosing_fn = true;
@@ -349,7 +349,7 @@ impl<'a> Annotate<'a> {
     }
 
     fn annotate_impl(&mut self, item: ast::Impl) -> Result<hir::Impl> {
-        let ty = match self.structs.get(&item.name.symbol) {
+        let ty = match self.structs.get(item.name.symbol) {
             Some(t) => t.clone(),
             None => {
                 return self
@@ -377,7 +377,7 @@ impl<'a> Annotate<'a> {
     }
 
     fn annotate_struct(&mut self, s: ast::Struct) -> Result<hir::Struct> {
-        let ty = self.structs.get(&s.name.symbol).unwrap().clone();
+        let ty = self.structs.get(s.name.symbol).unwrap().clone();
         let fields = self.annotate_struct_fields(s.fields)?;
         Ok(hir::Struct {
             name: s.name,
@@ -423,7 +423,7 @@ impl<'a> Annotate<'a> {
                 "str" => Ty::Str,
                 "float" => Ty::Float,
                 _ => {
-                    if let Some(ty) = self.structs.get(&token.symbol) {
+                    if let Some(ty) = self.structs.get(token.symbol) {
                         ty.clone()
                     } else {
                         return self.handler.mk_err(token.span, "Unknown type");
