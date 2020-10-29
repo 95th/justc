@@ -32,7 +32,8 @@ fn fill_fns(functions: &mut [Function], env: &mut TyContext) {
 fn fill_fn(f: &mut Function, env: &mut TyContext) {
     env.fill_ty(&mut f.ty);
     for p in &mut f.params {
-        env.fill_ty(&mut p.ty);
+        dbg!(&p);
+        env.fill_ty(&mut p.param_ty.ty);
     }
     env.fill_ty(&mut f.ret.ty);
     fill_block(&mut f.body, env);
@@ -95,7 +96,7 @@ fn fill_expr(e: &mut Expr, env: &mut TyContext) {
         }
         ExprKind::Closure { params, ret, body } => {
             for p in params {
-                env.fill_ty(&mut p.ty);
+                env.fill_ty(&mut p.param_ty.ty);
             }
             env.fill_ty(ret);
             fill_expr(body, env);

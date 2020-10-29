@@ -6,7 +6,7 @@ use crate::{
 };
 
 use super::{
-    hir::{self, FnReturnTy},
+    hir,
     ty::{Ty, TyContext},
 };
 
@@ -252,11 +252,7 @@ impl<'a> Annotate<'a> {
 
                 let ty = this.functions.get(&func.name.symbol).unwrap().clone();
                 let params = this.annotate_params(func.params)?;
-                let ret = FnReturnTy {
-                    span: func.ret.span,
-                    is_self: matches!(func.ret.kind, ast::TyKind::SelfTy),
-                    ty: this.ast_ty_to_ty(func.ret)?,
-                };
+                let ret = this.ast_ty_to_spanned_ty(func.ret)?;
                 this.has_enclosing_fn = true;
                 let body = this.annotate_block(func.body)?;
                 this.has_enclosing_fn = false;
@@ -275,11 +271,11 @@ impl<'a> Annotate<'a> {
         params
             .into_iter()
             .map(|p| {
-                let param_ty = self.ast_ty_to_ty(p.ty)?;
-                self.bindings.insert(p.name.symbol, param_ty.clone());
+                let param_ty = self.ast_ty_to_spanned_ty(p.ty)?;
+                self.bindings.insert(p.name.symbol, param_ty.ty.clone());
                 Ok(hir::Param {
                     name: p.name,
-                    ty: param_ty,
+                    param_ty: param_ty,
                 })
             })
             .collect()
@@ -325,6 +321,32 @@ impl<'a> Annotate<'a> {
         };
 
         Ok(ty)
+    }
+
+    fn ast_ty_to_spanned_ty(&mut self, ast_ty: ast::Ty) -> Result<hir::SpannedTy> {
+        let mut is_self = false;
+        let ty = match ast_ty.kind {
+            ast::TyKind::Fn(params, ret) => {
+                let params = params
+                    .into_iter()
+                    .map(|p| self.ast_ty_to_ty(p))
+                    .collect::<Result<_>>()?;
+                let ret = self.ast_ty_to_ty(*ret)?;
+                Ty::Fn(params, Box::new(ret))
+            }
+            ast::TyKind::Ident(t) => self.token_to_ty(&t)?,
+            ast::TyKind::Infer => self.env.new_type_var(),
+            ast::TyKind::Unit => Ty::Unit,
+            ast::TyKind::SelfTy => {
+                is_self = true;
+                self.env.new_type_var()
+            }
+        };
+        Ok(hir::SpannedTy {
+            is_self,
+            span: ast_ty.span,
+            ty,
+        })
     }
 
     fn annotate_impls(&mut self, impls: Vec<ast::Impl>) -> Result<Vec<hir::Impl>> {

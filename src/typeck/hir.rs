@@ -83,20 +83,20 @@ pub struct Block {
 #[derive(Debug)]
 pub struct Param {
     pub name: Token,
-    pub ty: Ty,
+    pub param_ty: SpannedTy,
 }
 
 #[derive(Debug)]
 pub struct Function {
     pub name: Token,
     pub params: Vec<Param>,
-    pub ret: FnReturnTy,
+    pub ret: SpannedTy,
     pub body: Block,
     pub ty: Ty,
 }
 
 #[derive(Debug)]
-pub struct FnReturnTy {
+pub struct SpannedTy {
     pub ty: Ty,
     pub span: Span,
     pub is_self: bool,

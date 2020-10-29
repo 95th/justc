@@ -11,7 +11,7 @@ use super::{
 
 struct Unifier<'a> {
     enclosing_fn_ret_ty: Option<Ty>,
-    enclosing_impl_ty: Option<Ty>,
+    enclosing_self_ty: Option<Ty>,
     env: &'a mut TyContext,
     handler: &'a Handler,
 }
@@ -28,7 +28,7 @@ impl<'a> Unifier<'a> {
     fn new(env: &'a mut TyContext, handler: &'a Handler) -> Self {
         Self {
             enclosing_fn_ret_ty: None,
-            enclosing_impl_ty: None,
+            enclosing_self_ty: None,
             env,
             handler,
         }
@@ -132,7 +132,7 @@ impl<'a> Unifier<'a> {
                 this.env.unify(
                     &expr.ty,
                     &Ty::Fn(
-                        params.iter().map(|p| p.ty.clone()).collect(),
+                        params.iter().map(|p| p.param_ty.ty.clone()).collect(),
                         Box::new(ret.clone()),
                     ),
                     expr.span,
@@ -174,7 +174,7 @@ impl<'a> Unifier<'a> {
             ExprKind::Struct(name, fields, ty) => {
                 if name.kind == TokenKind::SelfTy {
                     self.env
-                        .unify(self.enclosing_impl_ty.as_ref().unwrap(), ty, name.span)?;
+                        .unify(self.enclosing_self_ty.as_ref().unwrap(), ty, name.span)?;
                 }
                 let ty = self.env.resolve_ty(ty);
                 match &*ty {
@@ -318,16 +318,27 @@ impl<'a> Unifier<'a> {
                     return Err(());
                 }
 
-                self.env
-                    .unify(self.enclosing_impl_ty.as_ref().unwrap(), &p.ty, p.name.span)?;
+                self.env.unify(
+                    self.enclosing_self_ty.as_ref().unwrap(),
+                    &p.param_ty.ty,
+                    p.param_ty.span,
+                )?;
                 has_self_param = true;
+            }
+
+            if p.param_ty.is_self {
+                self.env.unify(
+                    self.enclosing_self_ty.as_ref().unwrap(),
+                    &p.param_ty.ty,
+                    p.param_ty.span,
+                )?;
             }
         }
 
         self.env.unify(
             &function.ty,
             &Ty::Fn(
-                function.params.iter().map(|p| p.ty.clone()).collect(),
+                function.params.iter().map(|p| p.param_ty.ty.clone()).collect(),
                 Box::new(function.ret.ty.clone()),
             ),
             function.name.span,
@@ -335,7 +346,7 @@ impl<'a> Unifier<'a> {
         self.unify_block(&function.body)?;
         if function.ret.is_self {
             self.env.unify(
-                self.enclosing_impl_ty.as_ref().unwrap(),
+                self.enclosing_self_ty.as_ref().unwrap(),
                 &function.ret.ty,
                 function.ret.span,
             )?;
@@ -352,7 +363,7 @@ impl<'a> Unifier<'a> {
     }
 
     fn unify_impl(&mut self, item: &Impl) -> Result<()> {
-        self.enter_impl_scope(item.ty.clone(), |this| this.unify_fns(&item.functions))
+        self.enter_self_scope(item.ty.clone(), |this| this.unify_fns(&item.functions))
     }
 
     fn enter_fn_scope<F, R>(&mut self, ty: Ty, f: F) -> R
@@ -366,14 +377,14 @@ impl<'a> Unifier<'a> {
         result
     }
 
-    fn enter_impl_scope<F, R>(&mut self, ty: Ty, f: F) -> R
+    fn enter_self_scope<F, R>(&mut self, ty: Ty, f: F) -> R
     where
         F: FnOnce(&mut Self) -> R,
     {
-        let save_ty = self.enclosing_impl_ty.take();
-        self.enclosing_impl_ty = Some(ty);
+        let save_ty = self.enclosing_self_ty.take();
+        self.enclosing_self_ty = Some(ty);
         let result = f(self);
-        self.enclosing_impl_ty = save_ty;
+        self.enclosing_self_ty = save_ty;
         result
     }
 }

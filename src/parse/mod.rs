@@ -217,6 +217,12 @@ impl Parser {
     }
 
     fn struct_item(&mut self, declared_structs: &mut HashSet<Symbol>) -> Option<ast::Struct> {
+        self.without_restrictions(Restrictions::ALLOW_SELF, |this| {
+            this.struct_item_inner(declared_structs)
+        })
+    }
+
+    fn struct_item_inner(&mut self, declared_structs: &mut HashSet<Symbol>) -> Option<ast::Struct> {
         let name = self.consume(Ident, "Expected struct name")?;
         if !declared_structs.insert(name.symbol) {
             self.handler.report(
@@ -551,8 +557,8 @@ impl Parser {
             }));
         } else if self.eat(OpenParen) {
             let lo = self.prev.span;
-            let expr = self
-                .without_restrictions(Restrictions::NO_STRUCT_LITERAL, |this| this.expr())?;
+            let expr =
+                self.without_restrictions(Restrictions::NO_STRUCT_LITERAL, |this| this.expr())?;
             self.consume(CloseParen, "Expected ')' after expr")?;
             let span = lo.to(self.prev.span);
 
@@ -762,6 +768,11 @@ impl Parser {
                 span,
             });
         } else if self.eat(SelfTy) {
+            if !self.restrictions.contains(Restrictions::ALLOW_SELF) {
+                self.handler
+                    .report(self.prev.span, "`Self` not allowed here");
+                return None;
+            }
             return Some(Ty {
                 span: self.prev.span,
                 kind: TyKind::SelfTy,

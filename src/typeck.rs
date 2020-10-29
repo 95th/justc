@@ -1,9 +1,6 @@
 use std::rc::Rc;
 
-use self::{
-    hir::{Ast, Block, Expr, ExprKind, Function, Stmt},
-    ty::{Ty, TyContext},
-};
+use self::{hir::{Ast, Block, Expr, ExprKind, Function, Impl, Stmt, Struct}, ty::{Ty, TyContext}};
 use crate::{
     err::{Handler, Result},
     lex::Span,
@@ -36,6 +33,8 @@ impl Typeck {
 
         dbg!(&ast);
 
+        self.typeck_structs(&ast.structs)?;
+        self.typeck_impls(&ast.impls)?;
         self.typeck_fns(&ast.functions)?;
         self.typeck_stmts(&ast.stmts)?;
 
@@ -151,7 +150,7 @@ impl Typeck {
             }
             Closure { params, ret, body } => {
                 for p in params {
-                    self.typeck_no_var(&p.ty, &p.name.span)?;
+                    self.typeck_no_var(&p.param_ty.ty, &p.name.span)?;
                 }
                 self.typeck_expr(body)?;
                 self.typeck_eq(ret, &body.ty, &body.span)
@@ -178,6 +177,7 @@ impl Typeck {
     }
 
     fn typeck_block(&self, block: &Block) -> Result<()> {
+        self.typeck_structs(&block.structs)?;
         self.typeck_fns(&block.functions)?;
         self.typeck_stmts(&block.stmts)?;
 
@@ -185,6 +185,29 @@ impl Typeck {
             self.typeck_eq(&expr.ty, &block.ty, &expr.span)?;
         }
 
+        Ok(())
+    }
+
+    fn typeck_structs(&self, structs: &[Struct]) -> Result<()> {
+        for s in structs {
+            self.typeck_struct(s)?;
+        }
+        Ok(())
+    }
+
+    fn typeck_struct(&self, s: &Struct) -> Result<()> {
+        for f in &s.fields {
+            self.typeck_no_var(&f.ty, &f.name.span)?;
+        }
+        self.typeck_no_var(&s.ty, &s.name.span)?;
+        Ok(())
+    }
+
+    fn typeck_impls(&self, impls: &[Impl]) -> Result<()> {
+        for item in impls {
+            self.typeck_fns(&item.functions)?;
+            self.typeck_no_var(&item.ty, &item.name.span)?;
+        }
         Ok(())
     }
 
