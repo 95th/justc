@@ -1,6 +1,6 @@
 use crate::{
     err::{Handler, Result},
-    lex::Token,
+    lex::{Token, TokenKind},
     parse::ast,
     symbol::SymbolTable,
 };
@@ -193,11 +193,15 @@ impl<'a> Annotate<'a> {
                     .collect::<Result<Vec<_>>>()?,
             },
             ast::ExprKind::Struct(name, fields) => {
-                let ty = match self.structs.get(&name.symbol) {
-                    Some(ty) => ty.clone(),
-                    None => {
-                        self.handler.report(name.span, "not found in this scope");
-                        return Err(());
+                let ty = if name.kind == TokenKind::SelfTy {
+                    self.env.new_type_var()
+                } else {
+                    match self.structs.get(&name.symbol) {
+                        Some(ty) => ty.clone(),
+                        None => {
+                            self.handler.report(name.span, "not found in this scope");
+                            return Err(());
+                        }
                     }
                 };
                 hir::ExprKind::Struct(name, self.annotate_fields(fields)?, ty)
@@ -250,7 +254,7 @@ impl<'a> Annotate<'a> {
                 let params = this.annotate_params(func.params)?;
                 let ret = FnReturnTy {
                     span: func.ret.span,
-                    is_self: matches!(func.ret.kind, ast::TyKind::Celf),
+                    is_self: matches!(func.ret.kind, ast::TyKind::SelfTy),
                     ty: this.ast_ty_to_ty(func.ret)?,
                 };
                 this.has_enclosing_fn = true;
@@ -317,7 +321,7 @@ impl<'a> Annotate<'a> {
             ast::TyKind::Ident(t) => self.token_to_ty(&t)?,
             ast::TyKind::Infer => self.env.new_type_var(),
             ast::TyKind::Unit => Ty::Unit,
-            ast::TyKind::Celf => self.env.new_type_var(),
+            ast::TyKind::SelfTy => self.env.new_type_var(),
         };
 
         Ok(ty)

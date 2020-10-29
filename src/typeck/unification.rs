@@ -172,10 +172,13 @@ impl<'a> Unifier<'a> {
                 Ok(())
             }
             ExprKind::Struct(name, fields, ty) => {
+                if name.kind == TokenKind::SelfTy {
+                    self.env
+                        .unify(self.enclosing_impl_ty.as_ref().unwrap(), ty, name.span)?;
+                }
                 let ty = self.env.resolve_ty(ty);
                 match &*ty {
-                    Ty::Struct(.., name2, fields2) => {
-                        assert!(name.symbol == *name2);
+                    Ty::Struct(.., fields2) => {
                         if fields.len() != fields2.len() {
                             self.handler.report(expr.span, "Number of fields mismatch");
                             return Err(());
@@ -302,7 +305,7 @@ impl<'a> Unifier<'a> {
     fn unify_fn(&mut self, function: &Function) -> Result<()> {
         let mut has_self_param = false;
         for p in &function.params {
-            if p.name.kind == TokenKind::Celf {
+            if p.name.kind == TokenKind::SelfParam {
                 if has_self_param {
                     self.handler
                         .report(p.name.span, "Multiple `self` not allowed");

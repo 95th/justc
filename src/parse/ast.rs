@@ -157,7 +157,7 @@ pub enum TyKind {
     Ident(Token),
     Infer,
     Unit,
-    Celf,
+    SelfTy,
 }
 
 impl From<TyKind> for Ty {

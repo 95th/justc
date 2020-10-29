@@ -1,7 +1,7 @@
 struct X { a: int }
 
 impl X {
-    fn value(self) -> Self {
+    fn add_one(self) -> Self {
         Self { a: self.a + 1 }
     }
 }

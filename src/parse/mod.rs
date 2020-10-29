@@ -21,6 +21,7 @@ pub struct Parser {
 bitflags::bitflags! {
     struct Restrictions: u8 {
         const NO_STRUCT_LITERAL = 1 << 0;
+        const ALLOW_SELF = 1 << 1;
     }
 }
 
@@ -47,7 +48,7 @@ impl Parser {
 
         while !self.eof() {
             if self.eat(Fn) {
-                let fun = self.function(false, &mut declared_fns)?;
+                let fun = self.function(&mut declared_fns)?;
                 functions.push(fun);
             } else if self.eat(Struct) {
                 let item = self.struct_item(&mut declared_structs)?;
@@ -135,7 +136,7 @@ impl Parser {
 
         while !self.check(CloseBrace) && !self.eof() {
             if self.eat(Fn) {
-                let fun = self.function(false, &mut declared_fns)?;
+                let fun = self.function(&mut declared_fns)?;
                 functions.push(fun);
             } else if self.eat(Struct) {
                 let s = self.struct_item(&mut declared_structs)?;
@@ -159,11 +160,7 @@ impl Parser {
         })
     }
 
-    fn function(
-        &mut self,
-        allow_self: bool,
-        declared_fns: &mut HashSet<Symbol>,
-    ) -> Option<Function> {
+    fn function(&mut self, declared_fns: &mut HashSet<Symbol>) -> Option<Function> {
         let name = self.consume(Ident, "Expected function name")?;
         if !declared_fns.insert(name.symbol) {
             self.handler.report(
@@ -175,7 +172,7 @@ impl Parser {
         self.consume(OpenParen, "Expected '('")?;
         let mut params = vec![];
         while !self.check(CloseParen) && !self.eof() {
-            let param = self.param(allow_self, false)?;
+            let param = self.param(false)?;
             params.push(param);
             if !self.eat(Comma) {
                 break;
@@ -201,20 +198,22 @@ impl Parser {
     }
 
     fn impl_item(&mut self) -> Option<ast::Impl> {
-        let name = self.consume(Ident, "Expected type name")?;
-        self.consume(OpenBrace, "Expected '{'")?;
+        self.with_restrictions(Restrictions::ALLOW_SELF, |this| {
+            let name = this.consume(Ident, "Expected type name")?;
+            this.consume(OpenBrace, "Expected '{'")?;
 
-        let mut functions = vec![];
-        let mut declared_fns = HashSet::new();
+            let mut functions = vec![];
+            let mut declared_fns = HashSet::new();
 
-        while self.eat(Fn) {
-            let fun = self.function(true, &mut declared_fns)?;
-            functions.push(fun);
-        }
+            while this.eat(Fn) {
+                let fun = this.function(&mut declared_fns)?;
+                functions.push(fun);
+            }
 
-        self.consume(CloseBrace, "Expected '}'")?;
+            this.consume(CloseBrace, "Expected '}'")?;
 
-        Some(ast::Impl { name, functions })
+            Some(ast::Impl { name, functions })
+        })
     }
 
     fn struct_item(&mut self, declared_structs: &mut HashSet<Symbol>) -> Option<ast::Struct> {
@@ -536,7 +535,14 @@ impl Parser {
             Lit::Str(self.prev.symbol)
         } else if self.eat(Ident) {
             return self.path_or_struct();
-        } else if self.eat(Celf) {
+        } else if self.eat(SelfTy) {
+            if !self.restrictions.contains(Restrictions::ALLOW_SELF) {
+                self.handler
+                    .report(self.prev.span, "`Self` not allowed here");
+                return None;
+            }
+            return self.path_or_struct();
+        } else if self.eat(SelfParam) {
             let span = self.prev.span;
             let name = self.prev.clone();
             return Some(Box::new(Expr {
@@ -627,7 +633,7 @@ impl Parser {
 
         if self.prev.kind == Or {
             while !self.check(Or) && !self.eof() {
-                let param = self.param(false, true)?;
+                let param = self.param(true)?;
                 params.push(param);
                 if !self.eat(Comma) {
                     break;
@@ -695,17 +701,17 @@ impl Parser {
         }))
     }
 
-    fn param(&mut self, allow_self: bool, infer_ty: bool) -> Option<Param> {
-        if self.eat(Celf) {
+    fn param(&mut self, infer_ty: bool) -> Option<Param> {
+        if self.eat(SelfParam) {
             let span = self.prev.span;
-            if !allow_self {
+            if !self.restrictions.contains(Restrictions::ALLOW_SELF) {
                 self.handler.report(span, "`self` not allowed here");
                 return None;
             }
 
             let name = self.prev.clone();
             let ty = Ty {
-                kind: TyKind::Celf,
+                kind: TyKind::SelfTy,
                 span,
             };
             return Some(Param { name, ty });
@@ -754,6 +760,11 @@ impl Parser {
                 kind: TyKind::Fn(params, Box::new(ret)),
                 span,
             });
+        } else if self.eat(SelfTy) {
+            return Some(Ty {
+                span: self.prev.span,
+                kind: TyKind::SelfTy,
+            });
         }
 
         let token = self.consume(Ident, "Expected Type name")?;
@@ -761,7 +772,6 @@ impl Parser {
 
         let kind = symbol.as_str_with(|s| match s {
             "_" => TyKind::Infer,
-            "Self" => TyKind::Celf,
             _ => TyKind::Ident(token),
         });
 
@@ -799,7 +809,7 @@ impl Parser {
         F: FnOnce(&mut Self) -> R,
     {
         let save = self.restrictions;
-        self.restrictions = new_restrictions;
+        self.restrictions |= new_restrictions;
         let result = f(self);
         self.restrictions = save;
         result
