@@ -95,7 +95,7 @@ impl<'a> Annotate<'a> {
                     Ok(hir::Stmt::Return(span, Some(self.annotate_expr(e)?)))
                 } else {
                     self.handler
-                        .error(span, "Cannot return without enclosing function")
+                        .mk_err(span, "Cannot return without enclosing function")
                 }
             }
             ast::Stmt::Return(span, None) => {
@@ -103,7 +103,7 @@ impl<'a> Annotate<'a> {
                     Ok(hir::Stmt::Return(span, None))
                 } else {
                     self.handler
-                        .error(span, "Cannot return without enclosing function")
+                        .mk_err(span, "Cannot return without enclosing function")
                 }
             }
             ast::Stmt::Continue(span) => {
@@ -111,7 +111,7 @@ impl<'a> Annotate<'a> {
                     Ok(hir::Stmt::Continue(span))
                 } else {
                     self.handler
-                        .error(span, "Cannot continue without an enclosing loop")
+                        .mk_err(span, "Cannot continue without an enclosing loop")
                 }
             }
             ast::Stmt::Break(span) => {
@@ -119,7 +119,7 @@ impl<'a> Annotate<'a> {
                     Ok(hir::Stmt::Break(span))
                 } else {
                     self.handler
-                        .error(span, "Cannot break without an enclosing loop")
+                        .mk_err(span, "Cannot break without an enclosing loop")
                 }
             }
         }
@@ -155,7 +155,7 @@ impl<'a> Annotate<'a> {
                 .or_else(|| self.functions.get(&t.symbol))
             {
                 Some(ty) => hir::ExprKind::Variable(t, ty.clone()),
-                None => return self.handler.error(t.span, "Not found in this scope"),
+                None => return self.handler.mk_err(t.span, "Not found in this scope"),
             },
             ast::ExprKind::Block(block) => hir::ExprKind::Block(self.annotate_block(block)?),
             ast::ExprKind::If {
@@ -192,7 +192,7 @@ impl<'a> Annotate<'a> {
                     match self.structs.get(&name.symbol) {
                         Some(ty) => ty.clone(),
                         None => {
-                            return self.handler.error(name.span, "not found in this scope");
+                            return self.handler.mk_err(name.span, "not found in this scope");
                         }
                     }
                 };
@@ -419,7 +419,7 @@ impl<'a> Annotate<'a> {
                     if let Some(ty) = self.structs.get(&token.symbol) {
                         ty.clone()
                     } else {
-                        return self.handler.error(token.span, "Unknown type");
+                        return self.handler.mk_err(token.span, "Unknown type");
                     }
                 }
             };

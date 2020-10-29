@@ -95,20 +95,20 @@ impl Typeck {
                         Ty::Int | Ty::Float => Ok(()),
                         ty => self
                             .handler
-                            .error(op.span, &format!("Not supported for {:?}", ty)),
+                            .mk_err(op.span, &format!("Not supported for {:?}", ty)),
                     },
 
                     Ne | Eq => match &left.ty {
                         Ty::Int | Ty::Float | Ty::Bool => Ok(()),
                         ty => self
                             .handler
-                            .error(op.span, &format!("Not supported for {:?}", ty)),
+                            .mk_err(op.span, &format!("Not supported for {:?}", ty)),
                     },
                     And | Or => match &left.ty {
                         Ty::Bool => Ok(()),
                         ty => self
                             .handler
-                            .error(op.span, &format!("Not supported for {:?}", ty)),
+                            .mk_err(op.span, &format!("Not supported for {:?}", ty)),
                     },
                 }
             }
@@ -118,13 +118,13 @@ impl Typeck {
                     Ty::Bool => Ok(()),
                     ty => self
                         .handler
-                        .error(op.span, &format!("Not supported for {:?}", ty)),
+                        .mk_err(op.span, &format!("Not supported for {:?}", ty)),
                 },
                 ast::UnOp::Neg => match &expr.ty {
                     Ty::Int | Ty::Float => Ok(()),
                     ty => self
                         .handler
-                        .error(op.span, &format!("Not supported for {:?}", ty)),
+                        .mk_err(op.span, &format!("Not supported for {:?}", ty)),
                 },
             },
             Variable(_, _) => Ok(()),
@@ -223,7 +223,7 @@ impl Typeck {
         if a == b {
             Ok(())
         } else {
-            self.handler.error(
+            self.handler.mk_err(
                 *span,
                 &format!("Type mismatch: Expected: {:?}, Actual: {:?}", a, b),
             )
@@ -232,7 +232,7 @@ impl Typeck {
 
     fn typeck_no_var(&self, ty: &Ty, span: &Span) -> Result<()> {
         match ty {
-            Ty::Infer(_) => self.handler.error(
+            Ty::Infer(_) => self.handler.mk_err(
                 *span,
                 "Type cannot be inferred. Please add type annotations",
             ),

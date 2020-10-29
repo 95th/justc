@@ -16,7 +16,7 @@ impl Handler {
         }
     }
 
-    pub fn error<T>(&self, span: Span, msg: &str) -> Result<T> {
+    pub fn mk_err<T>(&self, span: Span, msg: &str) -> Result<T> {
         self.report(span, msg);
         Err(())
     }

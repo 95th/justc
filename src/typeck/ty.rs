@@ -77,7 +77,7 @@ impl TyContext {
                 if id != id2 {
                     return self
                         .handler
-                        .error(span, &format!("Expected type {}, Actual: {}", name, name2));
+                        .mk_err(span, &format!("Expected type {}, Actual: {}", name, name2));
                 }
                 for ((_, f1), (_, f2)) in fields.iter().zip(fields2) {
                     self.unify(f1, f2, span)?;
@@ -90,7 +90,7 @@ impl TyContext {
             | (Ty::Str, Ty::Str) => {}
             (a, b) => self
                 .handler
-                .error(span, &format!("Expected type {:?}, Actual: {:?}", a, b))?,
+                .mk_err(span, &format!("Expected type {:?}, Actual: {:?}", a, b))?,
         }
 
         Ok(())
