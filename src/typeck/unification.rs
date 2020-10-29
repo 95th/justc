@@ -304,8 +304,14 @@ impl<'a> Unifier<'a> {
 
     fn unify_fn(&mut self, function: &Function) -> Result<()> {
         let mut has_self_param = false;
-        for p in &function.params {
+        for (idx, p) in function.params.iter().enumerate() {
             if p.name.kind == TokenKind::SelfParam {
+                if idx != 0 {
+                    self.handler
+                        .report(p.name.span, "`self` must be the first parameter");
+                    return Err(());
+                }
+
                 if has_self_param {
                     self.handler
                         .report(p.name.span, "Multiple `self` not allowed");
