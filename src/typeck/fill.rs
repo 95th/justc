@@ -7,7 +7,7 @@ pub fn fill_tys(ast: &mut Ast, env: &mut TyContext) {
     fill_stmts(&mut ast.stmts, env);
 }
 
-fn fill_structs(structs: &mut Vec<Struct>, env: &mut TyContext) {
+fn fill_structs(structs: &mut [Struct], env: &mut TyContext) {
     for s in structs {
         for f in &mut s.fields {
             env.fill_ty(&mut f.ty);
@@ -23,7 +23,7 @@ fn fill_impls(impls: &mut [Impl], env: &mut TyContext) {
     }
 }
 
-fn fill_fns(functions: &mut Vec<Function>, env: &mut TyContext) {
+fn fill_fns(functions: &mut [Function], env: &mut TyContext) {
     for f in functions {
         fill_fn(f, env);
     }
@@ -38,7 +38,7 @@ fn fill_fn(f: &mut Function, env: &mut TyContext) {
     fill_block(&mut f.body, env);
 }
 
-fn fill_stmts(stmts: &mut Vec<Stmt>, env: &mut TyContext) {
+fn fill_stmts(stmts: &mut [Stmt], env: &mut TyContext) {
     for s in stmts {
         fill_stmt(s, env);
     }
