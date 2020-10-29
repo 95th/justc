@@ -285,12 +285,16 @@ impl<'a> Unifier<'a> {
 
     fn unify_fns(&mut self, items: &[Function]) -> Result<()> {
         for item in items {
-            self.enter_fn_scope(item.ret.ty.clone(), |this| this.unify_fn(item))?;
+            self.enter_fn_scope(item.ret.ty.clone(), |this| this.unify_fn_header(item))?;
+        }
+
+        for item in items {
+            self.enter_fn_scope(item.ret.ty.clone(), |this| this.unify_fn_body(item))?;
         }
         Ok(())
     }
 
-    fn unify_fn(&mut self, function: &Function) -> Result<()> {
+    fn unify_fn_header(&mut self, function: &Function) -> Result<()> {
         let mut has_self_param = false;
         for (idx, p) in function.params.iter().enumerate() {
             if p.name.kind == TokenKind::SelfParam {
@@ -335,7 +339,6 @@ impl<'a> Unifier<'a> {
             ),
             function.name.span,
         )?;
-        self.unify_block(&function.body)?;
         if function.ret.is_self {
             self.env.unify(
                 self.enclosing_self_ty.as_ref().unwrap(),
@@ -343,8 +346,14 @@ impl<'a> Unifier<'a> {
                 function.ret.span,
             )?;
         }
+        Ok(())
+    }
+
+    fn unify_fn_body(&mut self, function: &Function) -> Result<()> {
+        self.unify_block(&function.body)?;
         self.env
-            .unify(&function.ret.ty, &function.body.ty, function.body.span)
+            .unify(&function.ret.ty, &function.body.ty, function.body.span)?;
+        Ok(())
     }
 
     fn unify_impls(&mut self, impls: &[Impl]) -> Result<()> {

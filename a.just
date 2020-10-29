@@ -1,1 +1,2 @@
-struct A { a: A }
+fn foo() { bar() }
+fn bar() { foo() }
