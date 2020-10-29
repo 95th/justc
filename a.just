@@ -1,2 +1,1 @@
-fn foo() { bar() }
-fn bar() { foo() }
+impl X {}

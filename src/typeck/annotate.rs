@@ -192,7 +192,7 @@ impl<'a> Annotate<'a> {
                     match self.structs.get(&name.symbol) {
                         Some(ty) => ty.clone(),
                         None => {
-                            return self.handler.mk_err(name.span, "not found in this scope");
+                            return self.handler.mk_err(name.span, "Not found in this scope");
                         }
                     }
                 };
@@ -349,7 +349,14 @@ impl<'a> Annotate<'a> {
     }
 
     fn annotate_impl(&mut self, item: ast::Impl) -> Result<hir::Impl> {
-        let ty = self.structs.get(&item.name.symbol).unwrap().clone();
+        let ty = match self.structs.get(&item.name.symbol) {
+            Some(t) => t.clone(),
+            None => {
+                return self
+                    .handler
+                    .mk_err(item.name.span, "Not found in this scope")
+            }
+        };
         let functions = self.annotate_fns(item.functions)?;
         Ok(hir::Impl {
             name: item.name,
