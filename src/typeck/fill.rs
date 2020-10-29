@@ -2,6 +2,7 @@ use super::{hir::*, ty::TyContext};
 
 pub fn fill_tys(ast: &mut Ast, env: &mut TyContext) {
     fill_structs(&mut ast.structs, env);
+    fill_impls(&mut ast.impls, env);
     fill_fns(&mut ast.functions, env);
     fill_stmts(&mut ast.stmts, env);
 }
@@ -12,6 +13,13 @@ fn fill_structs(structs: &mut Vec<Struct>, env: &mut TyContext) {
             env.fill_ty(&mut f.ty);
         }
         env.fill_ty(&mut s.ty);
+    }
+}
+
+fn fill_impls(impls: &mut [Impl], env: &mut TyContext) {
+    for i in impls {
+        env.fill_ty(&mut i.ty);
+        fill_fns(&mut i.functions, env);
     }
 }
 
@@ -111,6 +119,7 @@ fn fill_expr(e: &mut Expr, env: &mut TyContext) {
 fn fill_block(block: &mut Block, env: &mut TyContext) {
     env.fill_ty(&mut block.ty);
     fill_structs(&mut block.structs, env);
+    fill_impls(&mut block.impls, env);
     fill_fns(&mut block.functions, env);
     fill_stmts(&mut block.stmts, env);
 }

@@ -190,7 +190,7 @@ pub struct Struct {
 
 #[derive(Debug, PartialEq)]
 pub struct Impl {
-    pub ty: Ty,
+    pub name: Token,
     pub functions: Vec<Function>,
 }
 

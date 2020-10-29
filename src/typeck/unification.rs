@@ -4,7 +4,7 @@ use crate::{
 };
 
 use super::{
-    hir::{Ast, Block, Expr, ExprKind, Function, Stmt, Struct},
+    hir::{Ast, Block, Expr, ExprKind, Function, Impl, Stmt, Struct},
     ty::{Ty, TyContext},
 };
 
@@ -17,6 +17,7 @@ struct Unifier<'a> {
 pub fn unify(ast: &Ast, env: &mut TyContext, handler: &Handler) -> Result<()> {
     let mut unifier = Unifier::new(env, handler);
     unifier.unify_structs(&ast.structs)?;
+    unifier.unify_impls(&ast.impls)?;
     unifier.unify_fns(&ast.functions)?;
     unifier.unify_stmts(&ast.stmts)
 }
@@ -243,6 +244,7 @@ impl<'a> Unifier<'a> {
 
     fn unify_block(&mut self, block: &Block) -> Result<()> {
         self.unify_structs(&block.structs)?;
+        self.unify_impls(&block.impls)?;
         self.unify_fns(&block.functions)?;
 
         for stmt in &block.stmts {
@@ -306,6 +308,17 @@ impl<'a> Unifier<'a> {
         self.unify_block(&function.body)?;
         self.env
             .unify(&function.ret, &function.body.ty, function.body.span)
+    }
+
+    fn unify_impls(&mut self, impls: &[Impl]) -> Result<()> {
+        for item in impls {
+            self.unify_impl(item)?;
+        }
+        Ok(())
+    }
+
+    fn unify_impl(&mut self, item: &Impl) -> Result<()> {
+        self.unify_fns(&item.functions)
     }
 
     fn enter_fn_scope<F, R>(&mut self, ty: Ty, f: F) -> R

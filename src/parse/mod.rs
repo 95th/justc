@@ -197,7 +197,7 @@ impl Parser {
     }
 
     fn impl_item(&mut self) -> Option<ast::Impl> {
-        let ty = self.parse_ty()?;
+        let name = self.consume(Ident, "Expected type name")?;
         self.consume(OpenBrace, "Expected '{'")?;
 
         let mut functions = vec![];
@@ -210,7 +210,7 @@ impl Parser {
 
         self.consume(CloseBrace, "Expected '}'")?;
 
-        Some(ast::Impl { ty, functions })
+        Some(ast::Impl { name, functions })
     }
 
     fn struct_item(&mut self, declared_structs: &mut HashSet<Symbol>) -> Option<ast::Struct> {

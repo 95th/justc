@@ -119,6 +119,7 @@ pub struct Ast {
 
 #[derive(Debug)]
 pub struct Impl {
-    pub ty: Ty,
+    pub name: Token,
     pub functions: Vec<Function>,
+    pub ty: Ty,
 }

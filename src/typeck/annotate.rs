@@ -326,9 +326,13 @@ impl<'a> Annotate<'a> {
     }
 
     fn annotate_impl(&mut self, item: ast::Impl) -> Result<hir::Impl> {
-        let ty = self.ast_ty_to_ty(item.ty)?;
+        let ty = self.structs.get(&item.name.symbol).unwrap().clone();
         let functions = self.annotate_fns(item.functions)?;
-        Ok(hir::Impl { ty, functions })
+        Ok(hir::Impl {
+            name: item.name,
+            functions,
+            ty,
+        })
     }
 
     fn annotate_structs(&mut self, structs: Vec<ast::Struct>) -> Result<Vec<hir::Struct>> {
