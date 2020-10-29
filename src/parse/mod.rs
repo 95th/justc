@@ -551,7 +551,8 @@ impl Parser {
             }));
         } else if self.eat(OpenParen) {
             let lo = self.prev.span;
-            let expr = self.with_restrictions(Restrictions::empty(), |this| this.expr())?;
+            let expr = self
+                .without_restrictions(Restrictions::NO_STRUCT_LITERAL, |this| this.expr())?;
             self.consume(CloseParen, "Expected ')' after expr")?;
             let span = lo.to(self.prev.span);
 
@@ -804,12 +805,23 @@ impl Parser {
         }
     }
 
-    fn with_restrictions<F, R>(&mut self, new_restrictions: Restrictions, f: F) -> R
+    fn with_restrictions<F, R>(&mut self, to_add: Restrictions, f: F) -> R
     where
         F: FnOnce(&mut Self) -> R,
     {
         let save = self.restrictions;
-        self.restrictions |= new_restrictions;
+        self.restrictions |= to_add;
+        let result = f(self);
+        self.restrictions = save;
+        result
+    }
+
+    fn without_restrictions<F, R>(&mut self, to_remove: Restrictions, f: F) -> R
+    where
+        F: FnOnce(&mut Self) -> R,
+    {
+        let save = self.restrictions;
+        self.restrictions -= to_remove;
         let result = f(self);
         self.restrictions = save;
         result
