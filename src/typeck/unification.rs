@@ -1,5 +1,6 @@
 use crate::{
     err::{Handler, Result},
+    lex::TokenKind,
     parse::ast::{BinOp, UnOp},
 };
 
@@ -10,6 +11,7 @@ use super::{
 
 struct Unifier<'a> {
     enclosing_fn_ret_ty: Option<Ty>,
+    enclosing_impl_ty: Option<Ty>,
     env: &'a mut TyContext,
     handler: &'a Handler,
 }
@@ -26,6 +28,7 @@ impl<'a> Unifier<'a> {
     fn new(env: &'a mut TyContext, handler: &'a Handler) -> Self {
         Self {
             enclosing_fn_ret_ty: None,
+            enclosing_impl_ty: None,
             env,
             handler,
         }
@@ -297,6 +300,21 @@ impl<'a> Unifier<'a> {
     }
 
     fn unify_fn(&mut self, function: &Function) -> Result<()> {
+        let mut has_self_param = false;
+        for p in &function.params {
+            if p.name.kind == TokenKind::Celf {
+                if has_self_param {
+                    self.handler
+                        .report(p.name.span, "Multiple `self` not allowed");
+                    return Err(());
+                }
+
+                self.env
+                    .unify(self.enclosing_impl_ty.as_ref().unwrap(), &p.ty, p.name.span)?;
+                has_self_param = true;
+            }
+        }
+
         self.env.unify(
             &function.ty,
             &Ty::Fn(
@@ -318,7 +336,7 @@ impl<'a> Unifier<'a> {
     }
 
     fn unify_impl(&mut self, item: &Impl) -> Result<()> {
-        self.unify_fns(&item.functions)
+        self.enter_impl_scope(item.ty.clone(), |this| this.unify_fns(&item.functions))
     }
 
     fn enter_fn_scope<F, R>(&mut self, ty: Ty, f: F) -> R
@@ -329,6 +347,17 @@ impl<'a> Unifier<'a> {
         self.enclosing_fn_ret_ty = Some(ty);
         let result = f(self);
         self.enclosing_fn_ret_ty = save_ret_ty;
+        result
+    }
+
+    fn enter_impl_scope<F, R>(&mut self, ty: Ty, f: F) -> R
+    where
+        F: FnOnce(&mut Self) -> R,
+    {
+        let save_ty = self.enclosing_impl_ty.take();
+        self.enclosing_impl_ty = Some(ty);
+        let result = f(self);
+        self.enclosing_impl_ty = save_ty;
         result
     }
 }

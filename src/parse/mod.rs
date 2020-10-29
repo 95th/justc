@@ -47,7 +47,7 @@ impl Parser {
 
         while !self.eof() {
             if self.eat(Fn) {
-                let fun = self.function(&mut declared_fns)?;
+                let fun = self.function(false, &mut declared_fns)?;
                 functions.push(fun);
             } else if self.eat(Struct) {
                 let item = self.struct_item(&mut declared_structs)?;
@@ -135,7 +135,7 @@ impl Parser {
 
         while !self.check(CloseBrace) && !self.eof() {
             if self.eat(Fn) {
-                let fun = self.function(&mut declared_fns)?;
+                let fun = self.function(false, &mut declared_fns)?;
                 functions.push(fun);
             } else if self.eat(Struct) {
                 let s = self.struct_item(&mut declared_structs)?;
@@ -159,7 +159,11 @@ impl Parser {
         })
     }
 
-    fn function(&mut self, declared_fns: &mut HashSet<Symbol>) -> Option<Function> {
+    fn function(
+        &mut self,
+        allow_self: bool,
+        declared_fns: &mut HashSet<Symbol>,
+    ) -> Option<Function> {
         let name = self.consume(Ident, "Expected function name")?;
         if !declared_fns.insert(name.symbol) {
             self.handler.report(
@@ -171,7 +175,7 @@ impl Parser {
         self.consume(OpenParen, "Expected '('")?;
         let mut params = vec![];
         while !self.check(CloseParen) && !self.eof() {
-            let param = self.param(false)?;
+            let param = self.param(allow_self, false)?;
             params.push(param);
             if !self.eat(Comma) {
                 break;
@@ -204,7 +208,7 @@ impl Parser {
         let mut declared_fns = HashSet::new();
 
         while self.eat(Fn) {
-            let fun = self.function(&mut declared_fns)?;
+            let fun = self.function(true, &mut declared_fns)?;
             functions.push(fun);
         }
 
@@ -532,6 +536,13 @@ impl Parser {
             Lit::Str(self.prev.symbol)
         } else if self.eat(Ident) {
             return self.path_or_struct();
+        } else if self.eat(Celf) {
+            let span = self.prev.span;
+            let name = self.prev.clone();
+            return Some(Box::new(Expr {
+                kind: ExprKind::Variable(name),
+                span,
+            }));
         } else if self.eat(OpenParen) {
             let lo = self.prev.span;
             let expr = self.with_restrictions(Restrictions::empty(), |this| this.expr())?;
@@ -616,7 +627,7 @@ impl Parser {
 
         if self.prev.kind == Or {
             while !self.check(Or) && !self.eof() {
-                let param = self.param(true)?;
+                let param = self.param(false, true)?;
                 params.push(param);
                 if !self.eat(Comma) {
                     break;
@@ -684,7 +695,22 @@ impl Parser {
         }))
     }
 
-    fn param(&mut self, infer_ty: bool) -> Option<Param> {
+    fn param(&mut self, allow_self: bool, infer_ty: bool) -> Option<Param> {
+        if self.eat(Celf) {
+            let span = self.prev.span;
+            if !allow_self {
+                self.handler.report(span, "`self` not allowed here");
+                return None;
+            }
+
+            let name = self.prev.clone();
+            let ty = Ty {
+                kind: TyKind::Celf,
+                span,
+            };
+            return Some(Param { name, ty });
+        }
+
         let name = self.consume(Ident, "Expected parameter name")?;
 
         let ty = if self.eat(Colon) {

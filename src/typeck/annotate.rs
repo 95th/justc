@@ -313,6 +313,7 @@ impl<'a> Annotate<'a> {
             ast::TyKind::Ident(t) => self.token_to_ty(&t)?,
             ast::TyKind::Infer => self.env.new_type_var(),
             ast::TyKind::Unit => Ty::Unit,
+            ast::TyKind::Celf => self.env.new_type_var(),
         };
 
         Ok(ty)

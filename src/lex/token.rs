@@ -70,7 +70,7 @@ pub enum TokenKind {
     In,
     If,
     Return,
-    This,
+    Celf,
     True,
     Let,
     While,

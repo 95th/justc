@@ -291,7 +291,7 @@ fn keywords() -> HashMap<Symbol, TokenKind> {
     m.insert(Symbol::intern("in"), In);
     m.insert(Symbol::intern("if"), If);
     m.insert(Symbol::intern("return"), Return);
-    m.insert(Symbol::intern("self"), This);
+    m.insert(Symbol::intern("self"), Celf);
     m.insert(Symbol::intern("true"), True);
     m.insert(Symbol::intern("let"), Let);
     m.insert(Symbol::intern("while"), While);
