@@ -32,7 +32,7 @@ impl Typeck {
         let mut ast = self::annotate::annotate(ast, &mut env, &self.handler)?;
 
         self::unification::unify(&ast, &mut env, &self.handler)?;
-        self::fill::fill_tys(&mut ast, &mut env);
+        env.fill(&mut ast);
 
         dbg!(&ast);
 
