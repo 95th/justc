@@ -279,7 +279,7 @@ impl Parser {
         let expr = self.expr()?;
 
         if self.eat(Eq) {
-            if let ExprKind::Variable(_) = expr.kind {
+            if let ExprKind::Variable(..) | ExprKind::Field(..) = expr.kind {
                 let val = self.expr()?;
                 self.consume(SemiColon, "Expected ';' after assignment.")?;
                 return Ok(Stmt::Assign { name: expr, val });
@@ -677,7 +677,7 @@ impl Parser {
 
     fn if_expr(&mut self) -> Result<Box<Expr>> {
         let lo = self.prev.span;
-        let cond = self.expr()?;
+        let cond = self.with_restrictions(Restrictions::NO_STRUCT_LITERAL, |this| this.expr())?;
         self.consume(OpenBrace, "Expected '{' after if condition")?;
         let then_clause = self.block()?;
         let mut else_clause = None;

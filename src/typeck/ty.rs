@@ -58,9 +58,9 @@ impl TyContext {
         }
     }
 
-    pub fn unify(&mut self, a: &Ty, b: &Ty, span: Span) -> Result<()> {
-        let a = self.resolve_ty(a);
-        let b = self.resolve_ty(b);
+    pub fn unify(&mut self, expected: &Ty, actual: &Ty, span: Span) -> Result<()> {
+        let a = self.resolve_ty(expected);
+        let b = self.resolve_ty(actual);
 
         match (&*a, &*b) {
             (Ty::Infer(a), Ty::Infer(b)) => self.table.union(*a, *b),
