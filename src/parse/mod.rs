@@ -284,7 +284,7 @@ impl Parser {
                 self.consume(SemiColon, "Expected ';' after assignment.")?;
                 return Ok(Stmt::Assign { name: expr, val });
             } else {
-                return self.handler.mk_err(expr.span, "Invalid assignment target.");
+                return self.handler.mk_err(expr.span, "Cannot assign to this expression");
             }
         }
         Ok(Stmt::Expr(expr, self.eat(SemiColon)))
