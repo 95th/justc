@@ -20,6 +20,14 @@ impl Token {
             span: Span::DUMMY,
         }
     }
+
+    pub fn is_self_ty(&self) -> bool {
+        matches!(self.kind, TokenKind::SelfTy)
+    }
+
+    pub fn is_self_param(&self) -> bool {
+        matches!(self.kind, TokenKind::SelfParam)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

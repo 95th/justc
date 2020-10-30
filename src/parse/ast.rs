@@ -76,6 +76,15 @@ pub struct Expr {
     pub span: Span,
 }
 
+impl Expr {
+    pub fn is_assignable(&self) -> bool {
+        match self.kind {
+            ExprKind::Variable(..) | ExprKind::Field(..) => true,
+            _ => false,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub enum ExprKind {
     Binary {

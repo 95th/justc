@@ -279,7 +279,7 @@ impl Parser {
         let expr = self.expr()?;
 
         if self.eat(Eq) {
-            if let ExprKind::Variable(..) | ExprKind::Field(..) = expr.kind {
+            if expr.is_assignable() {
                 let val = self.expr()?;
                 self.consume(SemiColon, "Expected ';' after assignment.")?;
                 return Ok(Stmt::Assign { name: expr, val });

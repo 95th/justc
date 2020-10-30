@@ -1,6 +1,5 @@
 use crate::{
     err::{Handler, Result},
-    lex::TokenKind,
     parse::ast::{BinOp, UnOp},
 };
 
@@ -171,7 +170,7 @@ impl<'a> Unifier<'a> {
                 Ok(())
             }
             ExprKind::Struct(name, fields, ty) => {
-                if name.kind == TokenKind::SelfTy {
+                if name.is_self_ty() {
                     self.env
                         .unify(self.enclosing_self_ty.as_ref().unwrap(), ty, name.span)?;
                 }
@@ -298,7 +297,7 @@ impl<'a> Unifier<'a> {
     fn unify_fn_header(&mut self, function: &Function) -> Result<()> {
         let mut has_self_param = false;
         for (idx, p) in function.params.iter().enumerate() {
-            if p.name.kind == TokenKind::SelfParam {
+            if p.name.is_self_param() {
                 if idx != 0 {
                     return self
                         .handler

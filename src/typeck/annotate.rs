@@ -1,6 +1,6 @@
 use crate::{
     err::{Handler, Result},
-    lex::{Token, TokenKind},
+    lex::Token,
     parse::ast,
     symbol::SymbolTable,
 };
@@ -186,7 +186,7 @@ impl<'a> Annotate<'a> {
                     .collect::<Result<Vec<_>>>()?,
             },
             ast::ExprKind::Struct(name, fields) => {
-                let ty = if name.kind == TokenKind::SelfTy {
+                let ty = if name.is_self_ty() {
                     self.env.new_type_var()
                 } else {
                     match self.structs.get(name.symbol) {
