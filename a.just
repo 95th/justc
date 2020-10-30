@@ -1,7 +1,4 @@
-struct A {
-    a: B
-}
-
-struct B {
-    a: B
-}
+struct A{b:B}
+struct B{c:C}
+struct C{d:D}
+struct D{a:A}

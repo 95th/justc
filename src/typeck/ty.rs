@@ -6,8 +6,14 @@ use crate::{
 use ena::unify::{InPlaceUnificationTable, NoError, UnifyKey, UnifyValue};
 use std::{borrow::Cow, collections::BTreeMap, fmt, rc::Rc};
 
-#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct TypeVar(u32);
+
+impl fmt::Debug for TypeVar {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "t{}", self.0)
+    }
+}
 
 impl From<u32> for TypeVar {
     fn from(n: u32) -> Self {
@@ -33,7 +39,7 @@ impl UnifyKey for TypeVar {
 
 pub struct TyContext {
     table: InPlaceUnificationTable<TypeVar>,
-    handler: Rc<Handler>,
+    pub handler: Rc<Handler>,
 }
 
 impl TyContext {
@@ -96,27 +102,27 @@ impl TyContext {
         Ok(())
     }
 
-    pub fn fill_ty(&mut self, ty: &mut Ty, span: Span) -> Result<()> {
+    pub fn fill_ty(&mut self, ty: &mut Ty) -> Result<()> {
         match ty {
             Ty::Infer(v) => {
                 if let Some(found) = self.table.probe_value(*v).known() {
                     if self.occurs(*v, &found) {
-                        return self.handler.mk_err(span, "Recursive type not allowed");
+                        return Err(());
                     }
                     *ty = found;
-                    self.fill_ty(ty, span)?;
+                    self.fill_ty(ty)?;
                 }
                 Ok(())
             }
             Ty::Fn(params, ret) => {
                 for p in params {
-                    self.fill_ty(p, span)?;
+                    self.fill_ty(p)?;
                 }
-                self.fill_ty(ret, span)
+                self.fill_ty(ret)
             }
             Ty::Struct(.., fields) => {
                 for (_, f) in fields {
-                    self.fill_ty(f, span)?;
+                    self.fill_ty(f)?;
                 }
                 Ok(())
             }
@@ -126,7 +132,15 @@ impl TyContext {
 
     fn occurs(&mut self, var: TypeVar, ty: &Ty) -> bool {
         match ty {
-            Ty::Infer(v) => self.table.unioned(*v, var),
+            Ty::Infer(v) => {
+                if self.table.unioned(*v, var) {
+                    return true;
+                }
+                if let Some(t) = self.table.inlined_probe_value(*v).known() {
+                    return self.occurs(var, &t);
+                }
+                false
+            }
             Ty::Fn(params, ret) => {
                 for p in params {
                     if self.occurs(var, p) {
