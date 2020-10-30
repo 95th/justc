@@ -32,7 +32,7 @@ impl Typeck {
         let mut ast = self::annotate::annotate(ast, &mut env, &self.handler)?;
 
         self::unification::unify(&ast, &mut env, &self.handler)?;
-        env.fill(&mut ast);
+        env.fill(&mut ast)?;
 
         dbg!(&ast);
 
@@ -95,20 +95,20 @@ impl Typeck {
                         Ty::Int | Ty::Float => Ok(()),
                         ty => self
                             .handler
-                            .mk_err(op.span, &format!("Not supported for {:?}", ty)),
+                            .mk_err(op.span, &format!("Not supported for {}", ty)),
                     },
 
                     Ne | Eq => match &left.ty {
                         Ty::Int | Ty::Float | Ty::Bool => Ok(()),
                         ty => self
                             .handler
-                            .mk_err(op.span, &format!("Not supported for {:?}", ty)),
+                            .mk_err(op.span, &format!("Not supported for {}", ty)),
                     },
                     And | Or => match &left.ty {
                         Ty::Bool => Ok(()),
                         ty => self
                             .handler
-                            .mk_err(op.span, &format!("Not supported for {:?}", ty)),
+                            .mk_err(op.span, &format!("Not supported for {}", ty)),
                     },
                 }
             }
@@ -118,13 +118,13 @@ impl Typeck {
                     Ty::Bool => Ok(()),
                     ty => self
                         .handler
-                        .mk_err(op.span, &format!("Not supported for {:?}", ty)),
+                        .mk_err(op.span, &format!("Not supported for {}", ty)),
                 },
                 ast::UnOp::Neg => match &expr.ty {
                     Ty::Int | Ty::Float => Ok(()),
                     ty => self
                         .handler
-                        .mk_err(op.span, &format!("Not supported for {:?}", ty)),
+                        .mk_err(op.span, &format!("Not supported for {}", ty)),
                 },
             },
             Variable(_, _) => Ok(()),
@@ -225,7 +225,7 @@ impl Typeck {
         } else {
             self.handler.mk_err(
                 span,
-                &format!("Type mismatch: Expected: {:?}, Actual: {:?}", a, b),
+                &format!("Type mismatch: Expected: {}, Actual: {}", a, b),
             )
         }
     }

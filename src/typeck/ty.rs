@@ -90,32 +90,60 @@ impl TyContext {
             | (Ty::Str, Ty::Str) => {}
             (a, b) => self
                 .handler
-                .mk_err(span, &format!("Expected type {:?}, Actual: {:?}", a, b))?,
+                .mk_err(span, &format!("Expected type {}, Actual: {}", a, b))?,
         }
 
         Ok(())
     }
 
-    pub fn fill_ty(&mut self, ty: &mut Ty) {
+    pub fn fill_ty(&mut self, ty: &mut Ty, span: Span) -> Result<()> {
         match ty {
             Ty::Infer(v) => {
                 if let Some(found) = self.table.probe_value(*v).known() {
+                    if self.occurs(*v, &found) {
+                        return self.handler.mk_err(span, "Recursive type not allowed");
+                    }
                     *ty = found;
-                    self.fill_ty(ty);
+                    self.fill_ty(ty, span)?;
                 }
+                Ok(())
             }
             Ty::Fn(params, ret) => {
                 for p in params {
-                    self.fill_ty(p);
+                    self.fill_ty(p, span)?;
                 }
-                self.fill_ty(ret);
+                self.fill_ty(ret, span)
             }
             Ty::Struct(.., fields) => {
                 for (_, f) in fields {
-                    self.fill_ty(f);
+                    self.fill_ty(f, span)?;
                 }
+                Ok(())
             }
-            _ => {}
+            _ => Ok(()),
+        }
+    }
+
+    fn occurs(&mut self, var: TypeVar, ty: &Ty) -> bool {
+        match ty {
+            Ty::Infer(v) => self.table.unioned(*v, var),
+            Ty::Fn(params, ret) => {
+                for p in params {
+                    if self.occurs(var, p) {
+                        return true;
+                    }
+                }
+                self.occurs(var, ret)
+            }
+            Ty::Struct(.., fields) => {
+                for (_, f) in fields {
+                    if self.occurs(var, f) {
+                        return true;
+                    }
+                }
+                false
+            }
+            _ => false,
         }
     }
 }
@@ -172,6 +200,35 @@ impl UnifyValue for TypeVarValue {
     }
 }
 
+impl fmt::Display for Ty {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Ty::Infer(id) => write!(f, "{{unknown {:?}}}", id.0)?,
+            Ty::Unit => f.write_str("unit")?,
+            Ty::Bool => f.write_str("bool")?,
+            Ty::Int => f.write_str("int")?,
+            Ty::Float => f.write_str("float")?,
+            Ty::Str => f.write_str("str")?,
+            Ty::Fn(params, ret) => {
+                f.write_str("fn(")?;
+                let mut first = true;
+                for p in params {
+                    if first {
+                        first = false;
+                    } else {
+                        f.write_str(", ")?;
+                    }
+                    write!(f, "{}", p)?;
+                }
+                f.write_str(")")?;
+                write!(f, " -> {}", ret)?;
+            }
+            Ty::Struct(_, name, _) => write!(f, "{}", name)?,
+        }
+        Ok(())
+    }
+}
+
 impl fmt::Debug for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -195,7 +252,19 @@ impl fmt::Debug for Ty {
                 f.write_str(")")?;
                 write!(f, " -> {:?}", ret)?;
             }
-            Ty::Struct(_, name, _) => write!(f, "{}", name)?,
+            Ty::Struct(id, name, fields) => {
+                write!(f, "struct {}{} {{ ", name, id)?;
+                let mut first = true;
+                for (name, ty) in fields {
+                    if first {
+                        first = false;
+                    } else {
+                        f.write_str(", ")?;
+                    }
+                    write!(f, "{}: {:?}", name, ty)?;
+                }
+                write!(f, " }}")?;
+            }
         }
         Ok(())
     }

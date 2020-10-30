@@ -160,7 +160,7 @@ impl<'a> Unifier<'a> {
                     ty => {
                         return self.handler.mk_err(
                             callee.span,
-                            &format!("Type error: Expected Function, Actual: {:?}", ty),
+                            &format!("Type error: Expected Function, Actual: {}", ty),
                         );
                     }
                 }
@@ -198,7 +198,7 @@ impl<'a> Unifier<'a> {
                     ty => {
                         return self.handler.mk_err(
                             name.span,
-                            &format!("Expected Struct, found on type {:?}", ty),
+                            &format!("Expected Struct, found on type {}", ty),
                         );
                     }
                 }
@@ -229,7 +229,7 @@ impl<'a> Unifier<'a> {
                     ),
                     ty => self.handler.mk_err(
                         field_name.span,
-                        &format!("Field {} not found on type {:?}", field_name.symbol, ty),
+                        &format!("Field {} not found on type {}", field_name.symbol, ty),
                     ),
                 }
             }
