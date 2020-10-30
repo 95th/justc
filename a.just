@@ -1,13 +1,17 @@
-struct X {a: int}
+struct Int {a: int}
 
-let x = X {a:1};
-x.a = 10;
+impl Int {
+    fn set_value(self, val: int) {
+        self.a = val;
+    }
 
-let f = || X {a:1};
-f().a = 20;
+    fn value(self) -> int {
+        self.a
+    }
 
-fn foo() -> X { X {a:1} }
-foo().a = 30;
-
-(x.a) = X{a:2}.a;
-((x.a)) = X{a:2}.a;
+    fn replace(self, val: Int) -> Int {
+        let tmp = self;
+        self = val;
+        tmp
+    }
+}

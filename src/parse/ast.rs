@@ -79,8 +79,9 @@ pub struct Expr {
 impl Expr {
     pub fn is_assignable(&self) -> bool {
         match &self.kind {
-            ExprKind::Variable(..) | ExprKind::Field(..) => true,
+            ExprKind::Field(..) => true,
             ExprKind::Grouping(e) => e.is_assignable(),
+            ExprKind::Variable(v) => !v.is_self_param(),
             _ => false,
         }
     }
