@@ -591,10 +591,8 @@ impl Parser {
         let mut span = self.prev.span;
         let name = self.prev.clone();
 
-        let kind = if self.check(OpenBrace)
-            && (!self.restrictions.contains(Restrictions::NO_STRUCT_LITERAL)
-                || self.is_certainly_not_a_block())
-        {
+        let struct_allowed = !self.restrictions.contains(Restrictions::NO_STRUCT_LITERAL);
+        let kind = if self.check(OpenBrace) && (struct_allowed || self.is_certainly_not_a_block()) {
             self.consume(OpenBrace, "Expected '{'")?;
             let mut fields = vec![];
 

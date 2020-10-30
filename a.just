@@ -1,3 +1,1 @@
-struct X {}
-
-let a = X {};
+struct X {a: X}
