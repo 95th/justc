@@ -1,1 +1,3 @@
-impl X {}
+struct X {}
+
+let a = X {};
