@@ -1,1 +1,1 @@
-struct X {a: X}
+struct X {}

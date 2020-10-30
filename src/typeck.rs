@@ -56,20 +56,20 @@ impl Typeck {
         match stmt {
             Expr(expr, _) => self.typeck_expr(expr),
             Let { name, ty, init } => {
-                self.typeck_no_var(ty, &name.span)?;
+                self.typeck_no_var(ty, name.span)?;
                 if let Some(init) = init {
                     self.typeck_expr(init)?;
-                    self.typeck_eq(ty, &init.ty, &init.span)?;
+                    self.typeck_eq(ty, &init.ty, init.span)?;
                 }
                 Ok(())
             }
             Assign { name, val } => {
                 self.typeck_expr(val)?;
-                self.typeck_eq(&name.ty, &val.ty, &val.span)
+                self.typeck_eq(&name.ty, &val.ty, val.span)
             }
             While { cond, body } => {
                 self.typeck_expr(cond)?;
-                self.typeck_eq(&Ty::Bool, &cond.ty, &cond.span)?;
+                self.typeck_eq(&Ty::Bool, &cond.ty, cond.span)?;
                 self.typeck_block(body)
             }
             Return(_, e) => {
@@ -87,7 +87,7 @@ impl Typeck {
         use ExprKind::*;
         match &expr.kind {
             Binary { op, left, right } => {
-                self.typeck_eq(&left.ty, &right.ty, &right.span)?;
+                self.typeck_eq(&left.ty, &right.ty, right.span)?;
 
                 use ast::BinOp::*;
                 match op.val {
@@ -143,10 +143,10 @@ impl Typeck {
             }
             Closure { params, ret, body } => {
                 for p in params {
-                    self.typeck_no_var(&p.param_ty.ty, &p.name.span)?;
+                    self.typeck_no_var(&p.param_ty.ty, p.name.span)?;
                 }
                 self.typeck_expr(body)?;
-                self.typeck_eq(ret, &body.ty, &body.span)
+                self.typeck_eq(ret, &body.ty, body.span)
             }
             Call { callee, args } => {
                 self.typeck_expr(callee)?;
@@ -175,7 +175,7 @@ impl Typeck {
         self.typeck_stmts(&block.stmts)?;
 
         if let Some(Stmt::Expr(expr, false)) = block.stmts.last() {
-            self.typeck_eq(&expr.ty, &block.ty, &expr.span)?;
+            self.typeck_eq(&expr.ty, &block.ty, expr.span)?;
         }
 
         Ok(())
@@ -190,16 +190,16 @@ impl Typeck {
 
     fn typeck_struct(&self, s: &Struct) -> Result<()> {
         for f in &s.fields {
-            self.typeck_no_var(&f.ty, &f.name.span)?;
+            self.typeck_no_var(&f.ty, f.name.span)?;
         }
-        self.typeck_no_var(&s.ty, &s.name.span)?;
+        self.typeck_no_var(&s.ty, s.name.span)?;
         Ok(())
     }
 
     fn typeck_impls(&self, impls: &[Impl]) -> Result<()> {
         for item in impls {
             self.typeck_fns(&item.functions)?;
-            self.typeck_no_var(&item.ty, &item.name.span)?;
+            self.typeck_no_var(&item.ty, item.name.span)?;
         }
         Ok(())
     }
@@ -212,11 +212,11 @@ impl Typeck {
     }
 
     fn typeck_fn(&self, func: &Function) -> Result<()> {
-        self.typeck_eq(&func.ret.ty, &func.body.ty, &func.body.span)?;
+        self.typeck_eq(&func.ret.ty, &func.body.ty, func.body.span)?;
         self.typeck_block(&func.body)
     }
 
-    fn typeck_eq(&self, a: &Ty, b: &Ty, span: &Span) -> Result<()> {
+    fn typeck_eq(&self, a: &Ty, b: &Ty, span: Span) -> Result<()> {
         self.typeck_no_var(a, span)?;
         self.typeck_no_var(b, span)?;
 
@@ -224,18 +224,17 @@ impl Typeck {
             Ok(())
         } else {
             self.handler.mk_err(
-                *span,
+                span,
                 &format!("Type mismatch: Expected: {:?}, Actual: {:?}", a, b),
             )
         }
     }
 
-    fn typeck_no_var(&self, ty: &Ty, span: &Span) -> Result<()> {
+    fn typeck_no_var(&self, ty: &Ty, span: Span) -> Result<()> {
         match ty {
-            Ty::Infer(_) => self.handler.mk_err(
-                *span,
-                "Type cannot be inferred. Please add type annotations",
-            ),
+            Ty::Infer(_) => self
+                .handler
+                .mk_err(span, "Type cannot be inferred. Please add type annotations"),
             Ty::Unit | Ty::Bool | Ty::Int | Ty::Float | Ty::Str => Ok(()),
             Ty::Fn(params, ret) => {
                 for p in params {
