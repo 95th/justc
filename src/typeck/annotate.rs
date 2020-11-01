@@ -204,6 +204,14 @@ impl<'a> Annotate<'a> {
             ast::ExprKind::Field(expr, name) => {
                 hir::ExprKind::Field(self.annotate_expr(expr)?, name)
             }
+            ast::ExprKind::MethodCall { callee, name, args } => hir::ExprKind::MethodCall {
+                callee: self.annotate_expr(callee)?,
+                name,
+                args: args
+                    .into_iter()
+                    .map(|arg| self.annotate_expr(arg))
+                    .collect::<Result<Vec<_>>>()?,
+            },
         };
         Ok(Box::new(hir::Expr { kind, span, ty }))
     }
@@ -343,7 +351,11 @@ impl<'a> Annotate<'a> {
         })
     }
 
-    fn annotate_impls(&mut self, mut impls: Vec<ast::Impl>, structs: &mut [hir::Struct]) -> Result<()> {
+    fn annotate_impls(
+        &mut self,
+        mut impls: Vec<ast::Impl>,
+        structs: &mut [hir::Struct],
+    ) -> Result<()> {
         let mut map = HashMap::new();
         for i in &mut impls {
             map.entry(i.name.symbol)

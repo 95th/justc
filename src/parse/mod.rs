@@ -284,7 +284,9 @@ impl Parser {
                 self.consume(SemiColon, "Expected ';' after assignment.")?;
                 return Ok(Stmt::Assign { name: expr, val });
             } else {
-                return self.handler.mk_err(expr.span, "Cannot assign to this expression");
+                return self
+                    .handler
+                    .mk_err(expr.span, "Cannot assign to this expression");
             }
         }
         Ok(Stmt::Expr(expr, self.eat(SemiColon)))
@@ -481,7 +483,19 @@ impl Parser {
 
         loop {
             if self.eat(OpenParen) {
-                expr = self.finish_call(expr)?;
+                let args = self.finish_call()?;
+                let span = expr.span.to(self.prev.span);
+                if let ExprKind::Field(callee, name) = expr.kind {
+                    expr = Box::new(Expr {
+                        kind: ExprKind::MethodCall { callee, name, args },
+                        span,
+                    });
+                } else {
+                    expr = Box::new(Expr {
+                        kind: ExprKind::Call { callee: expr, args },
+                        span,
+                    });
+                }
             } else if self.eat(Dot) {
                 let name = self.consume(Ident, "Expected field or method name")?;
                 let span = expr.span.to(name.span);
@@ -497,7 +511,7 @@ impl Parser {
         Ok(expr)
     }
 
-    fn finish_call(&mut self, callee: Box<Expr>) -> Result<Box<Expr>> {
+    fn finish_call(&mut self) -> Result<Vec<Box<Expr>>> {
         let mut args = vec![];
         while !self.check(CloseParen) && !self.eof() {
             let arg = self.expr()?;
@@ -509,11 +523,7 @@ impl Parser {
         }
 
         self.consume(CloseParen, "Expected ')' after arguments")?;
-        let span = callee.span.to(self.prev.span);
-        Ok(Box::new(Expr {
-            kind: ExprKind::Call { callee, args },
-            span,
-        }))
+        Ok(args)
     }
 
     fn primary(&mut self) -> Result<Box<Expr>> {

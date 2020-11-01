@@ -141,28 +141,8 @@ impl<'a> Unifier<'a> {
             }),
             ExprKind::Call { callee, args } => {
                 self.unify_expr(callee)?;
-
                 let ty = self.env.resolve_ty(&callee.ty);
-                match &*ty {
-                    Ty::Fn(params, ret) => {
-                        for (param, arg) in params.iter().zip(args) {
-                            self.env.unify(param, &arg.ty, arg.span)?;
-                        }
-                        self.env.unify(ret, &expr.ty, expr.span)?;
-                    }
-                    Ty::Infer(_) => {
-                        return self.handler.mk_err(
-                            callee.span,
-                            "Type cannot be inferred. Please add type annotations",
-                        );
-                    }
-                    ty => {
-                        return self.handler.mk_err(
-                            callee.span,
-                            &format!("Type error: Expected Function, Actual: {}", ty),
-                        );
-                    }
-                }
+                self.unify_fn_call(expr, callee, args, &*ty)?;
                 for arg in args {
                     self.unify_expr(arg)?;
                 }
@@ -230,6 +210,52 @@ impl<'a> Unifier<'a> {
                         &format!("Field {} not found on type {}", field_name.symbol, ty),
                     ),
                 }
+            }
+            ExprKind::MethodCall {
+                callee,
+                name: method_name,
+                args,
+            } => {
+                self.unify_expr(callee)?;
+                let ty = self.env.resolve_ty(&callee.ty);
+                match &*ty {
+                    Ty::Struct(_, name, fields, methods) => {
+                        let method_ty = if let Some(m) = methods.get(&method_name.symbol) {
+                            m
+                        } else if let Some(f) = fields.get(&method_name.symbol) {
+                            f
+                        } else {
+                            return self.handler.mk_err(
+                                method_name.span,
+                                &format!(
+                                    "Method or Field `{}` not found on type `{}`",
+                                    method_name.symbol, name
+                                ),
+                            );
+                        };
+
+                        let method_ty = self.env.resolve_ty(method_ty);
+                        self.unify_fn_call(expr, callee, args, &*method_ty)?;
+                    }
+                    Ty::Infer(_) => {
+                        return self.handler.mk_err(
+                            method_name.span,
+                            "Type cannot be inferred. Please add type annotations",
+                        );
+                    }
+                    ty => {
+                        return self.handler.mk_err(
+                            method_name.span,
+                            &format!("Field {} not found on type {}", method_name.symbol, ty),
+                        );
+                    }
+                }
+
+                for arg in args {
+                    self.unify_expr(arg)?;
+                }
+
+                Ok(())
             }
         }
     }
@@ -357,6 +383,36 @@ impl<'a> Unifier<'a> {
         self.unify_block(&function.body)?;
         self.env
             .unify(&function.ret.ty, &function.body.ty, function.body.span)?;
+        Ok(())
+    }
+
+    fn unify_fn_call(
+        &mut self,
+        expr: &Expr,
+        callee: &Expr,
+        args: &[Box<Expr>],
+        fn_ty: &Ty,
+    ) -> Result<()> {
+        match fn_ty {
+            Ty::Fn(params, ret) => {
+                for (param, arg) in params.iter().zip(args) {
+                    self.env.unify(param, &arg.ty, arg.span)?;
+                }
+                self.env.unify(ret, &expr.ty, expr.span)?;
+            }
+            Ty::Infer(_) => {
+                return self.handler.mk_err(
+                    callee.span,
+                    "Type cannot be inferred. Please add type annotations",
+                );
+            }
+            ty => {
+                return self.handler.mk_err(
+                    callee.span,
+                    &format!("Type error: Expected Function, Actual: {}", ty),
+                );
+            }
+        }
         Ok(())
     }
 

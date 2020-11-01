@@ -165,6 +165,13 @@ impl Typeck {
                 self.typeck_expr(expr)?;
                 Ok(())
             }
+            MethodCall { callee, args, .. } => {
+                self.typeck_expr(callee)?;
+                for arg in args {
+                    self.typeck_expr(arg)?;
+                }
+                Ok(())
+            }
         }
     }
 

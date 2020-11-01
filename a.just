@@ -1,10 +1,20 @@
-struct A { b: int }
+struct A {
+    n: int,
+}
 
 impl A {
-    fn value(self) -> int {
-        self.b
+    fn f(self) -> int {
+        self.n
     }
 }
 
-let a = A { b: 1 };
-let b = 1 + a.value();
+struct B {
+    a: A
+}
+
+struct C {
+    b: B
+}
+
+let c = C { b: B { a: A { n: 10 } } };
+let x = c.b.a.f() + 1.0;

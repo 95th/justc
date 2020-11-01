@@ -118,6 +118,11 @@ pub enum ExprKind {
     },
     Struct(Token, Vec<Field>),
     Field(Box<Expr>, Token),
+    MethodCall {
+        callee: Box<Expr>,
+        name: Token,
+        args: Vec<Box<Expr>>,
+    },
 }
 
 #[derive(Debug, PartialEq)]

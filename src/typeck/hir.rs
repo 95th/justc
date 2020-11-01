@@ -62,6 +62,11 @@ pub enum ExprKind {
     },
     Struct(Token, Vec<Field>, Ty),
     Field(Box<Expr>, Token),
+    MethodCall {
+        callee: Box<Expr>,
+        name: Token,
+        args: Vec<Box<Expr>>,
+    },
 }
 
 #[derive(Debug)]
@@ -122,4 +127,3 @@ pub struct Ast {
     pub functions: Vec<Function>,
     pub stmts: Vec<Stmt>,
 }
-
