@@ -1,20 +1,6 @@
-struct A {
-    n: int,
-}
-
-impl A {
-    fn f(self) -> int {
-        self.n
-    }
-}
-
-struct B {
-    a: A
-}
-
-struct C {
-    b: B
-}
-
-let c = C { b: B { a: A { n: 10 } } };
-let x = c.b.a.f() + 1.0;
+struct A {x:int}
+struct B {x:A}
+struct C {x:B}
+struct D {x:C}
+struct E {x:D}
+struct F {x:E}

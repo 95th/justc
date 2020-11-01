@@ -40,6 +40,7 @@ impl UnifyKey for TypeVar {
 pub struct TyContext {
     table: InPlaceUnificationTable<TypeVar>,
     pub handler: Rc<Handler>,
+    var_stack: Vec<TypeVar>,
 }
 
 impl TyContext {
@@ -47,6 +48,7 @@ impl TyContext {
         Self {
             table: InPlaceUnificationTable::new(),
             handler: handler.clone(),
+            var_stack: Vec::new(),
         }
     }
 
@@ -103,82 +105,47 @@ impl TyContext {
     }
 
     pub fn fill_ty(&mut self, ty: &mut Ty) -> Result<()> {
-        self.fill_ty_inner(ty)
+        self.var_stack.clear();
+        let var = if let Ty::Infer(v) = ty {
+            Some(*v)
+        } else {
+            None
+        };
+        self.fill_ty_inner(ty, var)
     }
 
-    fn fill_ty_inner(&mut self, ty: &mut Ty) -> Result<()> {
+    fn fill_ty_inner(&mut self, ty: &mut Ty, var: Option<TypeVar>) -> Result<()> {
         match ty {
             Ty::Infer(v) => {
+                if self.var_stack.contains(v) {
+                    return if var == Some(*v) { Err(()) } else { Ok(()) };
+                }
+
                 if let Some(found) = self.table.probe_value(*v).known() {
-                    match self.occurs(*v, &found, 0) {
-                        Occurs::Yes => return Err(()),
-                        Occurs::Indirectly => return Ok(()),
-                        Occurs::No => {}
-                    }
+                    self.var_stack.push(*v);
                     *ty = found;
-                    self.fill_ty_inner(ty)?;
+                    self.fill_ty_inner(ty, var)?;
+                    self.var_stack.pop();
                 }
-                Ok(())
             }
             Ty::Fn(params, ret) => {
                 for p in params {
-                    self.fill_ty_inner(p)?;
+                    self.fill_ty_inner(p, var)?;
                 }
-                self.fill_ty_inner(ret)
+                self.fill_ty_inner(ret, var)?;
             }
-            Ty::Struct(.., fields) => {
-                for (_, f) in fields {
-                    self.fill_ty_inner(f)?;
+            Ty::Struct(_, _, fields, methods) => {
+                for f in fields.values_mut() {
+                    self.fill_ty_inner(f, var)?;
                 }
-                Ok(())
+                for f in methods.values_mut() {
+                    self.fill_ty_inner(f, var)?;
+                }
             }
-            _ => Ok(()),
+            _ => {}
         }
+        Ok(())
     }
-
-    fn occurs(&mut self, var: TypeVar, ty: &Ty, mut depth: u32) -> Occurs {
-        depth += 1;
-        if depth > 1000 {
-            return Occurs::Indirectly;
-        }
-        match ty {
-            Ty::Infer(v) => {
-                if self.table.unioned(*v, var) {
-                    return Occurs::Yes;
-                }
-                if let Some(t) = self.table.inlined_probe_value(*v).known() {
-                    return self.occurs(var, &t, depth);
-                }
-                Occurs::No
-            }
-            Ty::Fn(params, ret) => {
-                for p in params {
-                    let occurs = self.occurs(var, p, depth);
-                    if occurs != Occurs::No {
-                        return occurs;
-                    }
-                }
-                self.occurs(var, ret, depth)
-            }
-            Ty::Struct(.., fields) => {
-                for (_, f) in fields {
-                    let occurs = self.occurs(var, f, depth);
-                    if occurs != Occurs::No {
-                        return occurs;
-                    }
-                }
-                Occurs::No
-            }
-            _ => Occurs::No,
-        }
-    }
-}
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-enum Occurs {
-    Yes,
-    Indirectly,
-    No,
 }
 
 #[derive(Clone, PartialEq)]
