@@ -103,26 +103,32 @@ impl TyContext {
     }
 
     pub fn fill_ty(&mut self, ty: &mut Ty) -> Result<()> {
+        self.fill_ty_inner(ty)
+    }
+
+    fn fill_ty_inner(&mut self, ty: &mut Ty) -> Result<()> {
         match ty {
             Ty::Infer(v) => {
                 if let Some(found) = self.table.probe_value(*v).known() {
-                    if self.occurs(*v, &found) {
-                        return Err(());
+                    match self.occurs(*v, &found, 0) {
+                        Occurs::Yes => return Err(()),
+                        Occurs::Indirectly => return Ok(()),
+                        Occurs::No => {}
                     }
                     *ty = found;
-                    self.fill_ty(ty)?;
+                    self.fill_ty_inner(ty)?;
                 }
                 Ok(())
             }
             Ty::Fn(params, ret) => {
                 for p in params {
-                    self.fill_ty(p)?;
+                    self.fill_ty_inner(p)?;
                 }
-                self.fill_ty(ret)
+                self.fill_ty_inner(ret)
             }
             Ty::Struct(.., fields) => {
                 for (_, f) in fields {
-                    self.fill_ty(f)?;
+                    self.fill_ty_inner(f)?;
                 }
                 Ok(())
             }
@@ -130,36 +136,49 @@ impl TyContext {
         }
     }
 
-    fn occurs(&mut self, var: TypeVar, ty: &Ty) -> bool {
+    fn occurs(&mut self, var: TypeVar, ty: &Ty, mut depth: u32) -> Occurs {
+        depth += 1;
+        if depth > 1000 {
+            return Occurs::Indirectly;
+        }
         match ty {
             Ty::Infer(v) => {
                 if self.table.unioned(*v, var) {
-                    return true;
+                    return Occurs::Yes;
                 }
                 if let Some(t) = self.table.inlined_probe_value(*v).known() {
-                    return self.occurs(var, &t);
+                    return self.occurs(var, &t, depth);
                 }
-                false
+                Occurs::No
             }
             Ty::Fn(params, ret) => {
                 for p in params {
-                    if self.occurs(var, p) {
-                        return true;
+                    let occurs = self.occurs(var, p, depth);
+                    if occurs != Occurs::No {
+                        return occurs;
                     }
                 }
-                self.occurs(var, ret)
+                self.occurs(var, ret, depth)
             }
             Ty::Struct(.., fields) => {
                 for (_, f) in fields {
-                    if self.occurs(var, f) {
-                        return true;
+                    let occurs = self.occurs(var, f, depth);
+                    if occurs != Occurs::No {
+                        return occurs;
                     }
                 }
-                false
+                Occurs::No
             }
-            _ => false,
+            _ => Occurs::No,
         }
     }
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+enum Occurs {
+    Yes,
+    Indirectly,
+    No,
 }
 
 #[derive(Clone, PartialEq)]

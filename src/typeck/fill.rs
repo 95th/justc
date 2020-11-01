@@ -10,12 +10,14 @@ impl TyContext {
     }
 
     fn fill_structs(&mut self, structs: &mut [Struct]) -> Result<()> {
-        for s in structs {
+        for s in structs.iter_mut() {
             if self.fill_ty(&mut s.ty).is_err() {
                 return self
                     .handler
                     .mk_err(s.name.span, "Recursive type not allowed");
             }
+        }
+        for s in structs.iter_mut() {
             for f in &mut s.fields {
                 self.fill_ty(&mut f.ty)?;
             }
