@@ -79,7 +79,7 @@ impl TyContext {
                 }
                 self.unify(ret, ret2, span)?;
             }
-            (Ty::Struct(id, name, fields), Ty::Struct(id2, name2, fields2)) => {
+            (Ty::Struct(id, name, fields, _), Ty::Struct(id2, name2, fields2, _)) => {
                 if id != id2 {
                     return self
                         .handler
@@ -190,7 +190,7 @@ pub enum Ty {
     Float,
     Str,
     Fn(Vec<Ty>, Box<Ty>),
-    Struct(u32, Symbol, BTreeMap<Symbol, Ty>),
+    Struct(u32, Symbol, BTreeMap<Symbol, Ty>, BTreeMap<Symbol, Ty>),
 }
 
 impl Ty {
@@ -256,7 +256,7 @@ impl fmt::Display for Ty {
                 f.write_str(")")?;
                 write!(f, " -> {}", ret)?;
             }
-            Ty::Struct(_, name, _) => write!(f, "{}", name)?,
+            Ty::Struct(_, name, _, _) => write!(f, "{}", name)?,
         }
         Ok(())
     }
@@ -285,7 +285,7 @@ impl fmt::Debug for Ty {
                 f.write_str(")")?;
                 write!(f, " -> {:?}", ret)?;
             }
-            Ty::Struct(id, name, fields) => {
+            Ty::Struct(id, name, fields, _) => {
                 write!(f, "struct {}{} {{ ", name, id)?;
                 let mut first = true;
                 for (name, ty) in fields {

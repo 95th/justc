@@ -4,7 +4,7 @@ use crate::{
 };
 
 use super::{
-    hir::{Ast, Block, Expr, ExprKind, Function, Impl, Stmt, Struct},
+    hir::{Ast, Block, Expr, ExprKind, Function, Stmt, Struct},
     ty::{Ty, TyContext},
 };
 
@@ -18,7 +18,6 @@ struct Unifier<'a> {
 pub fn unify(ast: &Ast, env: &mut TyContext, handler: &Handler) -> Result<()> {
     let mut unifier = Unifier::new(env, handler);
     unifier.unify_structs(&ast.structs)?;
-    unifier.unify_impls(&ast.impls)?;
     unifier.unify_fns(&ast.functions)?;
     unifier.unify_stmts(&ast.stmts)
 }
@@ -176,7 +175,7 @@ impl<'a> Unifier<'a> {
                 }
                 let ty = self.env.resolve_ty(ty);
                 match &*ty {
-                    Ty::Struct(.., fields2) => {
+                    Ty::Struct(_, _, fields2, _) => {
                         if fields.len() != fields2.len() {
                             return self.handler.mk_err(expr.span, "Number of fields mismatch");
                         }
@@ -196,10 +195,9 @@ impl<'a> Unifier<'a> {
                             .mk_err(name.span, "Type not found in this scope");
                     }
                     ty => {
-                        return self.handler.mk_err(
-                            name.span,
-                            &format!("Expected Struct, found on type {}", ty),
-                        );
+                        return self
+                            .handler
+                            .mk_err(name.span, &format!("Expected Struct, found on type {}", ty));
                     }
                 }
 
@@ -213,7 +211,7 @@ impl<'a> Unifier<'a> {
                 self.unify_expr(e)?;
                 let ty = self.env.resolve_ty(&e.ty);
                 match &*ty {
-                    Ty::Struct(.., name, fields) => {
+                    Ty::Struct(_, name, fields, _) => {
                         if let Some(f) = fields.get(&field_name.symbol) {
                             self.env.unify(&expr.ty, f, field_name.span)
                         } else {
@@ -238,7 +236,6 @@ impl<'a> Unifier<'a> {
 
     fn unify_block(&mut self, block: &Block) -> Result<()> {
         self.unify_structs(&block.structs)?;
-        self.unify_impls(&block.impls)?;
         self.unify_fns(&block.functions)?;
 
         for stmt in &block.stmts {
@@ -269,18 +266,25 @@ impl<'a> Unifier<'a> {
     }
 
     fn unify_struct(&mut self, s: &Struct) -> Result<()> {
+        let fields = s
+            .fields
+            .iter()
+            .map(|f| (f.name.symbol, f.ty.clone()))
+            .collect();
+
+        let methods = s
+            .methods
+            .iter()
+            .map(|m| (m.name.symbol, m.ty.clone()))
+            .collect();
+
         self.env.unify(
-            &Ty::Struct(
-                s.id,
-                s.name.symbol,
-                s.fields
-                    .iter()
-                    .map(|f| (f.name.symbol, f.ty.clone()))
-                    .collect(),
-            ),
+            &Ty::Struct(s.id, s.name.symbol, fields, methods),
             &s.ty,
             s.name.span,
-        )
+        )?;
+
+        self.enter_self_scope(s.ty.clone(), |this| this.unify_fns(&s.methods))
     }
 
     fn unify_fns(&mut self, items: &[Function]) -> Result<()> {
@@ -354,17 +358,6 @@ impl<'a> Unifier<'a> {
         self.env
             .unify(&function.ret.ty, &function.body.ty, function.body.span)?;
         Ok(())
-    }
-
-    fn unify_impls(&mut self, impls: &[Impl]) -> Result<()> {
-        for item in impls {
-            self.unify_impl(item)?;
-        }
-        Ok(())
-    }
-
-    fn unify_impl(&mut self, item: &Impl) -> Result<()> {
-        self.enter_self_scope(item.ty.clone(), |this| this.unify_fns(&item.functions))
     }
 
     fn enter_fn_scope<F, R>(&mut self, ty: Ty, f: F) -> R

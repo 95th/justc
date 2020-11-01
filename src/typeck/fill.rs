@@ -4,7 +4,6 @@ use crate::err::Result;
 impl TyContext {
     pub fn fill(&mut self, ast: &mut Ast) -> Result<()> {
         self.fill_structs(&mut ast.structs)?;
-        self.fill_impls(&mut ast.impls)?;
         self.fill_fns(&mut ast.functions)?;
         self.fill_stmts(&mut ast.stmts)
     }
@@ -17,19 +16,17 @@ impl TyContext {
                     .mk_err(s.name.span, "Recursive type not allowed");
             }
         }
+
         for s in structs.iter_mut() {
             for f in &mut s.fields {
                 self.fill_ty(&mut f.ty)?;
             }
         }
-        Ok(())
-    }
 
-    fn fill_impls(&mut self, impls: &mut [Impl]) -> Result<()> {
-        for i in impls {
-            self.fill_ty(&mut i.ty)?;
-            self.fill_fns(&mut i.functions)?;
+        for s in structs.iter_mut() {
+            self.fill_fns(&mut s.methods)?;
         }
+
         Ok(())
     }
 
@@ -134,7 +131,6 @@ impl TyContext {
     fn fill_block(&mut self, block: &mut Block) -> Result<()> {
         self.fill_ty(&mut block.ty)?;
         self.fill_structs(&mut block.structs)?;
-        self.fill_impls(&mut block.impls)?;
         self.fill_fns(&mut block.functions)?;
         self.fill_stmts(&mut block.stmts)
     }

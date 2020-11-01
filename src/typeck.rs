@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use self::{
-    hir::{Ast, Block, Expr, ExprKind, Function, Impl, Stmt, Struct},
+    hir::{Ast, Block, Expr, ExprKind, Function, Stmt, Struct},
     ty::{Ty, TyContext},
 };
 use crate::{
@@ -37,7 +37,6 @@ impl Typeck {
         dbg!(&ast);
 
         self.typeck_structs(&ast.structs)?;
-        self.typeck_impls(&ast.impls)?;
         self.typeck_fns(&ast.functions)?;
         self.typeck_stmts(&ast.stmts)?;
 
@@ -192,15 +191,8 @@ impl Typeck {
         for f in &s.fields {
             self.typeck_no_var(&f.ty, f.name.span)?;
         }
+        self.typeck_fns(&s.methods)?;
         self.typeck_no_var(&s.ty, s.name.span)?;
-        Ok(())
-    }
-
-    fn typeck_impls(&self, impls: &[Impl]) -> Result<()> {
-        for item in impls {
-            self.typeck_fns(&item.functions)?;
-            self.typeck_no_var(&item.ty, item.name.span)?;
-        }
         Ok(())
     }
 

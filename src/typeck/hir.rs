@@ -75,7 +75,6 @@ pub struct Block {
     pub structs: Vec<Struct>,
     pub functions: Vec<Function>,
     pub stmts: Vec<Stmt>,
-    pub impls: Vec<Impl>,
     pub ty: Ty,
     pub span: Span,
 }
@@ -106,6 +105,7 @@ pub struct SpannedTy {
 pub struct Struct {
     pub name: Token,
     pub fields: Vec<StructField>,
+    pub methods: Vec<Function>,
     pub ty: Ty,
     pub id: u32,
 }
@@ -121,12 +121,5 @@ pub struct Ast {
     pub structs: Vec<Struct>,
     pub functions: Vec<Function>,
     pub stmts: Vec<Stmt>,
-    pub impls: Vec<Impl>,
 }
 
-#[derive(Debug)]
-pub struct Impl {
-    pub name: Token,
-    pub functions: Vec<Function>,
-    pub ty: Ty,
-}
