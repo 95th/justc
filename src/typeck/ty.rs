@@ -189,8 +189,13 @@ pub enum Ty {
     Int,
     Float,
     Str,
-    Fn(Vec<Ty>, Box<Ty>),
-    Struct(u32, Symbol, BTreeMap<Symbol, Ty>, BTreeMap<Symbol, Ty>),
+    Fn(/* params: */ Vec<Ty>, /* return_ty: */ Box<Ty>),
+    Struct(
+        /* id: */ u32,
+        /* name: */ Symbol,
+        /* fields: */ BTreeMap<Symbol, Ty>,
+        /* methods: */ BTreeMap<Symbol, Ty>,
+    ),
 }
 
 impl Ty {
