@@ -4,9 +4,14 @@ use crate::{
     symbol::Symbol,
 };
 use ena::unify::{InPlaceUnificationTable, NoError, UnifyKey, UnifyValue};
-use std::{borrow::Cow, collections::BTreeMap, fmt, rc::Rc};
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, HashMap},
+    fmt,
+    rc::Rc,
+};
 
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+#[derive(Default, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct TypeVar(u32);
 
 impl fmt::Debug for TypeVar {
@@ -42,6 +47,7 @@ pub struct TyContext {
     table: InPlaceUnificationTable<TypeVar>,
     pub handler: Rc<Handler>,
     var_stack: Vec<TypeVar>,
+    methods: HashMap<TypeVar, HashMap<Symbol, Ty>>,
 }
 
 impl TyContext {
@@ -50,11 +56,23 @@ impl TyContext {
             table: InPlaceUnificationTable::new(),
             handler: handler.clone(),
             var_stack: Vec::new(),
+            methods: HashMap::new(),
         }
     }
 
     pub fn new_type_var(&mut self) -> Ty {
         Ty::Infer(self.table.new_key(TypeVarValue::Unknown))
+    }
+
+    pub fn get_method(&self, id: TypeVar, name: Symbol) -> Option<&Ty> {
+        self.methods.get(&id).and_then(|methods| methods.get(&name))
+    }
+
+    pub fn add_method(&mut self, id: TypeVar, name: Symbol, ty: Ty) {
+        self.methods
+            .entry(id)
+            .or_insert_with(HashMap::new)
+            .insert(name, ty);
     }
 
     pub fn resolve_ty<'a>(&mut self, ty: &'a Ty) -> Cow<'a, Ty> {
@@ -83,7 +101,7 @@ impl TyContext {
                 }
                 self.unify(ret, ret2, span)?;
             }
-            (Ty::Struct(id, name, fields, _), Ty::Struct(id2, name2, fields2, _)) => {
+            (Ty::Struct(id, name, fields), Ty::Struct(id2, name2, fields2)) => {
                 if id != id2 {
                     return self
                         .handler
@@ -114,6 +132,15 @@ impl TyContext {
         self.fill_ty_inner(ty, var)
     }
 
+    pub fn fill_methods(&mut self) -> Result<()> {
+        let mut methods = std::mem::take(&mut self.methods);
+        for method in methods.values_mut().flat_map(|map| map.values_mut()) {
+            self.fill_ty(method)?;
+        }
+        self.methods = methods;
+        Ok(())
+    }
+
     fn fill_ty_inner(&mut self, ty: &mut Ty, var: Option<TypeVar>) -> Result<()> {
         match ty {
             Ty::Infer(v) => {
@@ -137,16 +164,10 @@ impl TyContext {
                 }
                 self.fill_ty_inner(ret, var)?;
             }
-            Ty::Struct(_, _, fields, methods) => {
+            Ty::Struct(_, _, fields) => {
                 log::trace!("fill fields");
                 for f in fields.values_mut() {
                     self.fill_ty_inner(f, var)?;
-                }
-
-                log::trace!("fill methods");
-                for f in methods.values_mut() {
-                    log::trace!("fill method: {:?}", f);
-                    let _ = self.fill_ty_inner(f, var);
                 }
             }
             _ => {}
@@ -165,10 +186,9 @@ pub enum Ty {
     Str,
     Fn(/* params: */ Vec<Ty>, /* return_ty: */ Box<Ty>),
     Struct(
-        /* id: */ u32,
+        /* id: */ TypeVar,
         /* name: */ Symbol,
         /* fields: */ BTreeMap<Symbol, Ty>,
-        /* methods: */ BTreeMap<Symbol, Ty>,
     ),
 }
 
@@ -178,9 +198,6 @@ impl Ty {
             Ty::Infer(id) => Some(*id),
             _ => None,
         }
-    }
-    pub fn type_var_id(&self) -> Option<u32> {
-        self.type_var().map(|v| v.0)
     }
 }
 
@@ -238,7 +255,7 @@ impl fmt::Display for Ty {
                 f.write_str(")")?;
                 write!(f, " -> {}", ret)?;
             }
-            Ty::Struct(_, name, _, _) => write!(f, "{}", name)?,
+            Ty::Struct(_, name, _) => write!(f, "{}", name)?,
         }
         Ok(())
     }
@@ -267,8 +284,8 @@ impl fmt::Debug for Ty {
                 f.write_str(")")?;
                 write!(f, " -> {:?}", ret)?;
             }
-            Ty::Struct(id, name, fields, _) => {
-                write!(f, "struct {}{} {{ ", name, id)?;
+            Ty::Struct(id, name, fields) => {
+                write!(f, "struct {}{} {{ ", name, id.0)?;
                 let mut first = true;
                 for (name, ty) in fields {
                     if first {

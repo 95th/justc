@@ -411,7 +411,7 @@ impl<'a> Annotate<'a> {
         Ok(hir::Struct {
             name: s.name,
             fields,
-            id: ty.type_var_id().unwrap_or_default(),
+            id: ty.type_var().unwrap_or_default(),
             ty,
             methods: vec![],
         })

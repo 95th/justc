@@ -4,6 +4,7 @@ use crate::err::Result;
 impl TyContext {
     pub fn fill(&mut self, ast: &mut Ast) -> Result<()> {
         self.fill_structs(&mut ast.structs)?;
+        self.fill_methods()?;
         self.fill_fns(&mut ast.functions)?;
         self.fill_stmts(&mut ast.stmts)?;
         Ok(())

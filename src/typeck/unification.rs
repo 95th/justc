@@ -156,7 +156,7 @@ impl<'a> Unifier<'a> {
                 }
                 let ty = self.env.resolve_ty(ty);
                 match &*ty {
-                    Ty::Struct(_, _, fields2, _) => {
+                    Ty::Struct(_, _, fields2) => {
                         if fields.len() != fields2.len() {
                             return self.handler.mk_err(expr.span, "Number of fields mismatch");
                         }
@@ -192,7 +192,7 @@ impl<'a> Unifier<'a> {
                 self.unify_expr(e)?;
                 let ty = self.env.resolve_ty(&e.ty);
                 match &*ty {
-                    Ty::Struct(_, name, fields, _) => {
+                    Ty::Struct(_, name, fields) => {
                         if let Some(f) = fields.get(&field_name.symbol) {
                             self.env.unify(&expr.ty, f, field_name.span)
                         } else {
@@ -222,22 +222,23 @@ impl<'a> Unifier<'a> {
                 }
                 let resolved_ty = self.env.resolve_ty(&ty.ty);
                 match &*resolved_ty {
-                    Ty::Struct(_, name, fields, methods) => {
-                        let method_ty = if let Some(m) = methods.get(&method_name.symbol) {
-                            m
-                        } else if let Some(f) = fields.get(&method_name.symbol) {
-                            f
-                        } else {
-                            return self.handler.mk_err(
-                                method_name.span,
-                                &format!(
-                                    "Method or Field `{}` not found on type `{}`",
-                                    method_name.symbol, name
-                                ),
-                            );
-                        };
+                    Ty::Struct(id, name, fields) => {
+                        let method_ty =
+                            if let Some(m) = self.env.get_method(*id, method_name.symbol) {
+                                m.clone()
+                            } else if let Some(f) = fields.get(&method_name.symbol) {
+                                f.clone()
+                            } else {
+                                return self.handler.mk_err(
+                                    method_name.span,
+                                    &format!(
+                                        "Method or Field `{}` not found on type `{}`",
+                                        method_name.symbol, name
+                                    ),
+                                );
+                            };
 
-                        let method_ty = self.env.resolve_ty(method_ty);
+                        let method_ty = self.env.resolve_ty(&method_ty);
                         self.unify_fn_call(expr, args, &*method_ty, ty.span)?;
                     }
                     Ty::Infer(_) => {
@@ -301,17 +302,12 @@ impl<'a> Unifier<'a> {
             .map(|f| (f.name.symbol, f.ty.clone()))
             .collect();
 
-        let methods = s
-            .methods
-            .iter()
-            .map(|m| (m.name.symbol, m.ty.clone()))
-            .collect();
+        for m in &s.methods {
+            self.env.add_method(s.id, m.name.symbol, m.ty.clone());
+        }
 
-        self.env.unify(
-            &Ty::Struct(s.id, s.name.symbol, fields, methods),
-            &s.ty,
-            s.name.span,
-        )?;
+        self.env
+            .unify(&Ty::Struct(s.id, s.name.symbol, fields), &s.ty, s.name.span)?;
 
         self.enter_self_scope(s.ty.clone(), |this| this.unify_fns(&s.methods))
     }

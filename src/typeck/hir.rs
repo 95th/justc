@@ -2,7 +2,7 @@ use crate::{
     lex::Span, lex::Spanned, lex::Token, parse::ast::BinOp, parse::ast::Lit, parse::ast::UnOp,
 };
 
-use super::ty::Ty;
+use super::ty::{Ty, TypeVar};
 
 #[derive(Debug)]
 pub enum Stmt {
@@ -112,7 +112,7 @@ pub struct Struct {
     pub fields: Vec<StructField>,
     pub methods: Vec<Function>,
     pub ty: Ty,
-    pub id: u32,
+    pub id: TypeVar,
 }
 
 #[derive(Debug)]

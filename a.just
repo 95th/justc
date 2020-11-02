@@ -12,3 +12,4 @@ impl A {
 
 let a = A::new();
 a.add(2);
+A::add(a, 2);
