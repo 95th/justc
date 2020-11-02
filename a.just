@@ -6,14 +6,12 @@ impl B {
     }
 }
 
-fn foo(b: B) {
+fn x() {
     impl B {
-        fn foo(self) {
+        fn bar(self) {
             self.a = self.a + 1;
         }
     }
-
-    b.foo();
 }
 
-fn foo() {}
+fn y() {}
