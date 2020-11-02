@@ -65,7 +65,9 @@ impl TyContext {
     }
 
     pub fn get_method(&self, struct_id: TypeVar, name: Symbol) -> Option<&Ty> {
-        self.methods.get(&struct_id).and_then(|methods| methods.get(&name))
+        self.methods
+            .get(&struct_id)
+            .and_then(|methods| methods.get(&name))
     }
 
     pub fn add_method(&mut self, struct_id: TypeVar, name: Symbol, ty: Ty) {
@@ -145,8 +147,8 @@ impl TyContext {
         match ty {
             Ty::Infer(v) => {
                 let root_v = self.table.find(*v);
-                log::trace!("root: {:?} == {:?}", v, root_v);
                 if self.var_stack.contains(&root_v) {
+                    log::warn!("Type {:?} contains cycles", root_v);
                     return if var == Some(root_v) { Err(()) } else { Ok(()) };
                 }
 

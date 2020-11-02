@@ -170,7 +170,8 @@ impl<'a> Unifier<'a> {
                             }
                         }
                     }
-                    Ty::Infer(_) => {
+                    Ty::Infer(id) => {
+                        log::warn!("Type not found for {:?}", id);
                         return self
                             .handler
                             .mk_err(name.span, "Type not found in this scope");
@@ -297,6 +298,12 @@ impl<'a> Unifier<'a> {
         for s in structs {
             self.unify_struct(s)?;
         }
+        for s in structs {
+            self.enter_self_scope(s.ty.clone(), |this| this.unify_fn_headers(&s.methods))?;
+        }
+        for s in structs {
+            self.enter_self_scope(s.ty.clone(), |this| this.unify_fn_bodies(&s.methods))?;
+        }
         Ok(())
     }
 
@@ -313,15 +320,23 @@ impl<'a> Unifier<'a> {
 
         self.env
             .unify(&Ty::Struct(s.id, s.name.symbol, fields), &s.ty, s.name.span)?;
-
-        self.enter_self_scope(s.ty.clone(), |this| this.unify_fns(&s.methods))
+        Ok(())
     }
 
     fn unify_fns(&mut self, items: &[Function]) -> Result<()> {
+        self.unify_fn_headers(items)?;
+        self.unify_fn_bodies(items)?;
+        Ok(())
+    }
+
+    fn unify_fn_headers(&mut self, items: &[Function]) -> Result<()> {
         for item in items {
             self.unify_fn_header(item)?;
         }
+        Ok(())
+    }
 
+    fn unify_fn_bodies(&mut self, items: &[Function]) -> Result<()> {
         for item in items {
             self.enter_fn_scope(item.ret.ty.clone(), |this| this.unify_fn_body(item))?;
         }
