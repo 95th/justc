@@ -264,7 +264,7 @@ impl fmt::Display for Ty {
 impl fmt::Debug for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Ty::Infer(id) => write!(f, "{{unknown {:?}}}", id.0)?,
+            Ty::Infer(id) => write!(f, "{:?}", id)?,
             Ty::Unit => f.write_str("unit")?,
             Ty::Bool => f.write_str("bool")?,
             Ty::Int => f.write_str("int")?,
