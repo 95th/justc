@@ -63,7 +63,7 @@ pub enum ExprKind {
     Struct(Token, Vec<Field>, Ty),
     Field(Box<Expr>, Token),
     MethodCall {
-        callee: Box<Expr>,
+        ty: Spanned<Ty>,
         name: Token,
         args: Vec<Box<Expr>>,
     },

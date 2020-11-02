@@ -1,5 +1,6 @@
 use crate::{
     err::{Handler, Result},
+    lex::Span,
     parse::ast::{BinOp, UnOp},
 };
 
@@ -142,7 +143,7 @@ impl<'a> Unifier<'a> {
             ExprKind::Call { callee, args } => {
                 self.unify_expr(callee)?;
                 let ty = self.env.resolve_ty(&callee.ty);
-                self.unify_fn_call(expr, callee, args, &*ty)?;
+                self.unify_fn_call(expr, args, &*ty, callee.span)?;
                 for arg in args {
                     self.unify_expr(arg)?;
                 }
@@ -212,13 +213,15 @@ impl<'a> Unifier<'a> {
                 }
             }
             ExprKind::MethodCall {
-                callee,
+                ty,
                 name: method_name,
                 args,
             } => {
-                self.unify_expr(callee)?;
-                let ty = self.env.resolve_ty(&callee.ty);
-                match &*ty {
+                for arg in args {
+                    self.unify_expr(arg)?;
+                }
+                let resolved_ty = self.env.resolve_ty(&ty.val);
+                match &*resolved_ty {
                     Ty::Struct(_, name, fields, methods) => {
                         let method_ty = if let Some(m) = methods.get(&method_name.symbol) {
                             m
@@ -235,7 +238,7 @@ impl<'a> Unifier<'a> {
                         };
 
                         let method_ty = self.env.resolve_ty(method_ty);
-                        self.unify_fn_call(expr, callee, args, &*method_ty)?;
+                        self.unify_fn_call(expr, args, &*method_ty, ty.span)?;
                     }
                     Ty::Infer(_) => {
                         return self.handler.mk_err(
@@ -389,9 +392,9 @@ impl<'a> Unifier<'a> {
     fn unify_fn_call(
         &mut self,
         expr: &Expr,
-        callee: &Expr,
         args: &[Box<Expr>],
         fn_ty: &Ty,
+        span: Span,
     ) -> Result<()> {
         match fn_ty {
             Ty::Fn(params, ret) => {
@@ -401,14 +404,13 @@ impl<'a> Unifier<'a> {
                 self.env.unify(ret, &expr.ty, expr.span)?;
             }
             Ty::Infer(_) => {
-                return self.handler.mk_err(
-                    callee.span,
-                    "Type cannot be inferred. Please add type annotations",
-                );
+                return self
+                    .handler
+                    .mk_err(span, "Type cannot be inferred. Please add type annotations");
             }
             ty => {
                 return self.handler.mk_err(
-                    callee.span,
+                    span,
                     &format!("Type error: Expected Function, Actual: {}", ty),
                 );
             }

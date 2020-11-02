@@ -1,6 +1,10 @@
 struct A {x:int}
-struct B {x:A}
-struct C {x:B}
-struct D {x:C}
-struct E {x:D}
-struct F {x:E}
+
+impl A {
+    fn add(self, val: int) {
+        self.x = self.x + val;
+    }
+}
+
+let a = A { x: 1 };
+a.add(2);

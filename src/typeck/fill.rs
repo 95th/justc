@@ -111,7 +111,7 @@ impl TyContext {
                 self.fill_ty(ret)?;
                 self.fill_expr(body)
             }
-            ExprKind::Call { callee, args } | ExprKind::MethodCall { callee, args, .. } => {
+            ExprKind::Call { callee, args } => {
                 self.fill_expr(callee)?;
                 for arg in args {
                     self.fill_expr(arg)?;
@@ -125,6 +125,13 @@ impl TyContext {
                 self.fill_ty(ty)
             }
             ExprKind::Field(e, _) => self.fill_expr(e),
+            ExprKind::MethodCall { ty, args, .. } => {
+                self.fill_ty(&mut ty.val)?;
+                for arg in args {
+                    self.fill_expr(arg)?;
+                }
+                Ok(())
+            }
         }
     }
 
