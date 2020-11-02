@@ -178,9 +178,10 @@ impl<'a> Unifier<'a> {
                             .mk_err(name.span, "Type not found in this scope");
                     }
                     ty => {
-                        return self
-                            .handler
-                            .mk_err(name.span, &format!("Expected Struct, found on type {}", ty));
+                        return self.handler.mk_err(
+                            name.span,
+                            &format!("Expected Struct, found on type `{}`", ty),
+                        );
                     }
                 }
 
@@ -200,7 +201,10 @@ impl<'a> Unifier<'a> {
                         } else {
                             self.handler.mk_err(
                                 field_name.span,
-                                &format!("Field {} not found on type {}", field_name.symbol, name),
+                                &format!(
+                                    "Field `{}` not found on type `{}`",
+                                    field_name.symbol, name
+                                ),
                             )
                         }
                     }
@@ -210,7 +214,7 @@ impl<'a> Unifier<'a> {
                     ),
                     ty => self.handler.mk_err(
                         field_name.span,
-                        &format!("Field {} not found on type {}", field_name.symbol, ty),
+                        &format!("Field `{}` not found on type `{}`", field_name.symbol, ty),
                     ),
                 }
             }
@@ -257,7 +261,10 @@ impl<'a> Unifier<'a> {
                     ty => {
                         return self.handler.mk_err(
                             method_name.span,
-                            &format!("Field {} not found on type {}", method_name.symbol, ty),
+                            &format!(
+                                "Method or Field `{}` not found on type `{}`",
+                                method_name.symbol, ty
+                            ),
                         );
                     }
                 }
@@ -430,7 +437,7 @@ impl<'a> Unifier<'a> {
                     return self.handler.mk_err(
                         expr.span,
                         &format!(
-                            "Number of arguments mismatch: Expected: {}, actual: {}",
+                            "Number of arguments mismatch: Expected: `{}`, actual: `{}`",
                             params.len(),
                             args.len()
                         ),
@@ -449,7 +456,7 @@ impl<'a> Unifier<'a> {
             ty => {
                 return self.handler.mk_err(
                     span,
-                    &format!("Type error: Expected Function, Actual: {}", ty),
+                    &format!("Type error: Expected Function, Actual: `{}`", ty),
                 );
             }
         }
