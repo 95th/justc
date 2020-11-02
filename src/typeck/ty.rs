@@ -58,12 +58,13 @@ impl TyContext {
     }
 
     pub fn resolve_ty<'a>(&mut self, ty: &'a Ty) -> Cow<'a, Ty> {
-        match ty {
-            Ty::Infer(v) => match self.table.inlined_probe_value(*v).known() {
+        if let Some(v) = ty.type_var() {
+            match self.table.probe_value(v).known() {
                 Some(t) => Cow::Owned(t),
                 None => Cow::Borrowed(ty),
-            },
-            _ => Cow::Borrowed(ty),
+            }
+        } else {
+            Cow::Borrowed(ty)
         }
     }
 
@@ -109,11 +110,7 @@ impl TyContext {
         log::debug!("fill_ty: {:?}", ty);
 
         self.var_stack.clear();
-        let var = if let Ty::Infer(v) = ty {
-            Some(*v)
-        } else {
-            None
-        };
+        let var = ty.type_var().map(|v| self.table.find(v));
         self.fill_ty_inner(ty, var)
     }
 
@@ -176,11 +173,14 @@ pub enum Ty {
 }
 
 impl Ty {
-    pub fn type_var_id(&self) -> Option<u32> {
+    pub fn type_var(&self) -> Option<TypeVar> {
         match self {
-            Ty::Infer(id) => Some(id.0),
+            Ty::Infer(id) => Some(*id),
             _ => None,
         }
+    }
+    pub fn type_var_id(&self) -> Option<u32> {
+        self.type_var().map(|v| v.0)
     }
 }
 
