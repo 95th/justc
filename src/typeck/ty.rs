@@ -64,13 +64,13 @@ impl TyContext {
         Ty::Infer(self.table.new_key(TypeVarValue::Unknown))
     }
 
-    pub fn get_method(&self, id: TypeVar, name: Symbol) -> Option<&Ty> {
-        self.methods.get(&id).and_then(|methods| methods.get(&name))
+    pub fn get_method(&self, struct_id: TypeVar, name: Symbol) -> Option<&Ty> {
+        self.methods.get(&struct_id).and_then(|methods| methods.get(&name))
     }
 
-    pub fn add_method(&mut self, id: TypeVar, name: Symbol, ty: Ty) {
+    pub fn add_method(&mut self, struct_id: TypeVar, name: Symbol, ty: Ty) {
         self.methods
-            .entry(id)
+            .entry(struct_id)
             .or_insert_with(HashMap::new)
             .insert(name, ty);
     }
