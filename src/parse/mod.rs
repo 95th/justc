@@ -279,18 +279,40 @@ impl Parser {
         let expr = self.expr()?;
 
         if self.eat(Eq) {
-            if expr.is_assignable() {
-                let val = self.expr()?;
-                self.consume(SemiColon, "Expected ';' after assignment.")?;
-                return Ok(Stmt::Assign {
-                    lhs: expr,
-                    rhs: val,
-                });
-            } else {
+            if !expr.is_assignable() {
                 return self
                     .handler
                     .mk_err(expr.span, "Cannot assign to this expression");
             }
+
+            let val = self.expr()?;
+            self.consume(SemiColon, "Expected ';' after assignment.")?;
+            return Ok(Stmt::Assign {
+                lhs: expr,
+                rhs: val,
+            });
+        } else if self.eat(PlusEq) || self.eat(MinusEq) || self.eat(StarEq) || self.eat(SlashEq) {
+            if !expr.is_assignable() {
+                return self
+                    .handler
+                    .mk_err(expr.span, "Cannot assign to this expression");
+            }
+
+            let op = match self.prev.kind {
+                PlusEq => BinOp::Add,
+                MinusEq => BinOp::Sub,
+                StarEq => BinOp::Mul,
+                SlashEq => BinOp::Sub,
+                _ => unreachable!(),
+            };
+            let op = Spanned::new(op, self.prev.span);
+            let val = self.expr()?;
+            self.consume(SemiColon, "Expected ';' after assignment.")?;
+            return Ok(Stmt::OpAssign {
+                lhs: expr,
+                rhs: val,
+                op,
+            });
         }
         Ok(Stmt::Expr(expr, self.eat(SemiColon)))
     }
