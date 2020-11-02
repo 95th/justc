@@ -217,6 +217,11 @@ impl<'a> Unifier<'a> {
                 name: method_name,
                 args,
             } => {
+                if ty.is_self {
+                    self.env
+                        .unify(self.enclosing_self_ty.as_ref().unwrap(), &ty.ty, ty.span)?;
+                }
+
                 for arg in args {
                     self.unify_expr(arg)?;
                 }

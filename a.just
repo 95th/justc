@@ -1,15 +1,15 @@
-struct A { x: int }
+struct A { n: int }
 
 impl A {
-    fn new() -> Self {
-        Self { x: 1 }
+    fn new(n: int) -> Self {
+        Self { n }
     }
 
-    fn add(self, val: int) {
-        self.x = self.x + val;
+    fn fib(self) -> int {
+        if self.n < 2 {
+            1
+        } else {
+            Self::new(self.n - 1).fib() + Self::new(self.n - 2).fib()
+        }
     }
 }
-
-let a = A::new();
-a.add(2);
-A::add(a, 2);
