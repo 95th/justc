@@ -51,10 +51,10 @@ impl<'a> Unifier<'a> {
                 }
                 Ok(())
             }
-            Stmt::Assign { name, val } => {
-                self.unify_expr(name)?;
-                self.unify_expr(val)?;
-                self.env.unify(&name.ty, &val.ty, val.span)
+            Stmt::Assign { lhs, rhs } => {
+                self.unify_expr(lhs)?;
+                self.unify_expr(rhs)?;
+                self.env.unify(&lhs.ty, &rhs.ty, rhs.span)
             }
             Stmt::While { cond, body } => {
                 self.unify_expr(cond)?;

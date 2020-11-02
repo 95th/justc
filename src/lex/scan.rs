@@ -83,13 +83,27 @@ impl Lexer {
             b'-' => {
                 if self.eat(b'>') {
                     self.add_token(Arrow)
+                } else if self.eat(b'=') {
+                    self.add_token(MinusEq)
                 } else {
                     self.add_token(Minus)
                 }
             }
-            b'+' => self.add_token(Plus),
+            b'+' => {
+                if self.eat(b'=') {
+                    self.add_token(PlusEq)
+                } else {
+                    self.add_token(Plus)
+                }
+            }
             b';' => self.add_token(SemiColon),
-            b'*' => self.add_token(Star),
+            b'*' => {
+                if self.eat(b'=') {
+                    self.add_token(StarEq)
+                } else {
+                    self.add_token(Star)
+                }
+            }
             b'%' => self.add_token(Percent),
             b'!' => {
                 if self.eat(b'=') {
@@ -124,6 +138,8 @@ impl Lexer {
                 if self.eat(b'/') {
                     self.comment();
                     return None;
+                } else if self.eat(b'=') {
+                    self.add_token(SlashEq)
                 } else {
                     self.add_token(Slash)
                 }

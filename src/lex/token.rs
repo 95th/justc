@@ -51,6 +51,12 @@ pub enum TokenKind {
     RangeClosed,
     Arrow,
 
+    // OpAssign
+    MinusEq,
+    PlusEq,
+    StarEq,
+    SlashEq,
+
     // One or two character tokens.
     Not,
     Eq,

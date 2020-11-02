@@ -282,7 +282,10 @@ impl Parser {
             if expr.is_assignable() {
                 let val = self.expr()?;
                 self.consume(SemiColon, "Expected ';' after assignment.")?;
-                return Ok(Stmt::Assign { name: expr, val });
+                return Ok(Stmt::Assign {
+                    lhs: expr,
+                    rhs: val,
+                });
             } else {
                 return self
                     .handler

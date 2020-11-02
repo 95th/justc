@@ -71,9 +71,9 @@ impl TyContext {
                 }
                 Ok(())
             }
-            Stmt::Assign { name, val } => {
-                self.fill_expr(name)?;
-                self.fill_expr(val)
+            Stmt::Assign { lhs, rhs } => {
+                self.fill_expr(lhs)?;
+                self.fill_expr(rhs)
             }
             Stmt::While { cond, body } => {
                 self.fill_expr(cond)?;

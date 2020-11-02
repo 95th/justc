@@ -4,7 +4,7 @@ use crate::{
 
 use super::ty::{Ty, TypeVar};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Stmt {
     Expr(Box<Expr>, bool),
     Let {
@@ -13,8 +13,8 @@ pub enum Stmt {
         init: Option<Box<Expr>>,
     },
     Assign {
-        name: Box<Expr>,
-        val: Box<Expr>,
+        lhs: Box<Expr>,
+        rhs: Box<Expr>,
     },
     While {
         cond: Box<Expr>,
@@ -25,14 +25,14 @@ pub enum Stmt {
     Break(Span),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Expr {
     pub kind: ExprKind,
     pub span: Span,
     pub ty: Ty,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ExprKind {
     Binary {
         op: Spanned<BinOp>,
@@ -69,13 +69,13 @@ pub enum ExprKind {
     },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Field {
     pub name: Token,
     pub expr: Box<Expr>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Block {
     pub structs: Vec<Struct>,
     pub impls: Vec<Impl>,
@@ -85,13 +85,13 @@ pub struct Block {
     pub span: Span,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Param {
     pub name: Token,
     pub param_ty: SpannedTy,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Function {
     pub name: Token,
     pub params: Vec<Param>,
@@ -100,14 +100,14 @@ pub struct Function {
     pub ty: Ty,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SpannedTy {
     pub ty: Ty,
     pub span: Span,
     pub is_self: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Struct {
     pub name: Token,
     pub fields: Vec<StructField>,
@@ -115,13 +115,13 @@ pub struct Struct {
     pub id: TypeVar,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct StructField {
     pub name: Token,
     pub ty: Ty,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Ast {
     pub structs: Vec<Struct>,
     pub functions: Vec<Function>,
@@ -129,7 +129,7 @@ pub struct Ast {
     pub stmts: Vec<Stmt>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Impl {
     pub ty: SpannedTy,
     pub id: TypeVar,

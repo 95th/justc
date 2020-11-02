@@ -4,7 +4,7 @@ use crate::{
 };
 use std::fmt;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum BinOp {
     // Math
     Add,
@@ -46,7 +46,7 @@ impl fmt::Display for BinOp {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum UnOp {
     Not,
     Neg,
@@ -145,8 +145,13 @@ pub enum Stmt {
         init: Option<Box<Expr>>,
     },
     Assign {
-        name: Box<Expr>,
-        val: Box<Expr>,
+        lhs: Box<Expr>,
+        rhs: Box<Expr>,
+    },
+    OpAssign {
+        lhs: Box<Expr>,
+        rhs: Box<Expr>,
+        op: Spanned<BinOp>,
     },
     While {
         cond: Box<Expr>,

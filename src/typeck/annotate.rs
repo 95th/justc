@@ -83,10 +83,24 @@ impl<'a> Annotate<'a> {
                     init,
                 })
             }
-            ast::Stmt::Assign { name, val } => Ok(hir::Stmt::Assign {
-                name: self.annotate_expr(name)?,
-                val: self.annotate_expr(val)?,
+            ast::Stmt::Assign { lhs, rhs } => Ok(hir::Stmt::Assign {
+                lhs: self.annotate_expr(lhs)?,
+                rhs: self.annotate_expr(rhs)?,
             }),
+            ast::Stmt::OpAssign { lhs, rhs, op } => {
+                let lhs = self.annotate_expr(lhs)?;
+                let rhs = self.annotate_expr(rhs)?;
+                let rhs = Box::new(hir::Expr {
+                    span: lhs.span.to(rhs.span),
+                    kind: hir::ExprKind::Binary {
+                        left: lhs.clone(),
+                        right: rhs,
+                        op,
+                    },
+                    ty: self.env.new_type_var(),
+                });
+                Ok(hir::Stmt::Assign { lhs, rhs })
+            }
             ast::Stmt::While { cond, body } => {
                 let cond = self.annotate_expr(cond)?;
                 self.has_enclosing_loop = true;

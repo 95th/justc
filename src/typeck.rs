@@ -51,10 +51,9 @@ impl Typeck {
     }
 
     fn typeck_stmt(&self, stmt: &Stmt) -> Result<()> {
-        use Stmt::*;
         match stmt {
-            Expr(expr, _) => self.typeck_expr(expr),
-            Let { name, ty, init } => {
+            Stmt::Expr(expr, _) => self.typeck_expr(expr),
+            Stmt::Let { name, ty, init } => {
                 self.typeck_no_var(ty, name.span)?;
                 if let Some(init) = init {
                     self.typeck_expr(init)?;
@@ -62,30 +61,30 @@ impl Typeck {
                 }
                 Ok(())
             }
-            Assign { name, val } => {
-                self.typeck_expr(val)?;
-                self.typeck_eq(&name.ty, &val.ty, val.span)
+            Stmt::Assign { lhs, rhs } => {
+                self.typeck_expr(lhs)?;
+                self.typeck_expr(rhs)?;
+                self.typeck_eq(&lhs.ty, &rhs.ty, rhs.span)
             }
-            While { cond, body } => {
+            Stmt::While { cond, body } => {
                 self.typeck_expr(cond)?;
                 self.typeck_eq(&Ty::Bool, &cond.ty, cond.span)?;
                 self.typeck_block(body)
             }
-            Return(_, e) => {
+            Stmt::Return(_, e) => {
                 if let Some(e) = e {
                     self.typeck_expr(e)
                 } else {
                     Ok(())
                 }
             }
-            Continue(_) | Break(_) => Ok(()),
+            Stmt::Continue(_) | Stmt::Break(_) => Ok(()),
         }
     }
 
     fn typeck_expr(&self, expr: &Expr) -> Result<()> {
-        use ExprKind::*;
         match &expr.kind {
-            Binary { op, left, right } => {
+            ExprKind::Binary { op, left, right } => {
                 self.typeck_eq(&left.ty, &right.ty, right.span)?;
 
                 use ast::BinOp::*;
@@ -111,8 +110,8 @@ impl Typeck {
                     },
                 }
             }
-            Literal(..) => Ok(()),
-            Unary { op, expr } => match op.val {
+            ExprKind::Literal(..) => Ok(()),
+            ExprKind::Unary { op, expr } => match op.val {
                 ast::UnOp::Not => match &expr.ty {
                     Ty::Bool => Ok(()),
                     ty => self
@@ -126,9 +125,9 @@ impl Typeck {
                         .mk_err(op.span, &format!("Not supported for {}", ty)),
                 },
             },
-            Variable(_, _) => Ok(()),
-            Block(block) => self.typeck_block(block),
-            If {
+            ExprKind::Variable(_, _) => Ok(()),
+            ExprKind::Block(block) => self.typeck_block(block),
+            ExprKind::If {
                 cond,
                 then_clause,
                 else_clause,
@@ -140,32 +139,32 @@ impl Typeck {
                 }
                 Ok(())
             }
-            Closure { params, ret, body } => {
+            ExprKind::Closure { params, ret, body } => {
                 for p in params {
                     self.typeck_no_var(&p.param_ty.ty, p.name.span)?;
                 }
                 self.typeck_expr(body)?;
                 self.typeck_eq(ret, &body.ty, body.span)
             }
-            Call { callee, args } => {
+            ExprKind::Call { callee, args } => {
                 self.typeck_expr(callee)?;
                 for arg in args {
                     self.typeck_expr(arg)?;
                 }
                 Ok(())
             }
-            Struct(_, fields, _) => {
+            ExprKind::Struct(_, fields, _) => {
                 for f in fields {
                     self.typeck_expr(&f.expr)?;
                 }
 
                 Ok(())
             }
-            Field(expr, _) => {
+            ExprKind::Field(expr, _) => {
                 self.typeck_expr(expr)?;
                 Ok(())
             }
-            MethodCall { ty, args, .. } => {
+            ExprKind::MethodCall { ty, args, .. } => {
                 self.typeck_no_var(&ty.ty, ty.span)?;
                 for arg in args {
                     self.typeck_expr(arg)?;
