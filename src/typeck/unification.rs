@@ -398,6 +398,16 @@ impl<'a> Unifier<'a> {
     ) -> Result<()> {
         match fn_ty {
             Ty::Fn(params, ret) => {
+                if params.len() != args.len() {
+                    return self.handler.mk_err(
+                        expr.span,
+                        &format!(
+                            "Number of arguments mismatch: Expected: {}, actual: {}",
+                            params.len(),
+                            args.len()
+                        ),
+                    );
+                }
                 for (param, arg) in params.iter().zip(args) {
                     self.env.unify(param, &arg.ty, arg.span)?;
                 }

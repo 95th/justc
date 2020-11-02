@@ -149,7 +149,7 @@ impl TyContext {
                 log::trace!("fill methods");
                 for f in methods.values_mut() {
                     log::trace!("fill method: {:?}", f);
-                    self.fill_ty_inner(f, var).ok();
+                    let _ = self.fill_ty_inner(f, var);
                 }
             }
             _ => {}

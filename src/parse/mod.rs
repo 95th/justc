@@ -640,6 +640,7 @@ impl Parser {
             let method_name = self.consume(Ident, "Expected identifier")?;
             self.consume(OpenParen, "Expected '('")?;
             let args = self.finish_call()?;
+            span = span.to(self.prev.span);
             ExprKind::AssocMethodCall {
                 ty,
                 name: method_name,
