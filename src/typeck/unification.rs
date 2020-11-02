@@ -220,7 +220,7 @@ impl<'a> Unifier<'a> {
                 for arg in args {
                     self.unify_expr(arg)?;
                 }
-                let resolved_ty = self.env.resolve_ty(&ty.val);
+                let resolved_ty = self.env.resolve_ty(&ty.ty);
                 match &*resolved_ty {
                     Ty::Struct(_, name, fields, methods) => {
                         let method_ty = if let Some(m) = methods.get(&method_name.symbol) {

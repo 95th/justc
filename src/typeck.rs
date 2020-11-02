@@ -166,7 +166,7 @@ impl Typeck {
                 Ok(())
             }
             MethodCall { ty, args, .. } => {
-                self.typeck_no_var(&ty.val, ty.span)?;
+                self.typeck_no_var(&ty.ty, ty.span)?;
                 for arg in args {
                     self.typeck_expr(arg)?;
                 }

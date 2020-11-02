@@ -37,6 +37,7 @@ impl UnifyKey for TypeVar {
     }
 }
 
+#[derive(Debug)]
 pub struct TyContext {
     table: InPlaceUnificationTable<TypeVar>,
     pub handler: Rc<Handler>,
@@ -105,6 +106,8 @@ impl TyContext {
     }
 
     pub fn fill_ty(&mut self, ty: &mut Ty) -> Result<()> {
+        log::debug!("fill_ty: {:?}", ty);
+
         self.var_stack.clear();
         let var = if let Ty::Infer(v) = ty {
             Some(*v)
@@ -117,12 +120,15 @@ impl TyContext {
     fn fill_ty_inner(&mut self, ty: &mut Ty, var: Option<TypeVar>) -> Result<()> {
         match ty {
             Ty::Infer(v) => {
-                if self.var_stack.contains(v) {
-                    return if var == Some(*v) { Err(()) } else { Ok(()) };
+                let root_v = self.table.find(*v);
+                log::trace!("root: {:?} == {:?}", v, root_v);
+                if self.var_stack.contains(&root_v) {
+                    return if var == Some(root_v) { Err(()) } else { Ok(()) };
                 }
 
-                if let Some(found) = self.table.probe_value(*v).known() {
-                    self.var_stack.push(*v);
+                if let Some(found) = self.table.probe_value(root_v).known() {
+                    log::trace!("found: {:?} == {:?}", root_v, found);
+                    self.var_stack.push(root_v);
                     *ty = found;
                     self.fill_ty_inner(ty, var)?;
                     self.var_stack.pop();
@@ -135,11 +141,15 @@ impl TyContext {
                 self.fill_ty_inner(ret, var)?;
             }
             Ty::Struct(_, _, fields, methods) => {
+                log::trace!("fill fields");
                 for f in fields.values_mut() {
                     self.fill_ty_inner(f, var)?;
                 }
+
+                log::trace!("fill methods");
                 for f in methods.values_mut() {
-                    self.fill_ty_inner(f, var)?;
+                    log::trace!("fill method: {:?}", f);
+                    self.fill_ty_inner(f, var).ok();
                 }
             }
             _ => {}

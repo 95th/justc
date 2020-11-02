@@ -5,7 +5,8 @@ impl TyContext {
     pub fn fill(&mut self, ast: &mut Ast) -> Result<()> {
         self.fill_structs(&mut ast.structs)?;
         self.fill_fns(&mut ast.functions)?;
-        self.fill_stmts(&mut ast.stmts)
+        self.fill_stmts(&mut ast.stmts)?;
+        Ok(())
     }
 
     fn fill_structs(&mut self, structs: &mut [Struct]) -> Result<()> {
@@ -43,7 +44,8 @@ impl TyContext {
             self.fill_ty(&mut p.param_ty.ty)?;
         }
         self.fill_ty(&mut f.ret.ty)?;
-        self.fill_block(&mut f.body)
+        self.fill_block(&mut f.body)?;
+        Ok(())
     }
 
     fn fill_stmts(&mut self, stmts: &mut [Stmt]) -> Result<()> {
@@ -126,7 +128,7 @@ impl TyContext {
             }
             ExprKind::Field(e, _) => self.fill_expr(e),
             ExprKind::MethodCall { ty, args, .. } => {
-                self.fill_ty(&mut ty.val)?;
+                self.fill_ty(&mut ty.ty)?;
                 for arg in args {
                     self.fill_expr(arg)?;
                 }

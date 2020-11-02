@@ -3,6 +3,7 @@ use std::{cell::Cell, rc::Rc};
 
 pub type Result<T> = std::result::Result<T, ()>;
 
+#[derive(Debug)]
 pub struct Handler {
     src: Rc<String>,
     had_errors: Cell<bool>,

@@ -123,6 +123,11 @@ pub enum ExprKind {
         name: Token,
         args: Vec<Box<Expr>>,
     },
+    AssocMethodCall {
+        ty: Ty,
+        name: Token,
+        args: Vec<Box<Expr>>,
+    },
 }
 
 #[derive(Debug, PartialEq)]

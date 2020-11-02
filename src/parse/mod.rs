@@ -634,6 +634,17 @@ impl Parser {
             }
 
             ExprKind::Struct(name, fields)
+        } else if self.check(ColonColon) {
+            let ty = self.token_to_ty()?;
+            self.consume(ColonColon, "Expected '::'")?;
+            let method_name = self.consume(Ident, "Expected identifier")?;
+            self.consume(OpenParen, "Expected '('")?;
+            let args = self.finish_call()?;
+            ExprKind::AssocMethodCall {
+                ty,
+                name: method_name,
+                args,
+            }
         } else {
             ExprKind::Variable(name)
         };
@@ -774,6 +785,15 @@ impl Parser {
                 span,
             });
         } else if self.eat(SelfTy) {
+            return self.token_to_ty();
+        }
+
+        self.consume(Ident, "Expected Type name")?;
+        self.token_to_ty()
+    }
+
+    fn token_to_ty(&self) -> Result<Ty> {
+        if self.prev.is_self_ty() {
             if !self.restrictions.contains(Restrictions::ALLOW_SELF) {
                 return self
                     .handler
@@ -785,12 +805,11 @@ impl Parser {
             });
         }
 
-        let token = self.consume(Ident, "Expected Type name")?;
-        let symbol = token.symbol;
+        let symbol = self.prev.symbol;
 
         let kind = symbol.as_str_with(|s| match s {
             "_" => TyKind::Infer,
-            _ => TyKind::Ident(token),
+            _ => TyKind::Ident(self.prev.clone()),
         });
 
         Ok(Ty {

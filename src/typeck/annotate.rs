@@ -2,13 +2,13 @@ use std::collections::HashMap;
 
 use crate::{
     err::{Handler, Result},
-    lex::{Spanned, Token},
+    lex::Token,
     parse::ast,
     symbol::SymbolTable,
 };
 
 use super::{
-    hir,
+    hir::{self, SpannedTy},
     ty::{Ty, TyContext},
 };
 
@@ -206,8 +206,24 @@ impl<'a> Annotate<'a> {
             }
             ast::ExprKind::MethodCall { callee, name, args } => {
                 let callee = self.annotate_expr(callee)?;
-                let ty = Spanned::new(callee.ty.clone(), callee.span);
+                let ty = SpannedTy {
+                    ty: callee.ty.clone(),
+                    span: callee.span,
+                    is_self: false,
+                };
                 let mut annotated_args = vec![callee];
+                for arg in args {
+                    annotated_args.push(self.annotate_expr(arg)?);
+                }
+                hir::ExprKind::MethodCall {
+                    ty,
+                    name,
+                    args: annotated_args,
+                }
+            }
+            ast::ExprKind::AssocMethodCall { ty, name, args } => {
+                let ty = self.ast_ty_to_spanned_ty(ty)?;
+                let mut annotated_args = vec![];
                 for arg in args {
                     annotated_args.push(self.annotate_expr(arg)?);
                 }

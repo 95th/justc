@@ -3,6 +3,7 @@ use rustyline::Editor;
 use std::{fs, path::PathBuf};
 
 fn main() {
+    env_logger::init();
     let args = Args::new();
     if let Some(file_name) = args.file_name {
         run_file(file_name);
