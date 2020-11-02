@@ -70,11 +70,12 @@ impl TyContext {
             .and_then(|methods| methods.get(&name))
     }
 
-    pub fn add_method(&mut self, struct_id: TypeVar, name: Symbol, ty: Ty) {
+    pub fn add_method(&mut self, struct_id: TypeVar, name: Symbol, ty: Ty) -> bool {
         self.methods
             .entry(struct_id)
             .or_insert_with(HashMap::new)
-            .insert(name, ty);
+            .insert(name, ty)
+            .is_some()
     }
 
     pub fn resolve_ty<'a>(&mut self, ty: &'a Ty) -> Cow<'a, Ty> {

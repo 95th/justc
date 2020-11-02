@@ -198,7 +198,6 @@ impl Typeck {
         for f in &s.fields {
             self.typeck_no_var(&f.ty, f.name.span)?;
         }
-        self.typeck_fns(&s.methods)?;
         self.typeck_no_var(&s.ty, s.name.span)?;
         Ok(())
     }

@@ -9,7 +9,7 @@ impl B {
 fn foo(b: B) {
     impl B {
         fn foo(self) {
-            self.a = self.a + n;
+            self.a = self.a + 1;
         }
     }
 

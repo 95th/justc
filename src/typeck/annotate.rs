@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::{
     err::{Handler, Result},
     lex::Token,
@@ -49,12 +47,15 @@ impl<'a> Annotate<'a> {
     }
 
     fn annotate_ast(&mut self, ast: ast::Ast) -> Result<hir::Ast> {
-        let mut structs = self.annotate_structs(ast.structs)?;
-        self.annotate_impls(ast.impls, &mut structs)?;
+        let structs = self.annotate_structs(ast.structs)?;
+        let impls = self.annotate_impls(ast.impls)?;
+        let functions = self.annotate_fns(ast.functions)?;
+        let stmts = self.annotate_stmts(ast.stmts)?;
         Ok(hir::Ast {
             structs,
-            functions: self.annotate_fns(ast.functions)?,
-            stmts: self.annotate_stmts(ast.stmts)?,
+            impls,
+            functions,
+            stmts,
         })
     }
 
@@ -239,12 +240,13 @@ impl<'a> Annotate<'a> {
 
     fn annotate_block(&mut self, block: ast::Block) -> Result<hir::Block> {
         self.enter_scope(|this| {
-            let mut structs = this.annotate_structs(block.structs)?;
-            this.annotate_impls(block.impls, &mut structs)?;
+            let structs = this.annotate_structs(block.structs)?;
+            let impls = this.annotate_impls(block.impls)?;
             let functions = this.annotate_fns(block.functions)?;
             let stmts = this.annotate_stmts(block.stmts)?;
             Ok(hir::Block {
                 stmts,
+                impls,
                 functions,
                 structs,
                 ty: this.env.new_type_var(),
@@ -372,26 +374,27 @@ impl<'a> Annotate<'a> {
         })
     }
 
-    fn annotate_impls(
-        &mut self,
-        mut impls: Vec<ast::Impl>,
-        structs: &mut [hir::Struct],
-    ) -> Result<()> {
-        let mut map = HashMap::new();
-        for i in &mut impls {
-            map.entry(i.name.symbol)
-                .or_insert_with(|| vec![])
-                .append(&mut i.functions);
-        }
+    fn annotate_impls(&mut self, impls: Vec<ast::Impl>) -> Result<Vec<hir::Impl>> {
+        impls.into_iter().map(|i| self.annotate_impl(i)).collect()
+    }
 
-        for s in structs {
-            if let Some(methods) = map.remove(&s.name.symbol) {
-                let methods = self.annotate_fns(methods)?;
-                s.methods = methods;
+    fn annotate_impl(&mut self, i: ast::Impl) -> Result<hir::Impl> {
+        let ty = match self.structs.get(i.name.symbol) {
+            Some(t) => SpannedTy {
+                ty: t.clone(),
+                span: i.name.span,
+                is_self: false,
+            },
+            None => {
+                return self.handler.mk_err(i.name.span, "Not found in this scope");
             }
-        }
-
-        Ok(())
+        };
+        let functions = self.annotate_fns(i.functions)?;
+        Ok(hir::Impl {
+            id: ty.ty.type_var().unwrap(),
+            ty,
+            functions,
+        })
     }
 
     fn annotate_structs(&mut self, structs: Vec<ast::Struct>) -> Result<Vec<hir::Struct>> {
@@ -413,7 +416,6 @@ impl<'a> Annotate<'a> {
             fields,
             id: ty.type_var().unwrap_or_default(),
             ty,
-            methods: vec![],
         })
     }
 

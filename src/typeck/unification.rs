@@ -5,7 +5,7 @@ use crate::{
 };
 
 use super::{
-    hir::{Ast, Block, Expr, ExprKind, Function, Stmt, Struct},
+    hir::{Ast, Block, Expr, ExprKind, Function, Impl, Stmt, Struct},
     ty::{Ty, TyContext},
 };
 
@@ -19,6 +19,7 @@ struct Unifier<'a> {
 pub fn unify(ast: &Ast, env: &mut TyContext, handler: &Handler) -> Result<()> {
     let mut unifier = Unifier::new(env, handler);
     unifier.unify_structs(&ast.structs)?;
+    unifier.unify_impls(&ast.impls)?;
     unifier.unify_fns(&ast.functions)?;
     unifier.unify_stmts(&ast.stmts)
 }
@@ -272,6 +273,7 @@ impl<'a> Unifier<'a> {
 
     fn unify_block(&mut self, block: &Block) -> Result<()> {
         self.unify_structs(&block.structs)?;
+        self.unify_impls(&block.impls)?;
         self.unify_fns(&block.functions)?;
 
         for stmt in &block.stmts {
@@ -298,12 +300,6 @@ impl<'a> Unifier<'a> {
         for s in structs {
             self.unify_struct(s)?;
         }
-        for s in structs {
-            self.enter_self_scope(s.ty.clone(), |this| this.unify_fn_headers(&s.methods))?;
-        }
-        for s in structs {
-            self.enter_self_scope(s.ty.clone(), |this| this.unify_fn_bodies(&s.methods))?;
-        }
         Ok(())
     }
 
@@ -314,12 +310,28 @@ impl<'a> Unifier<'a> {
             .map(|f| (f.name.symbol, f.ty.clone()))
             .collect();
 
-        for m in &s.methods {
-            self.env.add_method(s.id, m.name.symbol, m.ty.clone());
-        }
-
         self.env
             .unify(&Ty::Struct(s.id, s.name.symbol, fields), &s.ty, s.name.span)?;
+        Ok(())
+    }
+
+    fn unify_impls(&mut self, impls: &[Impl]) -> Result<()> {
+        for i in impls {
+            self.enter_self_scope(i.ty.ty.clone(), |this| this.unify_impl(i))?;
+        }
+        Ok(())
+    }
+
+    fn unify_impl(&mut self, i: &Impl) -> Result<()> {
+        for f in &i.functions {
+            if self.env.add_method(i.id, f.name.symbol, f.ty.clone()) {
+                return self.handler.mk_err(
+                    f.name.span,
+                    "Function with same name already defined for this type",
+                );
+            }
+        }
+        self.unify_fns(&i.functions)?;
         Ok(())
     }
 
