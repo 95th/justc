@@ -6,5 +6,6 @@ impl A {
     }
 }
 
-let a = A::minus;
-a(A { a: 1 }, 1);
+foo(A::minus);
+
+fn foo(f: fn(A, int) -> A) {}

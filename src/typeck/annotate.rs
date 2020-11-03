@@ -230,23 +230,18 @@ impl<'a> Annotate<'a> {
                 for arg in args {
                     annotated_args.push(self.annotate_expr(arg)?);
                 }
-                hir::ExprKind::MethodCall {
-                    ty,
-                    name,
+                hir::ExprKind::Call {
+                    callee: Box::new(hir::Expr {
+                        span: name.span,
+                        kind: hir::ExprKind::AssocMethod { ty, name },
+                        ty: self.env.new_type_var(),
+                    }),
                     args: annotated_args,
                 }
             }
-            ast::ExprKind::AssocMethodCall { ty, name, args } => {
+            ast::ExprKind::AssocMethod { ty, name } => {
                 let ty = self.ast_ty_to_spanned_ty(ty)?;
-                let mut annotated_args = vec![];
-                for arg in args {
-                    annotated_args.push(self.annotate_expr(arg)?);
-                }
-                hir::ExprKind::MethodCall {
-                    ty,
-                    name,
-                    args: annotated_args,
-                }
+                hir::ExprKind::AssocMethod { ty, name }
             }
         };
         Ok(Box::new(hir::Expr { kind, span, ty }))

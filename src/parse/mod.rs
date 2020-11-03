@@ -663,13 +663,22 @@ impl Parser {
             let ty = self.token_to_ty()?;
             self.consume(ColonColon, "Expected '::'")?;
             let method_name = self.consume(Ident, "Expected identifier")?;
-            self.consume(OpenParen, "Expected '('")?;
-            let args = self.finish_call()?;
             span = span.to(self.prev.span);
-            ExprKind::AssocMethodCall {
+            let assoc_method = ExprKind::AssocMethod {
                 ty,
                 name: method_name,
-                args,
+            };
+
+            if self.eat(OpenParen) {
+                let callee = Box::new(Expr {
+                    kind: assoc_method,
+                    span,
+                });
+                let args = self.finish_call()?;
+                span = span.to(self.prev.span);
+                ExprKind::Call { callee, args }
+            } else {
+                assoc_method
             }
         } else {
             ExprKind::Variable(name)

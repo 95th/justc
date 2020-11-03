@@ -142,12 +142,12 @@ impl<'a> Unifier<'a> {
                 this.env.unify(&ret, &body.ty, body.span)
             }),
             ExprKind::Call { callee, args } => {
-                self.unify_expr(callee)?;
-                let ty = self.env.resolve_ty(&callee.ty);
-                self.unify_fn_call(expr, args, &*ty, callee.span)?;
                 for arg in args {
                     self.unify_expr(arg)?;
                 }
+                self.unify_expr(callee)?;
+                let ty = self.env.resolve_ty(&callee.ty);
+                self.unify_fn_call(expr, args, &*ty, callee.span)?;
                 Ok(())
             }
             ExprKind::Struct(name, fields, ty) => {
@@ -218,21 +218,17 @@ impl<'a> Unifier<'a> {
                     ),
                 }
             }
-            ExprKind::MethodCall {
+            ExprKind::AssocMethod {
                 ty,
                 name: method_name,
-                args,
             } => {
                 if ty.is_self {
                     self.env
                         .unify(self.enclosing_self_ty.as_ref().unwrap(), &ty.ty, ty.span)?;
                 }
 
-                for arg in args {
-                    self.unify_expr(arg)?;
-                }
-                let resolved_ty = self.env.resolve_ty(&ty.ty);
-                match &*resolved_ty {
+                let ty = self.env.resolve_ty(&ty.ty);
+                match &*ty {
                     Ty::Struct(id, name, fields) => {
                         let method_ty =
                             if let Some(m) = self.env.get_method(*id, method_name.symbol) {
@@ -250,7 +246,7 @@ impl<'a> Unifier<'a> {
                             };
 
                         let method_ty = self.env.resolve_ty(&method_ty);
-                        self.unify_fn_call(expr, args, &*method_ty, ty.span)?;
+                        self.env.unify(&expr.ty, &method_ty, method_name.span)?;
                     }
                     Ty::Infer(_) => {
                         return self.handler.mk_err(
@@ -261,16 +257,9 @@ impl<'a> Unifier<'a> {
                     ty => {
                         return self.handler.mk_err(
                             method_name.span,
-                            &format!(
-                                "Method or Field `{}` not found on type `{}`",
-                                method_name.symbol, ty
-                            ),
-                        );
+                            &format!("Type error: Expected struct, Actual: `{}`", ty,),
+                        )
                     }
-                }
-
-                for arg in args {
-                    self.unify_expr(arg)?;
                 }
 
                 Ok(())

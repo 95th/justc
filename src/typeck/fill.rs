@@ -94,12 +94,12 @@ impl TyContext {
         match &mut e.kind {
             ExprKind::Binary { left, right, .. } => {
                 self.fill_expr(left)?;
-                self.fill_expr(right)
+                self.fill_expr(right)?;
             }
-            ExprKind::Literal(_, ty, _) => self.fill_ty(ty),
-            ExprKind::Unary { expr, .. } => self.fill_expr(expr),
-            ExprKind::Variable(_, ty) => self.fill_ty(ty),
-            ExprKind::Block(block) => self.fill_block(block),
+            ExprKind::Literal(_, ty, _) => self.fill_ty(ty)?,
+            ExprKind::Unary { expr, .. } => self.fill_expr(expr)?,
+            ExprKind::Variable(_, ty) => self.fill_ty(ty)?,
+            ExprKind::Block(block) => self.fill_block(block)?,
             ExprKind::If {
                 cond,
                 then_clause,
@@ -110,37 +110,32 @@ impl TyContext {
                 if let Some(else_clause) = else_clause {
                     self.fill_expr(else_clause)?;
                 }
-                Ok(())
             }
             ExprKind::Closure { params, ret, body } => {
                 for p in params {
                     self.fill_ty(&mut p.param_ty.ty)?;
                 }
                 self.fill_ty(ret)?;
-                self.fill_expr(body)
+                self.fill_expr(body)?;
             }
             ExprKind::Call { callee, args } => {
                 self.fill_expr(callee)?;
                 for arg in args {
                     self.fill_expr(arg)?;
                 }
-                Ok(())
             }
             ExprKind::Struct(_, fields, ty) => {
                 for f in fields {
                     self.fill_expr(&mut f.expr)?;
                 }
-                self.fill_ty(ty)
+                self.fill_ty(ty)?;
             }
-            ExprKind::Field(e, _) => self.fill_expr(e),
-            ExprKind::MethodCall { ty, args, .. } => {
+            ExprKind::Field(e, _) => self.fill_expr(e)?,
+            ExprKind::AssocMethod { ty, .. } => {
                 self.fill_ty(&mut ty.ty)?;
-                for arg in args {
-                    self.fill_expr(arg)?;
-                }
-                Ok(())
             }
         }
+        Ok(())
     }
 
     fn fill_block(&mut self, block: &mut Block) -> Result<()> {

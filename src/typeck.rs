@@ -90,43 +90,53 @@ impl Typeck {
                 use ast::BinOp::*;
                 match op.val {
                     Add | Sub | Mul | Div | Rem | Lt | Gt | Le | Ge => match &left.ty {
-                        Ty::Int | Ty::Float => Ok(()),
-                        ty => self
-                            .handler
-                            .mk_err(op.span, &format!("Not supported for {}", ty)),
+                        Ty::Int | Ty::Float => {}
+                        ty => {
+                            return self
+                                .handler
+                                .mk_err(op.span, &format!("Not supported for {}", ty))
+                        }
                     },
 
                     Ne | Eq => match &left.ty {
-                        Ty::Int | Ty::Float | Ty::Bool => Ok(()),
-                        ty => self
-                            .handler
-                            .mk_err(op.span, &format!("Not supported for {}", ty)),
+                        Ty::Int | Ty::Float | Ty::Bool => {}
+                        ty => {
+                            return self
+                                .handler
+                                .mk_err(op.span, &format!("Not supported for {}", ty))
+                        }
                     },
                     And | Or => match &left.ty {
-                        Ty::Bool => Ok(()),
-                        ty => self
-                            .handler
-                            .mk_err(op.span, &format!("Not supported for {}", ty)),
+                        Ty::Bool => {}
+                        ty => {
+                            return self
+                                .handler
+                                .mk_err(op.span, &format!("Not supported for {}", ty))
+                        }
                     },
                 }
             }
-            ExprKind::Literal(..) => Ok(()),
+            ExprKind::Literal(..) => {}
             ExprKind::Unary { op, expr } => match op.val {
                 ast::UnOp::Not => match &expr.ty {
-                    Ty::Bool => Ok(()),
-                    ty => self
-                        .handler
-                        .mk_err(op.span, &format!("Not supported for {}", ty)),
+                    Ty::Bool => {}
+                    ty => {
+                        return self
+                            .handler
+                            .mk_err(op.span, &format!("Not supported for {}", ty))
+                    }
                 },
                 ast::UnOp::Neg => match &expr.ty {
-                    Ty::Int | Ty::Float => Ok(()),
-                    ty => self
-                        .handler
-                        .mk_err(op.span, &format!("Not supported for {}", ty)),
+                    Ty::Int | Ty::Float => {}
+                    ty => {
+                        return self
+                            .handler
+                            .mk_err(op.span, &format!("Not supported for {}", ty))
+                    }
                 },
             },
-            ExprKind::Variable(_, _) => Ok(()),
-            ExprKind::Block(block) => self.typeck_block(block),
+            ExprKind::Variable(_, _) => {}
+            ExprKind::Block(block) => self.typeck_block(block)?,
             ExprKind::If {
                 cond,
                 then_clause,
@@ -137,41 +147,33 @@ impl Typeck {
                 if let Some(else_clause) = else_clause {
                     self.typeck_expr(else_clause)?;
                 }
-                Ok(())
             }
             ExprKind::Closure { params, ret, body } => {
                 for p in params {
                     self.typeck_no_var(&p.param_ty.ty, p.name.span)?;
                 }
                 self.typeck_expr(body)?;
-                self.typeck_eq(ret, &body.ty, body.span)
+                self.typeck_eq(ret, &body.ty, body.span)?;
             }
             ExprKind::Call { callee, args } => {
                 self.typeck_expr(callee)?;
                 for arg in args {
                     self.typeck_expr(arg)?;
                 }
-                Ok(())
             }
             ExprKind::Struct(_, fields, _) => {
                 for f in fields {
                     self.typeck_expr(&f.expr)?;
                 }
-
-                Ok(())
             }
             ExprKind::Field(expr, _) => {
                 self.typeck_expr(expr)?;
-                Ok(())
             }
-            ExprKind::MethodCall { ty, args, .. } => {
+            ExprKind::AssocMethod { ty, .. } => {
                 self.typeck_no_var(&ty.ty, ty.span)?;
-                for arg in args {
-                    self.typeck_expr(arg)?;
-                }
-                Ok(())
             }
         }
+        Ok(())
     }
 
     fn typeck_block(&self, block: &Block) -> Result<()> {
