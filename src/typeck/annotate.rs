@@ -7,7 +7,7 @@ use crate::{
 
 use super::{
     hir::{self, SpannedTy},
-    ty::{Ty, TyContext},
+    ty::{Ty, TyContext, TypeVar},
 };
 
 pub fn annotate(ast: ast::Ast, env: &mut TyContext, handler: &Handler) -> Result<hir::Ast> {
@@ -19,9 +19,9 @@ pub fn annotate(ast: ast::Ast, env: &mut TyContext, handler: &Handler) -> Result
 
 struct Annotate<'a> {
     env: &'a mut TyContext,
-    bindings: &'a mut SymbolTable<Ty>,
-    functions: &'a mut SymbolTable<Ty>,
-    structs: &'a mut SymbolTable<Ty>,
+    bindings: &'a mut SymbolTable<TypeVar>,
+    functions: &'a mut SymbolTable<TypeVar>,
+    structs: &'a mut SymbolTable<TypeVar>,
     handler: &'a Handler,
     has_enclosing_fn: bool,
     has_enclosing_loop: bool,
@@ -30,9 +30,9 @@ struct Annotate<'a> {
 impl<'a> Annotate<'a> {
     fn new(
         env: &'a mut TyContext,
-        bindings: &'a mut SymbolTable<Ty>,
-        functions: &'a mut SymbolTable<Ty>,
-        structs: &'a mut SymbolTable<Ty>,
+        bindings: &'a mut SymbolTable<TypeVar>,
+        functions: &'a mut SymbolTable<TypeVar>,
+        structs: &'a mut SymbolTable<TypeVar>,
         handler: &'a Handler,
     ) -> Self {
         Self {
@@ -155,10 +155,10 @@ impl<'a> Annotate<'a> {
             ast::ExprKind::Grouping(e) => return self.annotate_expr(e),
             ast::ExprKind::Literal(lit, span) => {
                 let ty = match &lit {
-                    ast::Lit::Str(_) => Ty::Str,
-                    ast::Lit::Integer(_) => Ty::Int,
-                    ast::Lit::Float(_) => Ty::Float,
-                    ast::Lit::Bool(_) => Ty::Bool,
+                    ast::Lit::Str(_) => self.env.common.str,
+                    ast::Lit::Integer(_) => self.env.common.int,
+                    ast::Lit::Float(_) => self.env.common.float,
+                    ast::Lit::Bool(_) => self.env.common.bool,
                     ast::Lit::Err => self.env.new_type_var(),
                 };
                 hir::ExprKind::Literal(lit, ty, span)
@@ -338,7 +338,7 @@ impl<'a> Annotate<'a> {
         })
     }
 
-    fn ast_ty_to_ty(&mut self, ty: ast::Ty) -> Result<Ty> {
+    fn ast_ty_to_ty(&mut self, ty: ast::Ty) -> Result<TypeVar> {
         let ty = match ty.kind {
             ast::TyKind::Fn(params, ret) => {
                 let params = params
@@ -346,11 +346,11 @@ impl<'a> Annotate<'a> {
                     .map(|p| self.ast_ty_to_ty(p))
                     .collect::<Result<_>>()?;
                 let ret = self.ast_ty_to_ty(*ret)?;
-                Ty::Fn(params, Box::new(ret))
+                self.env.alloc_ty(Ty::Fn(params, ret))
             }
             ast::TyKind::Ident(t) => self.token_to_ty(&t)?,
             ast::TyKind::Infer => self.env.new_type_var(),
-            ast::TyKind::Unit => Ty::Unit,
+            ast::TyKind::Unit => self.env.common.unit,
             ast::TyKind::SelfTy => self.env.new_type_var(),
         };
 
@@ -366,11 +366,11 @@ impl<'a> Annotate<'a> {
                     .map(|p| self.ast_ty_to_ty(p))
                     .collect::<Result<_>>()?;
                 let ret = self.ast_ty_to_ty(*ret)?;
-                Ty::Fn(params, Box::new(ret))
+                self.env.alloc_ty(Ty::Fn(params, ret))
             }
             ast::TyKind::Ident(t) => self.token_to_ty(&t)?,
             ast::TyKind::Infer => self.env.new_type_var(),
-            ast::TyKind::Unit => Ty::Unit,
+            ast::TyKind::Unit => self.env.common.unit,
             ast::TyKind::SelfTy => {
                 is_self = true;
                 self.env.new_type_var()
@@ -400,7 +400,7 @@ impl<'a> Annotate<'a> {
         };
         let functions = self.annotate_fns(i.functions)?;
         Ok(hir::Impl {
-            id: ty.ty.type_var().unwrap(),
+            id: ty.ty,
             ty,
             functions,
         })
@@ -423,7 +423,7 @@ impl<'a> Annotate<'a> {
         Ok(hir::Struct {
             name: s.name,
             fields,
-            id: ty.type_var().unwrap_or_default(),
+            id: ty,
             ty,
         })
     }
@@ -456,13 +456,13 @@ impl<'a> Annotate<'a> {
         })
     }
 
-    fn token_to_ty(&mut self, token: &Token) -> Result<Ty> {
+    fn token_to_ty(&mut self, token: &Token) -> Result<TypeVar> {
         token.symbol.as_str_with(|s| {
             let ty = match s {
-                "bool" => Ty::Bool,
-                "int" => Ty::Int,
-                "str" => Ty::Str,
-                "float" => Ty::Float,
+                "bool" => self.env.common.bool,
+                "int" => self.env.common.int,
+                "str" => self.env.common.str,
+                "float" => self.env.common.float,
                 _ => {
                     if let Some(ty) = self.structs.get(token.symbol) {
                         ty.clone()

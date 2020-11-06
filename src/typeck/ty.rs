@@ -5,7 +5,6 @@ use crate::{
 };
 use ena::unify::{InPlaceUnificationTable, NoError, UnifyKey, UnifyValue};
 use std::{
-    borrow::Cow,
     collections::{BTreeMap, HashMap},
     fmt,
     rc::Rc,
@@ -43,34 +42,57 @@ impl UnifyKey for TypeVar {
 }
 
 #[derive(Debug)]
+pub struct CommonTypes {
+    pub bool: TypeVar,
+    pub unit: TypeVar,
+    pub int: TypeVar,
+    pub float: TypeVar,
+    pub str: TypeVar,
+}
+
+#[derive(Debug)]
 pub struct TyContext {
     table: InPlaceUnificationTable<TypeVar>,
     pub handler: Rc<Handler>,
     var_stack: Vec<TypeVar>,
-    methods: HashMap<TypeVar, HashMap<Symbol, Ty>>,
+    methods: HashMap<TypeVar, HashMap<Symbol, TypeVar>>,
+    pub common: CommonTypes,
 }
 
 impl TyContext {
     pub fn new(handler: &Rc<Handler>) -> Self {
+        let mut table = InPlaceUnificationTable::new();
+        let common = CommonTypes {
+            bool: table.new_key(TypeVarValue::Known(Ty::Bool)),
+            unit: table.new_key(TypeVarValue::Known(Ty::Unit)),
+            int: table.new_key(TypeVarValue::Known(Ty::Int)),
+            float: table.new_key(TypeVarValue::Known(Ty::Float)),
+            str: table.new_key(TypeVarValue::Known(Ty::Str)),
+        };
         Self {
-            table: InPlaceUnificationTable::new(),
+            table,
             handler: handler.clone(),
             var_stack: Vec::new(),
             methods: HashMap::new(),
+            common,
         }
     }
 
-    pub fn new_type_var(&mut self) -> Ty {
-        Ty::Infer(self.table.new_key(TypeVarValue::Unknown))
+    pub fn new_type_var(&mut self) -> TypeVar {
+        self.table.new_key(TypeVarValue::Unknown)
     }
 
-    pub fn get_method(&self, struct_id: TypeVar, name: Symbol) -> Option<&Ty> {
+    pub fn alloc_ty(&mut self, ty: Ty) -> TypeVar {
+        self.table.new_key(TypeVarValue::Known(ty))
+    }
+
+    pub fn get_method(&self, struct_id: TypeVar, name: Symbol) -> Option<TypeVar> {
         self.methods
             .get(&struct_id)
-            .and_then(|methods| methods.get(&name))
+            .and_then(|methods| methods.get(&name).copied())
     }
 
-    pub fn add_method(&mut self, struct_id: TypeVar, name: Symbol, ty: Ty) -> bool {
+    pub fn add_method(&mut self, struct_id: TypeVar, name: Symbol, ty: TypeVar) -> bool {
         self.methods
             .entry(struct_id)
             .or_insert_with(HashMap::new)
@@ -78,28 +100,24 @@ impl TyContext {
             .is_some()
     }
 
-    pub fn resolve_ty<'a>(&mut self, ty: &'a Ty) -> Cow<'a, Ty> {
-        if let Some(v) = ty.type_var() {
-            match self.table.probe_value(v).known() {
-                Some(t) => Cow::Owned(t),
-                None => Cow::Borrowed(ty),
-            }
-        } else {
-            Cow::Borrowed(ty)
-        }
+    pub fn resolve_ty(&mut self, var: TypeVar) -> Ty {
+        self.table
+            .probe_value(var)
+            .known()
+            .unwrap_or_else(|| Ty::Infer(var))
     }
 
-    pub fn unify(&mut self, expected: &Ty, actual: &Ty, span: Span) -> Result<()> {
+    pub fn unify(&mut self, expected: TypeVar, actual: TypeVar, span: Span) -> Result<()> {
         let a = self.resolve_ty(expected);
         let b = self.resolve_ty(actual);
 
-        match (&*a, &*b) {
-            (Ty::Infer(a), Ty::Infer(b)) => self.table.union(*a, *b),
-            (Ty::Infer(v), other) | (other, Ty::Infer(v)) => self
-                .table
-                .union_value(*v, TypeVarValue::Known(other.clone())),
+        match (a, b) {
+            (Ty::Infer(a), Ty::Infer(b)) => self.table.union(a, b),
+            (Ty::Infer(v), other) | (other, Ty::Infer(v)) => {
+                self.table.union_value(v, TypeVarValue::Known(other))
+            }
             (Ty::Fn(params, ret), Ty::Fn(params2, ret2)) => {
-                for (p1, p2) in params.iter().zip(params2) {
+                for (p1, p2) in params.into_iter().zip(params2) {
                     self.unify(p1, p2, span)?;
                 }
                 self.unify(ret, ret2, span)?;
@@ -110,7 +128,7 @@ impl TyContext {
                         .handler
                         .mk_err(span, &format!("Expected type {}, Actual: {}", name, name2));
                 }
-                for ((_, f1), (_, f2)) in fields.iter().zip(fields2) {
+                for ((_, f1), (_, f2)) in fields.into_iter().zip(fields2) {
                     self.unify(f1, f2, span)?;
                 }
             }
@@ -138,7 +156,8 @@ impl TyContext {
     pub fn fill_methods(&mut self) -> Result<()> {
         let mut methods = std::mem::take(&mut self.methods);
         for method in methods.values_mut().flat_map(|map| map.values_mut()) {
-            self.fill_ty(method)?;
+            // FIXME: What to do here
+            // self.fill_ty(method)?;
         }
         self.methods = methods;
         Ok(())
@@ -163,14 +182,14 @@ impl TyContext {
             }
             Ty::Fn(params, ret) => {
                 for p in params {
-                    self.fill_ty_inner(p, var)?;
+                    *p = self.table.find(*p);
                 }
-                self.fill_ty_inner(ret, var)?;
+                *ret = self.table.find(*ret);
             }
             Ty::Struct(_, _, fields) => {
                 log::trace!("fill fields");
                 for f in fields.values_mut() {
-                    self.fill_ty_inner(f, var)?;
+                    *f = self.table.find(*f);
                 }
             }
             _ => {}
@@ -187,11 +206,14 @@ pub enum Ty {
     Int,
     Float,
     Str,
-    Fn(/* params: */ Vec<Ty>, /* return_ty: */ Box<Ty>),
+    Fn(
+        /* params: */ Vec<TypeVar>,
+        /* return_ty: */ TypeVar,
+    ),
     Struct(
         /* id: */ TypeVar,
         /* name: */ Symbol,
-        /* fields: */ BTreeMap<Symbol, Ty>,
+        /* fields: */ BTreeMap<Symbol, TypeVar>,
     ),
 }
 
@@ -253,10 +275,10 @@ impl fmt::Display for Ty {
                     } else {
                         f.write_str(", ")?;
                     }
-                    write!(f, "{}", p)?;
+                    write!(f, "{:?}", p)?;
                 }
                 f.write_str(")")?;
-                write!(f, " -> {}", ret)?;
+                write!(f, " -> {:?}", ret)?;
             }
             Ty::Struct(_, name, _) => write!(f, "{}", name)?,
         }

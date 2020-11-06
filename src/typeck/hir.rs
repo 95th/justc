@@ -2,14 +2,14 @@ use crate::{
     lex::Span, lex::Spanned, lex::Token, parse::ast::BinOp, parse::ast::Lit, parse::ast::UnOp,
 };
 
-use super::ty::{Ty, TypeVar};
+use super::ty::TypeVar;
 
 #[derive(Debug, Clone)]
 pub enum Stmt {
     Expr(Box<Expr>, bool),
     Let {
         name: Token,
-        ty: Ty,
+        ty: TypeVar,
         init: Option<Box<Expr>>,
     },
     Assign {
@@ -29,7 +29,7 @@ pub enum Stmt {
 pub struct Expr {
     pub kind: ExprKind,
     pub span: Span,
-    pub ty: Ty,
+    pub ty: TypeVar,
 }
 
 #[derive(Debug, Clone)]
@@ -39,12 +39,12 @@ pub enum ExprKind {
         left: Box<Expr>,
         right: Box<Expr>,
     },
-    Literal(Lit, Ty, Span),
+    Literal(Lit, TypeVar, Span),
     Unary {
         op: Spanned<UnOp>,
         expr: Box<Expr>,
     },
-    Variable(Token, Ty),
+    Variable(Token, TypeVar),
     Block(Block),
     If {
         cond: Box<Expr>,
@@ -53,14 +53,14 @@ pub enum ExprKind {
     },
     Closure {
         params: Vec<Param>,
-        ret: Ty,
+        ret: TypeVar,
         body: Box<Expr>,
     },
     Call {
         callee: Box<Expr>,
         args: Vec<Box<Expr>>,
     },
-    Struct(Token, Vec<Field>, Ty),
+    Struct(Token, Vec<Field>, TypeVar),
     Field(Box<Expr>, Token),
     AssocMethod {
         ty: SpannedTy,
@@ -80,7 +80,7 @@ pub struct Block {
     pub impls: Vec<Impl>,
     pub functions: Vec<Function>,
     pub stmts: Vec<Stmt>,
-    pub ty: Ty,
+    pub ty: TypeVar,
     pub span: Span,
 }
 
@@ -96,12 +96,12 @@ pub struct Function {
     pub params: Vec<Param>,
     pub ret: SpannedTy,
     pub body: Block,
-    pub ty: Ty,
+    pub ty: TypeVar,
 }
 
 #[derive(Debug, Clone)]
 pub struct SpannedTy {
-    pub ty: Ty,
+    pub ty: TypeVar,
     pub span: Span,
     pub is_self: bool,
 }
@@ -110,14 +110,14 @@ pub struct SpannedTy {
 pub struct Struct {
     pub name: Token,
     pub fields: Vec<StructField>,
-    pub ty: Ty,
+    pub ty: TypeVar,
     pub id: TypeVar,
 }
 
 #[derive(Debug, Clone)]
 pub struct StructField {
     pub name: Token,
-    pub ty: Ty,
+    pub ty: TypeVar,
 }
 
 #[derive(Debug, Clone)]
