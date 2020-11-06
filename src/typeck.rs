@@ -223,6 +223,7 @@ impl Typeck {
 
         let a = self.env.resolve_ty(a);
         let b = self.env.resolve_ty(b);
+
         if a == b {
             Ok(())
         } else {
@@ -235,17 +236,13 @@ impl Typeck {
 
     fn typeck_no_var(&mut self, var: TypeVar, span: Span) -> Result<()> {
         let ty = self.env.resolve_ty(var);
+        log::trace!("{:?} = {:?}", var, ty);
         match ty {
             Ty::Infer(_) => self
                 .handler
                 .mk_err(span, "Type cannot be inferred. Please add type annotations"),
             Ty::Unit | Ty::Bool | Ty::Int | Ty::Float | Ty::Str => Ok(()),
-            Ty::Fn(params, ret) => {
-                for p in params.iter().copied() {
-                    self.typeck_no_var(p, span)?;
-                }
-                self.typeck_no_var(ret, span)
-            }
+            Ty::Fn(..) => Ok(()),
             Ty::Struct(.., fields) => {
                 for f in fields.values().copied() {
                     self.typeck_no_var(f, span)?;

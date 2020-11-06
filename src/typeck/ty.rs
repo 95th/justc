@@ -5,7 +5,7 @@ use crate::{
 };
 use ena::unify::{InPlaceUnificationTable, NoError, UnifyKey, UnifyValue};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     fmt,
     rc::Rc,
 };
@@ -57,6 +57,7 @@ pub struct TyContext {
     var_stack: Vec<TypeVar>,
     methods: HashMap<TypeVar, HashMap<Symbol, TypeVar>>,
     common: CommonTypes,
+    done: HashSet<TypeVar>,
 }
 
 impl TyContext {
@@ -75,6 +76,7 @@ impl TyContext {
             var_stack: Vec::new(),
             methods: HashMap::new(),
             common,
+            done: HashSet::new(),
         }
     }
 
@@ -128,8 +130,23 @@ impl TyContext {
     }
 
     pub fn unify(&mut self, expected: TypeVar, actual: TypeVar, span: Span) -> Result<()> {
+        self.done.clear();
+        self.unify_inner(expected, actual, span)
+    }
+
+    fn unify_inner(&mut self, expected: TypeVar, actual: TypeVar, span: Span) -> Result<()> {
+        if expected == actual || self.table.unioned(expected, actual) {
+            return Ok(());
+        }
+
+        if !self.done.insert(expected) || !self.done.insert(actual) {
+            return Ok(());
+        }
+
         let a = self.resolve_ty(expected);
         let b = self.resolve_ty(actual);
+
+        log::trace!("Unify {:?} with {:?}", a, b);
 
         match (a, b) {
             (Ty::Infer(a), Ty::Infer(b)) => self.table.union(a, b),
@@ -138,9 +155,9 @@ impl TyContext {
             }
             (Ty::Fn(params, ret), Ty::Fn(params2, ret2)) => {
                 for (p1, p2) in params.iter().zip(params2.iter()) {
-                    self.unify(*p1, *p2, span)?;
+                    self.unify_inner(*p1, *p2, span)?;
                 }
-                self.unify(ret, ret2, span)?;
+                self.unify_inner(ret, ret2, span)?;
             }
             (Ty::Struct(id, name, fields), Ty::Struct(id2, name2, fields2)) => {
                 if id != id2 {
@@ -150,7 +167,7 @@ impl TyContext {
                     );
                 }
                 for ((_, f1), (_, f2)) in fields.iter().zip(fields2.iter()) {
-                    self.unify(*f1, *f2, span)?;
+                    self.unify_inner(*f1, *f2, span)?;
                 }
             }
             (Ty::Unit, Ty::Unit)

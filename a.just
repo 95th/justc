@@ -1,14 +1,16 @@
-struct B { a: int }
-impl B {
-    fn minus(self, n: int) -> Self {
-        Self { a: self.a - n }
+struct A { b: B }
+struct B { a: fn() -> A }
+
+impl A {
+    fn new() -> Self {
+        Self {
+            b: B {
+                a: Self::new,
+            }
+        }
     }
 }
 
-let a = B::minus;
-a(B { a: 1 }, 1); 
-bar(B::minus);
-
-fn bar(f: fn(B, int) -> B) {}
-
-bar(1)
+fn foo() -> fn() -> A {
+    A::new
+}
