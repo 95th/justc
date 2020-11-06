@@ -138,12 +138,12 @@ impl<'a> Unifier<'a> {
                 this.env.unify(*ret, body.ty, body.span)
             }),
             ExprKind::Call { callee, args } => {
-                for arg in args {
-                    self.unify_expr(arg)?;
-                }
                 self.unify_expr(callee)?;
                 let ty = self.env.resolve_ty(callee.ty);
                 self.unify_fn_call(expr, args, &ty, callee.span)?;
+                for arg in args {
+                    self.unify_expr(arg)?;
+                }
                 Ok(())
             }
             ExprKind::Struct(name, fields, ty_var) => {
