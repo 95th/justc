@@ -12,5 +12,6 @@ impl A {
 }
 
 fn foo() -> fn() -> A {
-    A::new
+    let a  = A::new;
+    || a(1)
 }

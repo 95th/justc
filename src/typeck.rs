@@ -225,13 +225,30 @@ impl Typeck {
         let b = self.env.resolve_ty(b);
 
         if a == b {
-            Ok(())
-        } else {
-            self.handler.mk_err(
-                span,
-                &format!("Type mismatch: Expected: `{}`, Actual: `{}`", a, b),
-            )
+            return Ok(());
         }
+
+        if let (Ty::Struct(id, ..), Ty::Struct(id2, ..)) = (&a, &b) {
+            if id != id2 {
+                return self.handler.mk_err(
+                    span,
+                    &format!("Type mismatch: Expected: `{}`, Actual: `{}`", a, b),
+                );
+            }
+        }
+
+        if let (Ty::Fn(args, ret), Ty::Fn(arg2, ret2)) = (&a, &b) {
+            for (&a, &b) in args.iter().zip(arg2.iter()) {
+                self.typeck_eq(a, b, span)?;
+            }
+            self.typeck_eq(*ret, *ret2, span)?;
+            return Ok(());
+        }
+
+        self.handler.mk_err(
+            span,
+            &format!("Type mismatch: Expected: `{}`, Actual: `{}`", a, b),
+        )
     }
 
     fn typeck_no_var(&mut self, var: TypeVar, span: Span) -> Result<()> {
