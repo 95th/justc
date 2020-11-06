@@ -9,4 +9,8 @@ let a = B::minus;
 a(B { a: 1 }, 1); 
 bar(B::minus);
 
-fn bar(f: fn(B, int) -> B) {} 
+fn bar(f: fn(B, int) -> B) {}
+
+if a + a {
+    
+}

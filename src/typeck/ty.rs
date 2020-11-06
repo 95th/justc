@@ -137,8 +137,8 @@ impl TyContext {
                 self.table.union_value(v, TypeVarValue::Known(other))
             }
             (Ty::Fn(params, ret), Ty::Fn(params2, ret2)) => {
-                for (p1, p2) in params.into_iter().zip(params2) {
-                    self.unify(p1, p2, span)?;
+                for (p1, p2) in params.iter().zip(params2.iter()) {
+                    self.unify(*p1, *p2, span)?;
                 }
                 self.unify(ret, ret2, span)?;
             }
@@ -148,8 +148,8 @@ impl TyContext {
                         .handler
                         .mk_err(span, &format!("Expected type {}, Actual: {}", name, name2));
                 }
-                for ((_, f1), (_, f2)) in fields.into_iter().zip(fields2) {
-                    self.unify(f1, f2, span)?;
+                for ((_, f1), (_, f2)) in fields.iter().zip(fields2.iter()) {
+                    self.unify(*f1, *f2, span)?;
                 }
             }
             (Ty::Unit, Ty::Unit)
@@ -176,8 +176,7 @@ impl TyContext {
     pub fn fill_methods(&mut self) -> Result<()> {
         let mut methods = std::mem::take(&mut self.methods);
         for method in methods.values_mut().flat_map(|map| map.values_mut()) {
-            // FIXME: What to do here
-            // self.fill_ty(method)?;
+            *method = self.table.find(*method);
         }
         self.methods = methods;
         Ok(())
@@ -201,14 +200,14 @@ impl TyContext {
                 }
             }
             Ty::Fn(params, ret) => {
-                for p in params {
+                for p in Rc::make_mut(params) {
                     *p = self.table.find(*p);
                 }
                 *ret = self.table.find(*ret);
             }
             Ty::Struct(_, _, fields) => {
                 log::trace!("fill fields");
-                for f in fields.values_mut() {
+                for f in Rc::make_mut(fields).values_mut() {
                     *f = self.table.find(*f);
                 }
             }
@@ -227,13 +226,13 @@ pub enum Ty {
     Float,
     Str,
     Fn(
-        /* params: */ Vec<TypeVar>,
+        /* params: */ Rc<Vec<TypeVar>>,
         /* return_ty: */ TypeVar,
     ),
     Struct(
         /* id: */ TypeVar,
         /* name: */ Symbol,
-        /* fields: */ BTreeMap<Symbol, TypeVar>,
+        /* fields: */ Rc<BTreeMap<Symbol, TypeVar>>,
     ),
 }
 
@@ -289,7 +288,7 @@ impl fmt::Display for Ty {
             Ty::Fn(params, ret) => {
                 f.write_str("fn(")?;
                 let mut first = true;
-                for p in params {
+                for p in params.iter() {
                     if first {
                         first = false;
                     } else {
@@ -318,7 +317,7 @@ impl fmt::Debug for Ty {
             Ty::Fn(params, ret) => {
                 f.write_str("fn(")?;
                 let mut first = true;
-                for p in params {
+                for p in params.iter() {
                     if first {
                         first = false;
                     } else {
@@ -332,7 +331,7 @@ impl fmt::Debug for Ty {
             Ty::Struct(id, name, fields) => {
                 write!(f, "struct {}{} {{ ", name, id.0)?;
                 let mut first = true;
-                for (name, ty) in fields {
+                for (name, ty) in fields.iter() {
                     if first {
                         first = false;
                     } else {

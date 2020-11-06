@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crate::{
     err::{Handler, Result},
     lex::Span,
@@ -130,10 +132,10 @@ impl<'a> Unifier<'a> {
                 }
             }
             ExprKind::Closure { params, ret, body } => self.enter_fn_scope(*ret, |this| {
-                let ty = this
-                    .env
-                    .alloc_ty(Ty::Fn(params.iter().map(|p| p.param_ty.ty).collect(), *ret));
+                let params = params.iter().map(|p| p.param_ty.ty).collect();
+                let ty = this.env.alloc_ty(Ty::Fn(Rc::new(params), *ret));
                 this.env.unify(ty, expr.ty, expr.span)?;
+
                 this.unify_expr(body)?;
                 this.env.unify(*ret, body.ty, body.span)
             }),
@@ -296,7 +298,9 @@ impl<'a> Unifier<'a> {
 
     fn unify_struct(&mut self, s: &Struct) -> Result<()> {
         let fields = s.fields.iter().map(|f| (f.name.symbol, f.ty)).collect();
-        let ty = self.env.alloc_ty(Ty::Struct(s.id, s.name.symbol, fields));
+        let ty = self
+            .env
+            .alloc_ty(Ty::Struct(s.id, s.name.symbol, Rc::new(fields)));
         self.env.unify(ty, s.ty, s.name.span)?;
         Ok(())
     }
@@ -374,11 +378,10 @@ impl<'a> Unifier<'a> {
             }
         }
 
-        let ty = self.env.alloc_ty(Ty::Fn(
-            function.params.iter().map(|p| p.param_ty.ty).collect(),
-            function.ret.ty,
-        ));
+        let params = function.params.iter().map(|p| p.param_ty.ty).collect();
+        let ty = self.env.alloc_ty(Ty::Fn(Rc::new(params), function.ret.ty));
         self.env.unify(ty, function.ty, function.name.span)?;
+
         if function.ret.is_self {
             self.env.unify(
                 self.enclosing_self_ty.unwrap(),

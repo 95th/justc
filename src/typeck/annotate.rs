@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crate::{
     err::{Handler, Result},
     lex::Token,
@@ -346,7 +348,7 @@ impl<'a> Annotate<'a> {
                     .map(|p| self.ast_ty_to_ty(p))
                     .collect::<Result<_>>()?;
                 let ret = self.ast_ty_to_ty(*ret)?;
-                self.env.alloc_ty(Ty::Fn(params, ret))
+                self.env.alloc_ty(Ty::Fn(Rc::new(params), ret))
             }
             ast::TyKind::Ident(t) => self.token_to_ty(&t)?,
             ast::TyKind::Infer => self.env.new_type_var(),
@@ -366,7 +368,7 @@ impl<'a> Annotate<'a> {
                     .map(|p| self.ast_ty_to_ty(p))
                     .collect::<Result<_>>()?;
                 let ret = self.ast_ty_to_ty(*ret)?;
-                self.env.alloc_ty(Ty::Fn(params, ret))
+                self.env.alloc_ty(Ty::Fn(Rc::new(params), ret))
             }
             ast::TyKind::Ident(t) => self.token_to_ty(&t)?,
             ast::TyKind::Infer => self.env.new_type_var(),
