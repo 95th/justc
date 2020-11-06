@@ -11,6 +11,4 @@ bar(B::minus);
 
 fn bar(f: fn(B, int) -> B) {}
 
-if a + a {
-    
-}
+bar(1)

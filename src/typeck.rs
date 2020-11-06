@@ -95,7 +95,7 @@ impl Typeck {
                             ty => {
                                 return self
                                     .handler
-                                    .mk_err(op.span, &format!("Not supported for {}", ty))
+                                    .mk_err(op.span, &format!("Not supported for `{}`", ty))
                             }
                         }
                     }
@@ -105,7 +105,7 @@ impl Typeck {
                         ty => {
                             return self
                                 .handler
-                                .mk_err(op.span, &format!("Not supported for {}", ty))
+                                .mk_err(op.span, &format!("Not supported for `{}`", ty))
                         }
                     },
                     And | Or => match self.env.resolve_ty(left.ty) {
@@ -113,7 +113,7 @@ impl Typeck {
                         ty => {
                             return self
                                 .handler
-                                .mk_err(op.span, &format!("Not supported for {}", ty))
+                                .mk_err(op.span, &format!("Not supported for `{}`", ty))
                         }
                     },
                 }
@@ -125,7 +125,7 @@ impl Typeck {
                     ty => {
                         return self
                             .handler
-                            .mk_err(op.span, &format!("Not supported for {}", ty))
+                            .mk_err(op.span, &format!("Not supported for `{}`", ty))
                     }
                 },
                 ast::UnOp::Neg => match self.env.resolve_ty(expr.ty) {
@@ -133,7 +133,7 @@ impl Typeck {
                     ty => {
                         return self
                             .handler
-                            .mk_err(op.span, &format!("Not supported for {}", ty))
+                            .mk_err(op.span, &format!("Not supported for `{}`", ty))
                     }
                 },
             },
@@ -228,7 +228,7 @@ impl Typeck {
         } else {
             self.handler.mk_err(
                 span,
-                &format!("Type mismatch: Expected: {}, Actual: {}", a, b),
+                &format!("Type mismatch: Expected: `{}`, Actual: `{}`", a, b),
             )
         }
     }

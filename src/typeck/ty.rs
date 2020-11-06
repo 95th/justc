@@ -144,9 +144,10 @@ impl TyContext {
             }
             (Ty::Struct(id, name, fields), Ty::Struct(id2, name2, fields2)) => {
                 if id != id2 {
-                    return self
-                        .handler
-                        .mk_err(span, &format!("Expected type {}, Actual: {}", name, name2));
+                    return self.handler.mk_err(
+                        span,
+                        &format!("Expected type `{}`, Actual: `{}`", name, name2),
+                    );
                 }
                 for ((_, f1), (_, f2)) in fields.iter().zip(fields2.iter()) {
                     self.unify(*f1, *f2, span)?;
@@ -159,7 +160,7 @@ impl TyContext {
             | (Ty::Str, Ty::Str) => {}
             (a, b) => self
                 .handler
-                .mk_err(span, &format!("Expected type {}, Actual: {}", a, b))?,
+                .mk_err(span, &format!("Expected type `{}`, Actual: `{}`", a, b))?,
         }
 
         Ok(())
@@ -279,26 +280,13 @@ impl UnifyValue for TypeVarValue {
 impl fmt::Display for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Ty::Infer(id) => write!(f, "{{unknown {:?}}}", id.0)?,
+            Ty::Infer(..) => f.write_str("{unknown}")?,
             Ty::Unit => f.write_str("unit")?,
             Ty::Bool => f.write_str("bool")?,
             Ty::Int => f.write_str("int")?,
             Ty::Float => f.write_str("float")?,
             Ty::Str => f.write_str("str")?,
-            Ty::Fn(params, ret) => {
-                f.write_str("fn(")?;
-                let mut first = true;
-                for p in params.iter() {
-                    if first {
-                        first = false;
-                    } else {
-                        f.write_str(", ")?;
-                    }
-                    write!(f, "{:?}", p)?;
-                }
-                f.write_str(")")?;
-                write!(f, " -> {:?}", ret)?;
-            }
+            Ty::Fn(..) => f.write_str("Function")?,
             Ty::Struct(_, name, _) => write!(f, "{}", name)?,
         }
         Ok(())
