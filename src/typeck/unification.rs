@@ -59,7 +59,7 @@ impl<'a> Unifier<'a> {
             Stmt::While { cond, body } => {
                 self.unify_expr(cond)?;
                 self.unify_block(body)?;
-                self.env.unify(self.env.common.bool, cond.ty, cond.span)
+                self.env.unify(self.env.bool(), cond.ty, cond.span)
             }
             Stmt::Return(_, e) => {
                 if let Some(e) = e {
@@ -83,11 +83,11 @@ impl<'a> Unifier<'a> {
                         self.env.unify(expr.ty, left.ty, left.span)?
                     }
                     BinOp::Lt | BinOp::Gt | BinOp::Le | BinOp::Ge | BinOp::Ne | BinOp::Eq => {
-                        self.env.unify(self.env.common.bool, expr.ty, expr.span)?
+                        self.env.unify(self.env.bool(), expr.ty, expr.span)?
                     }
                     BinOp::And | BinOp::Or => {
-                        self.env.unify(self.env.common.bool, left.ty, left.span)?;
-                        self.env.unify(self.env.common.bool, right.ty, right.span)?;
+                        self.env.unify(self.env.bool(), left.ty, left.span)?;
+                        self.env.unify(self.env.bool(), right.ty, right.span)?;
                     }
                 }
                 self.env.unify(left.ty, right.ty, right.span)?;
@@ -98,8 +98,8 @@ impl<'a> Unifier<'a> {
                 self.unify_expr(e)?;
                 match op.val {
                     UnOp::Not => {
-                        self.env.unify(self.env.common.bool, expr.ty, expr.span)?;
-                        self.env.unify(self.env.common.bool, e.ty, e.span)
+                        self.env.unify(self.env.bool(), expr.ty, expr.span)?;
+                        self.env.unify(self.env.bool(), e.ty, e.span)
                     }
                     UnOp::Neg => self.env.unify(expr.ty, e.ty, e.span),
                 }
@@ -115,7 +115,7 @@ impl<'a> Unifier<'a> {
                 else_clause,
             } => {
                 self.unify_expr(cond)?;
-                self.env.unify(self.env.common.bool, cond.ty, cond.span)?;
+                self.env.unify(self.env.bool(), cond.ty, cond.span)?;
 
                 self.unify_block(then_clause)?;
                 if let Some(else_clause) = else_clause {
@@ -125,8 +125,8 @@ impl<'a> Unifier<'a> {
                     self.env.unify(expr.ty, then_clause.ty, then_clause.span)
                 } else {
                     self.env
-                        .unify(self.env.common.unit, then_clause.ty, then_clause.span)?;
-                    self.env.unify(self.env.common.unit, expr.ty, expr.span)
+                        .unify(self.env.unit(), then_clause.ty, then_clause.span)?;
+                    self.env.unify(self.env.unit(), expr.ty, expr.span)
                 }
             }
             ExprKind::Closure { params, ret, body } => self.enter_fn_scope(*ret, |this| {
@@ -274,11 +274,8 @@ impl<'a> Unifier<'a> {
                     self.env
                         .unify(self.enclosing_fn_ret_ty.unwrap(), e.ty, e.span)?;
                 } else {
-                    self.env.unify(
-                        self.env.common.unit,
-                        self.enclosing_fn_ret_ty.unwrap(),
-                        *span,
-                    )?;
+                    self.env
+                        .unify(self.env.unit(), self.enclosing_fn_ret_ty.unwrap(), *span)?;
                 }
             }
         }
@@ -286,7 +283,7 @@ impl<'a> Unifier<'a> {
         match block.stmts.last() {
             Some(Stmt::Expr(expr, false)) => self.env.unify(block.ty, expr.ty, expr.span),
             Some(Stmt::Return(_, _)) => Ok(()),
-            _ => self.env.unify(block.ty, self.env.common.unit, block.span),
+            _ => self.env.unify(block.ty, self.env.unit(), block.span),
         }
     }
 
@@ -298,12 +295,7 @@ impl<'a> Unifier<'a> {
     }
 
     fn unify_struct(&mut self, s: &Struct) -> Result<()> {
-        let fields = s
-            .fields
-            .iter()
-            .map(|f| (f.name.symbol, f.ty.clone()))
-            .collect();
-
+        let fields = s.fields.iter().map(|f| (f.name.symbol, f.ty)).collect();
         let ty = self.env.alloc_ty(Ty::Struct(s.id, s.name.symbol, fields));
         self.env.unify(ty, s.ty, s.name.span)?;
         Ok(())

@@ -56,7 +56,7 @@ pub struct TyContext {
     pub handler: Rc<Handler>,
     var_stack: Vec<TypeVar>,
     methods: HashMap<TypeVar, HashMap<Symbol, TypeVar>>,
-    pub common: CommonTypes,
+    common: CommonTypes,
 }
 
 impl TyContext {
@@ -76,6 +76,26 @@ impl TyContext {
             methods: HashMap::new(),
             common,
         }
+    }
+
+    pub fn bool(&self) -> TypeVar {
+        self.common.bool
+    }
+
+    pub fn unit(&self) -> TypeVar {
+        self.common.unit
+    }
+
+    pub fn int(&self) -> TypeVar {
+        self.common.int
+    }
+
+    pub fn float(&self) -> TypeVar {
+        self.common.float
+    }
+
+    pub fn str(&self) -> TypeVar {
+        self.common.str
     }
 
     pub fn new_type_var(&mut self) -> TypeVar {

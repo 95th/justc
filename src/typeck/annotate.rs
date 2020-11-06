@@ -155,10 +155,10 @@ impl<'a> Annotate<'a> {
             ast::ExprKind::Grouping(e) => return self.annotate_expr(e),
             ast::ExprKind::Literal(lit, span) => {
                 let ty = match &lit {
-                    ast::Lit::Str(_) => self.env.common.str,
-                    ast::Lit::Integer(_) => self.env.common.int,
-                    ast::Lit::Float(_) => self.env.common.float,
-                    ast::Lit::Bool(_) => self.env.common.bool,
+                    ast::Lit::Str(_) => self.env.str(),
+                    ast::Lit::Integer(_) => self.env.int(),
+                    ast::Lit::Float(_) => self.env.float(),
+                    ast::Lit::Bool(_) => self.env.bool(),
                     ast::Lit::Err => self.env.new_type_var(),
                 };
                 hir::ExprKind::Literal(lit, ty, span)
@@ -350,7 +350,7 @@ impl<'a> Annotate<'a> {
             }
             ast::TyKind::Ident(t) => self.token_to_ty(&t)?,
             ast::TyKind::Infer => self.env.new_type_var(),
-            ast::TyKind::Unit => self.env.common.unit,
+            ast::TyKind::Unit => self.env.unit(),
             ast::TyKind::SelfTy => self.env.new_type_var(),
         };
 
@@ -370,7 +370,7 @@ impl<'a> Annotate<'a> {
             }
             ast::TyKind::Ident(t) => self.token_to_ty(&t)?,
             ast::TyKind::Infer => self.env.new_type_var(),
-            ast::TyKind::Unit => self.env.common.unit,
+            ast::TyKind::Unit => self.env.unit(),
             ast::TyKind::SelfTy => {
                 is_self = true;
                 self.env.new_type_var()
@@ -459,10 +459,10 @@ impl<'a> Annotate<'a> {
     fn token_to_ty(&mut self, token: &Token) -> Result<TypeVar> {
         token.symbol.as_str_with(|s| {
             let ty = match s {
-                "bool" => self.env.common.bool,
-                "int" => self.env.common.int,
-                "str" => self.env.common.str,
-                "float" => self.env.common.float,
+                "bool" => self.env.bool(),
+                "int" => self.env.int(),
+                "str" => self.env.str(),
+                "float" => self.env.float(),
                 _ => {
                     if let Some(ty) = self.structs.get(token.symbol) {
                         ty.clone()
