@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use self::{
-    hir::{Ast, Block, Expr, ExprKind, Function, Stmt, Struct},
+    hir::*,
     ty::{Ty, TyContext, TypeVar},
 };
 use crate::{
@@ -37,6 +37,7 @@ impl Typeck {
         // env.fill(&mut ast)?;
 
         self.typeck_structs(&ast.structs)?;
+        self.typeck_impls(&ast.impls)?;
         self.typeck_fns(&ast.functions)?;
         self.typeck_stmts(&ast.stmts)?;
 
@@ -202,6 +203,18 @@ impl Typeck {
             self.typeck_no_var(f.ty, f.name.span)?;
         }
         self.typeck_no_var(s.ty, s.name.span)?;
+        Ok(())
+    }
+
+    fn typeck_impls(&mut self, impls: &[Impl]) -> Result<()> {
+        for i in impls {
+            self.typeck_impl(i)?;
+        }
+        Ok(())
+    }
+
+    fn typeck_impl(&mut self, i: &Impl) -> Result<()> {
+        self.typeck_fns(&i.functions)?;
         Ok(())
     }
 

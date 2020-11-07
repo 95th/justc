@@ -1,28 +1,25 @@
-struct A { b: int, minus: fn(int) -> A }
+struct Fibonnacci {
+    n: int
+}
 
-impl A {
-    fn new(b: int) -> Self {
-        Self { b, minus: A::new }
+impl Fibonnacci {
+    fn new(n: int) -> Self {
+        Self { n }
     }
 
-    fn minus(self, n: int) -> Self {
-        Self {
-            b: self.b - n,
-            minus: self.minus
+    fn calc(self) -> int {
+        self.calc_inner(self.n)
+    }
+
+    fn calc_inner(self, n: int) -> int {
+        if n < 2 {
+            1
+        } else {
+            self.calc_inner(n - 1) + self.calc_inner(n - 2)
         }
     }
 }
 
-let a = A::new(10);
-(a.minus)(1);
-a.minus(1);
-A::minus(a, 1);
-let f = A::minus;
-f(a, 1);
-
-
-foo(A::minus);
-foo(|a, n| a);
-foo(|a, n| A { b: a.b + n, minus: A::new });
-
-fn foo(f: fn(A, int) -> A) { }
+let fib = Fibonnacci::new(10);
+fib.calc();
+let f = Fibonnacci::calc(fib);
