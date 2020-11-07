@@ -111,7 +111,6 @@ pub struct Struct {
     pub name: Token,
     pub fields: Vec<StructField>,
     pub ty: TypeVar,
-    pub id: TypeVar,
 }
 
 #[derive(Debug, Clone)]

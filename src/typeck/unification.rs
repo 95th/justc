@@ -7,7 +7,7 @@ use crate::{
 };
 
 use super::{
-    hir::{Ast, Block, Expr, ExprKind, Function, Impl, Stmt, Struct},
+    hir::*,
     ty::{Ty, TyContext, TypeVar},
 };
 
@@ -20,7 +20,6 @@ struct Unifier<'a> {
 
 pub fn unify(ast: &Ast, env: &mut TyContext, handler: &Handler) -> Result<()> {
     let mut unifier = Unifier::new(env, handler);
-    unifier.unify_structs(&ast.structs)?;
     unifier.unify_impls(&ast.impls)?;
     unifier.unify_fns(&ast.functions)?;
     unifier.unify_stmts(&ast.stmts)
@@ -265,7 +264,6 @@ impl<'a> Unifier<'a> {
     }
 
     fn unify_block(&mut self, block: &Block) -> Result<()> {
-        self.unify_structs(&block.structs)?;
         self.unify_impls(&block.impls)?;
         self.unify_fns(&block.functions)?;
 
@@ -287,22 +285,6 @@ impl<'a> Unifier<'a> {
             Some(Stmt::Return(_, _)) => Ok(()),
             _ => self.env.unify(block.ty, self.env.unit(), block.span),
         }
-    }
-
-    fn unify_structs(&mut self, structs: &[Struct]) -> Result<()> {
-        for s in structs {
-            self.unify_struct(s)?;
-        }
-        Ok(())
-    }
-
-    fn unify_struct(&mut self, s: &Struct) -> Result<()> {
-        let fields = s.fields.iter().map(|f| (f.name.symbol, f.ty)).collect();
-        let ty = self
-            .env
-            .alloc_ty(Ty::Struct(s.id, s.name.symbol, Rc::new(fields)));
-        self.env.unify(ty, s.ty, s.name.span)?;
-        Ok(())
     }
 
     fn unify_impls(&mut self, impls: &[Impl]) -> Result<()> {

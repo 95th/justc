@@ -129,6 +129,10 @@ impl TyContext {
             .unwrap_or_else(|| Ty::Infer(var))
     }
 
+    pub fn unify_value(&mut self, var: TypeVar, ty: Ty) {
+        self.table.union_value(var, TypeVarValue::Known(ty));
+    }
+
     pub fn unify(&mut self, expected: TypeVar, actual: TypeVar, span: Span) -> Result<()> {
         self.done.clear();
         self.unify_inner(expected, actual, span)
