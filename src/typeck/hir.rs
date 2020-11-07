@@ -130,7 +130,6 @@ pub struct Ast {
 
 #[derive(Debug, Clone)]
 pub struct Impl {
-    pub ty: SpannedTy,
-    pub id: TypeVar,
+    pub ty: TypeVar,
     pub functions: Vec<Function>,
 }

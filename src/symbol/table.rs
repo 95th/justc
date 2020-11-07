@@ -7,12 +7,18 @@ pub struct SymbolTable<T> {
     changes: Vec<(Symbol, Option<T>)>,
 }
 
-impl<T> SymbolTable<T> {
-    pub fn new() -> Self {
+impl<T> Default for SymbolTable<T> {
+    fn default() -> Self {
         Self {
             map: HashMap::new(),
             changes: vec![],
         }
+    }
+}
+
+impl<T> SymbolTable<T> {
+    pub fn new() -> Self {
+        Self::default()
     }
 
     pub fn insert(&mut self, key: Symbol, value: T) {

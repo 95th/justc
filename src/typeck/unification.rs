@@ -307,14 +307,14 @@ impl<'a> Unifier<'a> {
 
     fn unify_impls(&mut self, impls: &[Impl]) -> Result<()> {
         for i in impls {
-            self.enter_self_scope(i.ty.ty, |this| this.unify_impl(i))?;
+            self.enter_self_scope(i.ty, |this| this.unify_impl(i))?;
         }
         Ok(())
     }
 
     fn unify_impl(&mut self, i: &Impl) -> Result<()> {
         for f in &i.functions {
-            if self.env.add_method(i.id, f.name.symbol, f.ty) {
+            if self.env.add_method(i.ty, f.name.symbol, f.ty) {
                 return self.handler.mk_err(
                     f.name.span,
                     "Function with same name already defined for this type",

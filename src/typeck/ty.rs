@@ -182,57 +182,6 @@ impl TyContext {
 
         Ok(())
     }
-
-    pub fn fill_ty(&mut self, ty: &mut Ty) -> Result<()> {
-        log::debug!("fill_ty: {:?}", ty);
-
-        self.var_stack.clear();
-        let var = ty.type_var().map(|v| self.table.find(v));
-        self.fill_ty_inner(ty, var)
-    }
-
-    pub fn fill_methods(&mut self) -> Result<()> {
-        let mut methods = std::mem::take(&mut self.methods);
-        for method in methods.values_mut().flat_map(|map| map.values_mut()) {
-            *method = self.table.find(*method);
-        }
-        self.methods = methods;
-        Ok(())
-    }
-
-    fn fill_ty_inner(&mut self, ty: &mut Ty, var: Option<TypeVar>) -> Result<()> {
-        match ty {
-            Ty::Infer(v) => {
-                let root_v = self.table.find(*v);
-                if self.var_stack.contains(&root_v) {
-                    log::warn!("Type {:?} contains cycles", root_v);
-                    return if var == Some(root_v) { Err(()) } else { Ok(()) };
-                }
-
-                if let Some(found) = self.table.probe_value(root_v).known() {
-                    log::trace!("found: {:?} == {:?}", root_v, found);
-                    self.var_stack.push(root_v);
-                    *ty = found;
-                    self.fill_ty_inner(ty, var)?;
-                    self.var_stack.pop();
-                }
-            }
-            Ty::Fn(params, ret) => {
-                for p in Rc::make_mut(params) {
-                    *p = self.table.find(*p);
-                }
-                *ret = self.table.find(*ret);
-            }
-            Ty::Struct(_, _, fields) => {
-                log::trace!("fill fields");
-                for f in Rc::make_mut(fields).values_mut() {
-                    *f = self.table.find(*f);
-                }
-            }
-            _ => {}
-        }
-        Ok(())
-    }
 }
 
 #[derive(Clone, PartialEq)]
@@ -252,15 +201,6 @@ pub enum Ty {
         /* name: */ Symbol,
         /* fields: */ Rc<BTreeMap<Symbol, TypeVar>>,
     ),
-}
-
-impl Ty {
-    pub fn type_var(&self) -> Option<TypeVar> {
-        match self {
-            Ty::Infer(id) => Some(*id),
-            _ => None,
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
