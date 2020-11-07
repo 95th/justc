@@ -1,17 +1,10 @@
-struct A { b: B }
-struct B { a: fn() -> A }
+struct A { b: int }
 
 impl A {
-    fn new() -> Self {
-        Self {
-            b: B {
-                a: Self::new,
-            }
-        }
+    fn new(b: int) -> Self {
+        Self { b }
     }
 }
 
-fn foo() -> fn() -> A {
-    let a  = A::new;
-    || a(1)
-}
+let a = A::new(10);
+a.b();

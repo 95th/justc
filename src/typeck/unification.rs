@@ -340,7 +340,7 @@ impl<'a> Unifier<'a> {
 
     fn unify_fn_bodies(&mut self, items: &[Function]) -> Result<()> {
         for item in items {
-            self.enter_fn_scope(item.ret.ty.clone(), |this| this.unify_fn_body(item))?;
+            self.enter_fn_scope(item.ret.ty, |this| this.unify_fn_body(item))?;
         }
         Ok(())
     }

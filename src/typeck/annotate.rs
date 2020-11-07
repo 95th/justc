@@ -77,7 +77,7 @@ impl<'a> Annotate<'a> {
                 };
 
                 let let_ty = self.ast_ty_to_ty(ty)?;
-                self.bindings.insert(name.symbol, let_ty.clone());
+                self.bindings.insert(name.symbol, let_ty);
 
                 Ok(hir::Stmt::Let {
                     name,
@@ -174,7 +174,7 @@ impl<'a> Annotate<'a> {
                 .get(t.symbol)
                 .or_else(|| self.functions.get(t.symbol))
             {
-                Some(ty) => hir::ExprKind::Variable(t, ty.clone()),
+                Some(ty) => hir::ExprKind::Variable(t, *ty),
                 None => return self.handler.mk_err(t.span, "Not found in this scope"),
             },
             ast::ExprKind::Block(block) => hir::ExprKind::Block(self.annotate_block(block)?),
@@ -210,7 +210,7 @@ impl<'a> Annotate<'a> {
                     self.env.new_type_var()
                 } else {
                     match self.structs.get(name.symbol) {
-                        Some(ty) => ty.clone(),
+                        Some(ty) => *ty,
                         None => {
                             return self.handler.mk_err(name.span, "Not found in this scope");
                         }
@@ -224,7 +224,7 @@ impl<'a> Annotate<'a> {
             ast::ExprKind::MethodCall { callee, name, args } => {
                 let callee = self.annotate_expr(callee)?;
                 let ty = SpannedTy {
-                    ty: callee.ty.clone(),
+                    ty: callee.ty,
                     span: callee.span,
                     is_self: false,
                 };
@@ -286,7 +286,7 @@ impl<'a> Annotate<'a> {
                 let bindings = &mut SymbolTable::new();
                 let mut this = Annotate::new(env, bindings, functions, structs, handler);
 
-                let ty = this.functions.get(func.name.symbol).unwrap().clone();
+                let ty = *this.functions.get(func.name.symbol).unwrap();
                 let params = this.annotate_params(func.params)?;
                 let ret = this.ast_ty_to_spanned_ty(func.ret)?;
                 this.has_enclosing_fn = true;
@@ -308,7 +308,7 @@ impl<'a> Annotate<'a> {
             .into_iter()
             .map(|p| {
                 let param_ty = self.ast_ty_to_spanned_ty(p.ty)?;
-                self.bindings.insert(p.name.symbol, param_ty.ty.clone());
+                self.bindings.insert(p.name.symbol, param_ty.ty);
                 Ok(hir::Param {
                     name: p.name,
                     param_ty: param_ty,
@@ -391,8 +391,8 @@ impl<'a> Annotate<'a> {
 
     fn annotate_impl(&mut self, i: ast::Impl) -> Result<hir::Impl> {
         let ty = match self.structs.get(i.name.symbol) {
-            Some(t) => SpannedTy {
-                ty: t.clone(),
+            Some(ty) => SpannedTy {
+                ty: *ty,
                 span: i.name.span,
                 is_self: false,
             },
@@ -420,7 +420,7 @@ impl<'a> Annotate<'a> {
     }
 
     fn annotate_struct(&mut self, s: ast::Struct) -> Result<hir::Struct> {
-        let ty = self.structs.get(s.name.symbol).unwrap().clone();
+        let ty = *self.structs.get(s.name.symbol).unwrap();
         let fields = self.annotate_struct_fields(s.fields)?;
         Ok(hir::Struct {
             name: s.name,
@@ -467,7 +467,7 @@ impl<'a> Annotate<'a> {
                 "float" => self.env.float(),
                 _ => {
                     if let Some(ty) = self.structs.get(token.symbol) {
-                        ty.clone()
+                        *ty
                     } else {
                         return self.handler.mk_err(token.span, "Unknown type");
                     }
