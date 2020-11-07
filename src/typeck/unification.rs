@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crate::{
     err::{Handler, Result},
     lex::Span,
@@ -6,12 +8,12 @@ use crate::{
 
 use super::{
     hir::{Ast, Block, Expr, ExprKind, Function, Impl, Stmt, Struct},
-    ty::{Ty, TyContext},
+    ty::{Ty, TyContext, TypeVar},
 };
 
 struct Unifier<'a> {
-    enclosing_fn_ret_ty: Option<Ty>,
-    enclosing_self_ty: Option<Ty>,
+    enclosing_fn_ret_ty: Option<TypeVar>,
+    enclosing_self_ty: Option<TypeVar>,
     env: &'a mut TyContext,
     handler: &'a Handler,
 }
@@ -47,19 +49,19 @@ impl<'a> Unifier<'a> {
             Stmt::Let { ty, init, .. } => {
                 if let Some(init) = init {
                     self.unify_expr(init)?;
-                    self.env.unify(ty, &init.ty, init.span)?;
+                    self.env.unify(*ty, init.ty, init.span)?;
                 }
                 Ok(())
             }
             Stmt::Assign { lhs, rhs } => {
                 self.unify_expr(lhs)?;
                 self.unify_expr(rhs)?;
-                self.env.unify(&lhs.ty, &rhs.ty, rhs.span)
+                self.env.unify(lhs.ty, rhs.ty, rhs.span)
             }
             Stmt::While { cond, body } => {
                 self.unify_expr(cond)?;
                 self.unify_block(body)?;
-                self.env.unify(&Ty::Bool, &cond.ty, cond.span)
+                self.env.unify(self.env.bool(), cond.ty, cond.span)
             }
             Stmt::Return(_, e) => {
                 if let Some(e) = e {
@@ -80,34 +82,34 @@ impl<'a> Unifier<'a> {
                 self.unify_expr(right)?;
                 match op.val {
                     BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Rem => {
-                        self.env.unify(&expr.ty, &left.ty, left.span)?
+                        self.env.unify(expr.ty, left.ty, left.span)?
                     }
                     BinOp::Lt | BinOp::Gt | BinOp::Le | BinOp::Ge | BinOp::Ne | BinOp::Eq => {
-                        self.env.unify(&Ty::Bool, &expr.ty, expr.span)?
+                        self.env.unify(self.env.bool(), expr.ty, expr.span)?
                     }
                     BinOp::And | BinOp::Or => {
-                        self.env.unify(&Ty::Bool, &left.ty, left.span)?;
-                        self.env.unify(&Ty::Bool, &right.ty, right.span)?;
+                        self.env.unify(self.env.bool(), left.ty, left.span)?;
+                        self.env.unify(self.env.bool(), right.ty, right.span)?;
                     }
                 }
-                self.env.unify(&left.ty, &right.ty, right.span)?;
+                self.env.unify(left.ty, right.ty, right.span)?;
                 Ok(())
             }
-            ExprKind::Literal(_, ty, _) => self.env.unify(&expr.ty, ty, expr.span),
+            ExprKind::Literal(_, ty, _) => self.env.unify(expr.ty, *ty, expr.span),
             ExprKind::Unary { op, expr: e, .. } => {
                 self.unify_expr(e)?;
                 match op.val {
                     UnOp::Not => {
-                        self.env.unify(&Ty::Bool, &expr.ty, expr.span)?;
-                        self.env.unify(&Ty::Bool, &e.ty, e.span)
+                        self.env.unify(self.env.bool(), expr.ty, expr.span)?;
+                        self.env.unify(self.env.bool(), e.ty, e.span)
                     }
-                    UnOp::Neg => self.env.unify(&expr.ty, &e.ty, e.span),
+                    UnOp::Neg => self.env.unify(expr.ty, e.ty, e.span),
                 }
             }
-            ExprKind::Variable(.., ty) => self.env.unify(ty, &expr.ty, expr.span),
+            ExprKind::Variable(.., ty) => self.env.unify(*ty, expr.ty, expr.span),
             ExprKind::Block(block) => {
                 self.unify_block(block)?;
-                self.env.unify(&expr.ty, &block.ty, block.span)
+                self.env.unify(expr.ty, block.ty, block.span)
             }
             ExprKind::If {
                 cond,
@@ -115,48 +117,44 @@ impl<'a> Unifier<'a> {
                 else_clause,
             } => {
                 self.unify_expr(cond)?;
-                self.env.unify(&Ty::Bool, &cond.ty, cond.span)?;
+                self.env.unify(self.env.bool(), cond.ty, cond.span)?;
 
                 self.unify_block(then_clause)?;
                 if let Some(else_clause) = else_clause {
                     self.unify_expr(else_clause)?;
                     self.env
-                        .unify(&then_clause.ty, &else_clause.ty, else_clause.span)?;
-                    self.env.unify(&expr.ty, &then_clause.ty, then_clause.span)
+                        .unify(then_clause.ty, else_clause.ty, else_clause.span)?;
+                    self.env.unify(expr.ty, then_clause.ty, then_clause.span)
                 } else {
                     self.env
-                        .unify(&Ty::Unit, &then_clause.ty, then_clause.span)?;
-                    self.env.unify(&Ty::Unit, &expr.ty, expr.span)
+                        .unify(self.env.unit(), then_clause.ty, then_clause.span)?;
+                    self.env.unify(self.env.unit(), expr.ty, expr.span)
                 }
             }
-            ExprKind::Closure { params, ret, body } => self.enter_fn_scope(ret.clone(), |this| {
-                this.env.unify(
-                    &Ty::Fn(
-                        params.iter().map(|p| p.param_ty.ty.clone()).collect(),
-                        Box::new(ret.clone()),
-                    ),
-                    &expr.ty,
-                    expr.span,
-                )?;
+            ExprKind::Closure { params, ret, body } => self.enter_fn_scope(*ret, |this| {
+                let params = params.iter().map(|p| p.param_ty.ty).collect();
+                let ty = this.env.alloc_ty(Ty::Fn(Rc::new(params), *ret));
+                this.env.unify(ty, expr.ty, expr.span)?;
+
                 this.unify_expr(body)?;
-                this.env.unify(&ret, &body.ty, body.span)
+                this.env.unify(*ret, body.ty, body.span)
             }),
             ExprKind::Call { callee, args } => {
+                self.unify_expr(callee)?;
+                let ty = self.env.resolve_ty(callee.ty);
+                self.unify_fn_call(expr, None, args, &ty, callee.span)?;
                 for arg in args {
                     self.unify_expr(arg)?;
                 }
-                self.unify_expr(callee)?;
-                let ty = self.env.resolve_ty(&callee.ty);
-                self.unify_fn_call(expr, args, &*ty, callee.span)?;
                 Ok(())
             }
-            ExprKind::Struct(name, fields, ty) => {
+            ExprKind::Struct(name, fields, ty_var) => {
                 if name.is_self_ty() {
                     self.env
-                        .unify(self.enclosing_self_ty.as_ref().unwrap(), ty, name.span)?;
+                        .unify(self.enclosing_self_ty.unwrap(), *ty_var, name.span)?;
                 }
-                let ty = self.env.resolve_ty(ty);
-                match &*ty {
+                let ty = self.env.resolve_ty(*ty_var);
+                match ty {
                     Ty::Struct(_, _, fields2) => {
                         if fields.len() != fields2.len() {
                             return self.handler.mk_err(expr.span, "Number of fields mismatch");
@@ -164,7 +162,7 @@ impl<'a> Unifier<'a> {
 
                         for f in fields {
                             match fields2.get(&f.name.symbol) {
-                                Some(t) => self.env.unify(t, &f.expr.ty, f.expr.span)?,
+                                Some(t) => self.env.unify(*t, f.expr.ty, f.expr.span)?,
                                 None => {
                                     return self.handler.mk_err(f.name.span, "Field not found");
                                 }
@@ -189,15 +187,15 @@ impl<'a> Unifier<'a> {
                     self.unify_expr(&f.expr)?;
                 }
 
-                self.env.unify(&*ty, &expr.ty, expr.span)
+                self.env.unify(*ty_var, expr.ty, expr.span)
             }
             ExprKind::Field(e, field_name) => {
                 self.unify_expr(e)?;
-                let ty = self.env.resolve_ty(&e.ty);
-                match &*ty {
+                let ty = self.env.resolve_ty(e.ty);
+                match ty {
                     Ty::Struct(_, name, fields) => {
                         if let Some(f) = fields.get(&field_name.symbol) {
-                            self.env.unify(&expr.ty, f, field_name.span)
+                            self.env.unify(expr.ty, *f, field_name.span)
                         } else {
                             self.handler.mk_err(
                                 field_name.span,
@@ -224,29 +222,26 @@ impl<'a> Unifier<'a> {
             } => {
                 if ty.is_self {
                     self.env
-                        .unify(self.enclosing_self_ty.as_ref().unwrap(), &ty.ty, ty.span)?;
+                        .unify(self.enclosing_self_ty.unwrap(), ty.ty, ty.span)?;
                 }
 
-                let ty = self.env.resolve_ty(&ty.ty);
-                match &*ty {
-                    Ty::Struct(id, name, fields) => {
-                        let method_ty =
-                            if let Some(m) = self.env.get_method(*id, method_name.symbol) {
-                                m.clone()
-                            } else if let Some(f) = fields.get(&method_name.symbol) {
-                                f.clone()
-                            } else {
+                let ty = self.env.resolve_ty(ty.ty);
+                match ty {
+                    Ty::Struct(id, name, ..) => {
+                        let method_ty = match self.env.get_method(id, method_name.symbol) {
+                            Some(ty) => ty,
+                            None => {
                                 return self.handler.mk_err(
                                     method_name.span,
                                     &format!(
-                                        "Method or Field `{}` not found on type `{}`",
+                                        "Method `{}` not found on type `{}`",
                                         method_name.symbol, name
                                     ),
                                 );
-                            };
+                            }
+                        };
 
-                        let method_ty = self.env.resolve_ty(&method_ty);
-                        self.env.unify(&expr.ty, &method_ty, method_name.span)?;
+                        self.env.unify(expr.ty, method_ty, method_name.span)?;
                     }
                     Ty::Infer(_) => {
                         return self.handler.mk_err(
@@ -264,6 +259,67 @@ impl<'a> Unifier<'a> {
 
                 Ok(())
             }
+            ExprKind::MethodCall {
+                callee,
+                name: method_name,
+                args,
+            } => {
+                self.unify_expr(callee)?;
+                let ty = self.env.resolve_ty(callee.ty);
+                match ty {
+                    Ty::Struct(id, name, fields) => {
+                        match self.env.get_method(id, method_name.symbol) {
+                            Some(ty) => {
+                                let method_ty = self.env.resolve_ty(ty);
+                                self.unify_fn_call(
+                                    expr,
+                                    Some(callee),
+                                    args,
+                                    &method_ty,
+                                    method_name.span,
+                                )?;
+                            }
+                            None => match fields.get(&method_name.symbol) {
+                                Some(ty) => {
+                                    let method_ty = self.env.resolve_ty(*ty);
+                                    self.unify_fn_call(
+                                        expr,
+                                        None,
+                                        args,
+                                        &method_ty,
+                                        method_name.span,
+                                    )?;
+                                }
+                                None => {
+                                    return self.handler.mk_err(
+                                        method_name.span,
+                                        &format!(
+                                            "Method or Field `{}` not found on type `{}`",
+                                            method_name.symbol, name
+                                        ),
+                                    )
+                                }
+                            },
+                        }
+                        for arg in args {
+                            self.unify_expr(arg)?;
+                        }
+                    }
+                    Ty::Infer(_) => {
+                        return self.handler.mk_err(
+                            method_name.span,
+                            "Type cannot be inferred. Please add type annotations",
+                        );
+                    }
+                    ty => {
+                        return self.handler.mk_err(
+                            method_name.span,
+                            &format!("Type error: Expected struct, Actual: `{}`", ty,),
+                        )
+                    }
+                }
+                Ok(())
+            }
         }
     }
 
@@ -277,18 +333,18 @@ impl<'a> Unifier<'a> {
             if let Stmt::Return(span, e) = stmt {
                 if let Some(e) = e {
                     self.env
-                        .unify(self.enclosing_fn_ret_ty.as_ref().unwrap(), &e.ty, e.span)?;
+                        .unify(self.enclosing_fn_ret_ty.unwrap(), e.ty, e.span)?;
                 } else {
                     self.env
-                        .unify(&Ty::Unit, self.enclosing_fn_ret_ty.as_ref().unwrap(), *span)?;
+                        .unify(self.env.unit(), self.enclosing_fn_ret_ty.unwrap(), *span)?;
                 }
             }
         }
 
         match block.stmts.last() {
-            Some(Stmt::Expr(expr, false)) => self.env.unify(&block.ty, &expr.ty, expr.span),
+            Some(Stmt::Expr(expr, false)) => self.env.unify(block.ty, expr.ty, expr.span),
             Some(Stmt::Return(_, _)) => Ok(()),
-            _ => self.env.unify(&block.ty, &Ty::Unit, block.span),
+            _ => self.env.unify(block.ty, self.env.unit(), block.span),
         }
     }
 
@@ -300,27 +356,22 @@ impl<'a> Unifier<'a> {
     }
 
     fn unify_struct(&mut self, s: &Struct) -> Result<()> {
-        let fields = s
-            .fields
-            .iter()
-            .map(|f| (f.name.symbol, f.ty.clone()))
-            .collect();
-
+        let fields = s.fields.iter().map(|f| (f.name.symbol, f.ty)).collect();
         self.env
-            .unify(&Ty::Struct(s.id, s.name.symbol, fields), &s.ty, s.name.span)?;
+            .unify_value(s.ty, Ty::Struct(s.ty, s.name.symbol, Rc::new(fields)));
         Ok(())
     }
 
     fn unify_impls(&mut self, impls: &[Impl]) -> Result<()> {
         for i in impls {
-            self.enter_self_scope(i.ty.ty.clone(), |this| this.unify_impl(i))?;
+            self.enter_self_scope(i.ty, |this| this.unify_impl(i))?;
         }
         Ok(())
     }
 
     fn unify_impl(&mut self, i: &Impl) -> Result<()> {
         for f in &i.functions {
-            if self.env.add_method(i.id, f.name.symbol, f.ty.clone()) {
+            if self.env.add_method(i.ty, f.name.symbol, f.ty) {
                 return self.handler.mk_err(
                     f.name.span,
                     "Function with same name already defined for this type",
@@ -346,7 +397,7 @@ impl<'a> Unifier<'a> {
 
     fn unify_fn_bodies(&mut self, items: &[Function]) -> Result<()> {
         for item in items {
-            self.enter_fn_scope(item.ret.ty.clone(), |this| this.unify_fn_body(item))?;
+            self.enter_fn_scope(item.ret.ty, |this| this.unify_fn_body(item))?;
         }
         Ok(())
     }
@@ -368,8 +419,8 @@ impl<'a> Unifier<'a> {
                 }
 
                 self.env.unify(
-                    self.enclosing_self_ty.as_ref().unwrap(),
-                    &p.param_ty.ty,
+                    self.enclosing_self_ty.unwrap(),
+                    p.param_ty.ty,
                     p.param_ty.span,
                 )?;
                 has_self_param = true;
@@ -377,29 +428,21 @@ impl<'a> Unifier<'a> {
 
             if p.param_ty.is_self {
                 self.env.unify(
-                    self.enclosing_self_ty.as_ref().unwrap(),
-                    &p.param_ty.ty,
+                    self.enclosing_self_ty.unwrap(),
+                    p.param_ty.ty,
                     p.param_ty.span,
                 )?;
             }
         }
 
-        self.env.unify(
-            &Ty::Fn(
-                function
-                    .params
-                    .iter()
-                    .map(|p| p.param_ty.ty.clone())
-                    .collect(),
-                Box::new(function.ret.ty.clone()),
-            ),
-            &function.ty,
-            function.name.span,
-        )?;
+        let params = function.params.iter().map(|p| p.param_ty.ty).collect();
+        let ty = self.env.alloc_ty(Ty::Fn(Rc::new(params), function.ret.ty));
+        self.env.unify(ty, function.ty, function.name.span)?;
+
         if function.ret.is_self {
             self.env.unify(
-                self.enclosing_self_ty.as_ref().unwrap(),
-                &function.ret.ty,
+                self.enclosing_self_ty.unwrap(),
+                function.ret.ty,
                 function.ret.span,
             )?;
         }
@@ -409,33 +452,50 @@ impl<'a> Unifier<'a> {
     fn unify_fn_body(&mut self, function: &Function) -> Result<()> {
         self.unify_block(&function.body)?;
         self.env
-            .unify(&function.ret.ty, &function.body.ty, function.body.span)?;
+            .unify(function.ret.ty, function.body.ty, function.body.span)?;
         Ok(())
     }
 
     fn unify_fn_call(
         &mut self,
         expr: &Expr,
+        self_param: Option<&Expr>,
         args: &[Box<Expr>],
         fn_ty: &Ty,
         span: Span,
     ) -> Result<()> {
         match fn_ty {
             Ty::Fn(params, ret) => {
-                if params.len() != args.len() {
-                    return self.handler.mk_err(
+                let arg_mismatch = |expected: usize, actual: usize| {
+                    self.handler.mk_err(
                         expr.span,
                         &format!(
                             "Number of arguments mismatch: Expected: `{}`, actual: `{}`",
-                            params.len(),
-                            args.len()
+                            expected, actual
                         ),
-                    );
+                    )
+                };
+
+                let mut params = &params[..];
+                match (params, self_param) {
+                    ([first, rest_params @ ..], Some(self_param)) => {
+                        if rest_params.len() != args.len() {
+                            return arg_mismatch(rest_params.len(), args.len());
+                        }
+                        params = rest_params;
+                        self.env.unify(*first, self_param.ty, self_param.span)?;
+                    }
+                    _ => {
+                        if params.len() != args.len() {
+                            return arg_mismatch(params.len(), args.len());
+                        }
+                    }
                 }
+
                 for (param, arg) in params.iter().zip(args) {
-                    self.env.unify(param, &arg.ty, arg.span)?;
+                    self.env.unify(*param, arg.ty, arg.span)?;
                 }
-                self.env.unify(ret, &expr.ty, expr.span)?;
+                self.env.unify(*ret, expr.ty, expr.span)?;
             }
             Ty::Infer(_) => {
                 return self
@@ -452,7 +512,7 @@ impl<'a> Unifier<'a> {
         Ok(())
     }
 
-    fn enter_fn_scope<F, R>(&mut self, ty: Ty, f: F) -> R
+    fn enter_fn_scope<F, R>(&mut self, ty: TypeVar, f: F) -> R
     where
         F: FnOnce(&mut Self) -> R,
     {
@@ -463,7 +523,7 @@ impl<'a> Unifier<'a> {
         result
     }
 
-    fn enter_self_scope<F, R>(&mut self, ty: Ty, f: F) -> R
+    fn enter_self_scope<F, R>(&mut self, ty: TypeVar, f: F) -> R
     where
         F: FnOnce(&mut Self) -> R,
     {

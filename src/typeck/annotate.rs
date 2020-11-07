@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crate::{
     err::{Handler, Result},
     lex::Token,
@@ -6,8 +8,8 @@ use crate::{
 };
 
 use super::{
-    hir::{self, SpannedTy},
-    ty::{Ty, TyContext},
+    hir,
+    ty::{Ty, TyContext, TypeVar},
 };
 
 pub fn annotate(ast: ast::Ast, env: &mut TyContext, handler: &Handler) -> Result<hir::Ast> {
@@ -19,9 +21,9 @@ pub fn annotate(ast: ast::Ast, env: &mut TyContext, handler: &Handler) -> Result
 
 struct Annotate<'a> {
     env: &'a mut TyContext,
-    bindings: &'a mut SymbolTable<Ty>,
-    functions: &'a mut SymbolTable<Ty>,
-    structs: &'a mut SymbolTable<Ty>,
+    bindings: &'a mut SymbolTable<TypeVar>,
+    functions: &'a mut SymbolTable<TypeVar>,
+    structs: &'a mut SymbolTable<TypeVar>,
     handler: &'a Handler,
     has_enclosing_fn: bool,
     has_enclosing_loop: bool,
@@ -30,9 +32,9 @@ struct Annotate<'a> {
 impl<'a> Annotate<'a> {
     fn new(
         env: &'a mut TyContext,
-        bindings: &'a mut SymbolTable<Ty>,
-        functions: &'a mut SymbolTable<Ty>,
-        structs: &'a mut SymbolTable<Ty>,
+        bindings: &'a mut SymbolTable<TypeVar>,
+        functions: &'a mut SymbolTable<TypeVar>,
+        structs: &'a mut SymbolTable<TypeVar>,
         handler: &'a Handler,
     ) -> Self {
         Self {
@@ -75,7 +77,7 @@ impl<'a> Annotate<'a> {
                 };
 
                 let let_ty = self.ast_ty_to_ty(ty)?;
-                self.bindings.insert(name.symbol, let_ty.clone());
+                self.bindings.insert(name.symbol, let_ty);
 
                 Ok(hir::Stmt::Let {
                     name,
@@ -103,9 +105,7 @@ impl<'a> Annotate<'a> {
             }
             ast::Stmt::While { cond, body } => {
                 let cond = self.annotate_expr(cond)?;
-                self.has_enclosing_loop = true;
-                let body = self.annotate_block(body)?;
-                self.has_enclosing_loop = false;
+                let body = self.enter_loop_scope(|this| this.annotate_block(body))?;
                 Ok(hir::Stmt::While { cond, body })
             }
             ast::Stmt::Return(span, Some(e)) => {
@@ -155,10 +155,10 @@ impl<'a> Annotate<'a> {
             ast::ExprKind::Grouping(e) => return self.annotate_expr(e),
             ast::ExprKind::Literal(lit, span) => {
                 let ty = match &lit {
-                    ast::Lit::Str(_) => Ty::Str,
-                    ast::Lit::Integer(_) => Ty::Int,
-                    ast::Lit::Float(_) => Ty::Float,
-                    ast::Lit::Bool(_) => Ty::Bool,
+                    ast::Lit::Str(_) => self.env.str(),
+                    ast::Lit::Integer(_) => self.env.int(),
+                    ast::Lit::Float(_) => self.env.float(),
+                    ast::Lit::Bool(_) => self.env.bool(),
                     ast::Lit::Err => self.env.new_type_var(),
                 };
                 hir::ExprKind::Literal(lit, ty, span)
@@ -172,7 +172,7 @@ impl<'a> Annotate<'a> {
                 .get(t.symbol)
                 .or_else(|| self.functions.get(t.symbol))
             {
-                Some(ty) => hir::ExprKind::Variable(t, ty.clone()),
+                Some(ty) => hir::ExprKind::Variable(t, *ty),
                 None => return self.handler.mk_err(t.span, "Not found in this scope"),
             },
             ast::ExprKind::Block(block) => hir::ExprKind::Block(self.annotate_block(block)?),
@@ -188,7 +188,7 @@ impl<'a> Annotate<'a> {
                     None => None,
                 },
             },
-            ast::ExprKind::Closure { params, ret, body } => self.enter_scope(|this| {
+            ast::ExprKind::Closure { params, ret, body } => self.enter_block_scope(|this| {
                 let params = this.annotate_params(params)?;
                 let ret = this.ast_ty_to_ty(ret)?;
                 this.has_enclosing_fn = true;
@@ -208,7 +208,7 @@ impl<'a> Annotate<'a> {
                     self.env.new_type_var()
                 } else {
                     match self.structs.get(name.symbol) {
-                        Some(ty) => ty.clone(),
+                        Some(ty) => *ty,
                         None => {
                             return self.handler.mk_err(name.span, "Not found in this scope");
                         }
@@ -219,26 +219,14 @@ impl<'a> Annotate<'a> {
             ast::ExprKind::Field(expr, name) => {
                 hir::ExprKind::Field(self.annotate_expr(expr)?, name)
             }
-            ast::ExprKind::MethodCall { callee, name, args } => {
-                let callee = self.annotate_expr(callee)?;
-                let ty = SpannedTy {
-                    ty: callee.ty.clone(),
-                    span: callee.span,
-                    is_self: false,
-                };
-                let mut annotated_args = vec![callee];
-                for arg in args {
-                    annotated_args.push(self.annotate_expr(arg)?);
-                }
-                hir::ExprKind::Call {
-                    callee: Box::new(hir::Expr {
-                        span: name.span,
-                        kind: hir::ExprKind::AssocMethod { ty, name },
-                        ty: self.env.new_type_var(),
-                    }),
-                    args: annotated_args,
-                }
-            }
+            ast::ExprKind::MethodCall { callee, name, args } => hir::ExprKind::MethodCall {
+                callee: self.annotate_expr(callee)?,
+                name,
+                args: args
+                    .into_iter()
+                    .map(|arg| self.annotate_expr(arg))
+                    .collect::<Result<_>>()?,
+            },
             ast::ExprKind::AssocMethod { ty, name } => {
                 let ty = self.ast_ty_to_spanned_ty(ty)?;
                 hir::ExprKind::AssocMethod { ty, name }
@@ -248,7 +236,7 @@ impl<'a> Annotate<'a> {
     }
 
     fn annotate_block(&mut self, block: ast::Block) -> Result<hir::Block> {
-        self.enter_scope(|this| {
+        self.enter_block_scope(|this| {
             let structs = this.annotate_structs(block.structs)?;
             let impls = this.annotate_impls(block.impls)?;
             let functions = this.annotate_fns(block.functions)?;
@@ -276,27 +264,19 @@ impl<'a> Annotate<'a> {
     }
 
     fn annotate_fn(&mut self, func: ast::Function) -> Result<hir::Function> {
-        let env = &mut *self.env;
-        let structs = &mut *self.structs;
-        let handler = self.handler;
-        self.functions.enter_scope(|functions| {
-            structs.enter_scope(|structs| {
-                let bindings = &mut SymbolTable::new();
-                let mut this = Annotate::new(env, bindings, functions, structs, handler);
-
-                let ty = this.functions.get(func.name.symbol).unwrap().clone();
-                let params = this.annotate_params(func.params)?;
-                let ret = this.ast_ty_to_spanned_ty(func.ret)?;
-                this.has_enclosing_fn = true;
-                let body = this.annotate_block(func.body)?;
-                this.has_enclosing_fn = false;
-                Ok(hir::Function {
-                    name: func.name,
-                    params,
-                    ret,
-                    body,
-                    ty,
-                })
+        self.enter_fn_scope(|this| {
+            let ty = *this.functions.get(func.name.symbol).unwrap();
+            let params = this.annotate_params(func.params)?;
+            let ret = this.ast_ty_to_spanned_ty(func.ret)?;
+            this.has_enclosing_fn = true;
+            let body = this.annotate_block(func.body)?;
+            this.has_enclosing_fn = false;
+            Ok(hir::Function {
+                name: func.name,
+                params,
+                ret,
+                body,
+                ty,
             })
         })
     }
@@ -306,39 +286,16 @@ impl<'a> Annotate<'a> {
             .into_iter()
             .map(|p| {
                 let param_ty = self.ast_ty_to_spanned_ty(p.ty)?;
-                self.bindings.insert(p.name.symbol, param_ty.ty.clone());
+                self.bindings.insert(p.name.symbol, param_ty.ty);
                 Ok(hir::Param {
                     name: p.name,
-                    param_ty: param_ty,
+                    param_ty,
                 })
             })
             .collect()
     }
 
-    fn enter_scope<F, R>(&mut self, f: F) -> R
-    where
-        F: FnOnce(&mut Annotate<'_>) -> R,
-    {
-        let env = &mut *self.env;
-        let functions = &mut *self.functions;
-        let structs = &mut *self.structs;
-        let handler = self.handler;
-        let has_enclosing_fn = self.has_enclosing_fn;
-        let has_enclosing_loop = self.has_enclosing_loop;
-
-        self.bindings.enter_scope(|bindings| {
-            functions.enter_scope(|functions| {
-                structs.enter_scope(|structs| {
-                    let mut this = Annotate::new(env, bindings, functions, structs, handler);
-                    this.has_enclosing_fn = has_enclosing_fn;
-                    this.has_enclosing_loop = has_enclosing_loop;
-                    f(&mut this)
-                })
-            })
-        })
-    }
-
-    fn ast_ty_to_ty(&mut self, ty: ast::Ty) -> Result<Ty> {
+    fn ast_ty_to_ty(&mut self, ty: ast::Ty) -> Result<TypeVar> {
         let ty = match ty.kind {
             ast::TyKind::Fn(params, ret) => {
                 let params = params
@@ -346,11 +303,11 @@ impl<'a> Annotate<'a> {
                     .map(|p| self.ast_ty_to_ty(p))
                     .collect::<Result<_>>()?;
                 let ret = self.ast_ty_to_ty(*ret)?;
-                Ty::Fn(params, Box::new(ret))
+                self.env.alloc_ty(Ty::Fn(Rc::new(params), ret))
             }
             ast::TyKind::Ident(t) => self.token_to_ty(&t)?,
             ast::TyKind::Infer => self.env.new_type_var(),
-            ast::TyKind::Unit => Ty::Unit,
+            ast::TyKind::Unit => self.env.unit(),
             ast::TyKind::SelfTy => self.env.new_type_var(),
         };
 
@@ -366,11 +323,11 @@ impl<'a> Annotate<'a> {
                     .map(|p| self.ast_ty_to_ty(p))
                     .collect::<Result<_>>()?;
                 let ret = self.ast_ty_to_ty(*ret)?;
-                Ty::Fn(params, Box::new(ret))
+                self.env.alloc_ty(Ty::Fn(Rc::new(params), ret))
             }
             ast::TyKind::Ident(t) => self.token_to_ty(&t)?,
             ast::TyKind::Infer => self.env.new_type_var(),
-            ast::TyKind::Unit => Ty::Unit,
+            ast::TyKind::Unit => self.env.unit(),
             ast::TyKind::SelfTy => {
                 is_self = true;
                 self.env.new_type_var()
@@ -389,21 +346,13 @@ impl<'a> Annotate<'a> {
 
     fn annotate_impl(&mut self, i: ast::Impl) -> Result<hir::Impl> {
         let ty = match self.structs.get(i.name.symbol) {
-            Some(t) => SpannedTy {
-                ty: t.clone(),
-                span: i.name.span,
-                is_self: false,
-            },
+            Some(ty) => *ty,
             None => {
                 return self.handler.mk_err(i.name.span, "Not found in this scope");
             }
         };
         let functions = self.annotate_fns(i.functions)?;
-        Ok(hir::Impl {
-            id: ty.ty.type_var().unwrap(),
-            ty,
-            functions,
-        })
+        Ok(hir::Impl { ty, functions })
     }
 
     fn annotate_structs(&mut self, structs: Vec<ast::Struct>) -> Result<Vec<hir::Struct>> {
@@ -418,12 +367,11 @@ impl<'a> Annotate<'a> {
     }
 
     fn annotate_struct(&mut self, s: ast::Struct) -> Result<hir::Struct> {
-        let ty = self.structs.get(s.name.symbol).unwrap().clone();
+        let ty = *self.structs.get(s.name.symbol).unwrap();
         let fields = self.annotate_struct_fields(s.fields)?;
         Ok(hir::Struct {
             name: s.name,
             fields,
-            id: ty.type_var().unwrap_or_default(),
             ty,
         })
     }
@@ -456,16 +404,16 @@ impl<'a> Annotate<'a> {
         })
     }
 
-    fn token_to_ty(&mut self, token: &Token) -> Result<Ty> {
+    fn token_to_ty(&mut self, token: &Token) -> Result<TypeVar> {
         token.symbol.as_str_with(|s| {
             let ty = match s {
-                "bool" => Ty::Bool,
-                "int" => Ty::Int,
-                "str" => Ty::Str,
-                "float" => Ty::Float,
+                "bool" => self.env.bool(),
+                "int" => self.env.int(),
+                "str" => self.env.str(),
+                "float" => self.env.float(),
                 _ => {
                     if let Some(ty) = self.structs.get(token.symbol) {
-                        ty.clone()
+                        *ty
                     } else {
                         return self.handler.mk_err(token.span, "Unknown type");
                     }
@@ -473,5 +421,62 @@ impl<'a> Annotate<'a> {
             };
             Ok(ty)
         })
+    }
+
+    fn enter_block_scope<F, R>(&mut self, f: F) -> R
+    where
+        F: FnOnce(&mut Annotate<'_>) -> R,
+    {
+        let Annotate {
+            env,
+            functions,
+            bindings,
+            structs,
+            handler,
+            has_enclosing_fn,
+            has_enclosing_loop,
+        } = self;
+
+        structs.enter_scope(|structs| {
+            functions.enter_scope(|functions| {
+                bindings.enter_scope(|bindings| {
+                    let mut this = Annotate::new(env, bindings, functions, structs, handler);
+                    this.has_enclosing_fn = *has_enclosing_fn;
+                    this.has_enclosing_loop = *has_enclosing_loop;
+                    f(&mut this)
+                })
+            })
+        })
+    }
+
+    fn enter_loop_scope<F, R>(&mut self, f: F) -> R
+    where
+        F: FnOnce(&mut Annotate<'_>) -> R,
+    {
+        let has_enclosing_loop = self.has_enclosing_loop;
+        self.has_enclosing_loop = true;
+        let result = f(self);
+        self.has_enclosing_loop = has_enclosing_loop;
+        result
+    }
+
+    fn enter_fn_scope<F, R>(&mut self, f: F) -> R
+    where
+        F: FnOnce(&mut Annotate<'_>) -> R,
+    {
+        let has_enclosing_fn = self.has_enclosing_fn;
+        let has_enclosing_loop = self.has_enclosing_loop;
+
+        let bindings = std::mem::take(self.bindings);
+        self.has_enclosing_fn = true;
+        self.has_enclosing_loop = false;
+
+        let result = self.enter_block_scope(|this| f(this));
+
+        self.has_enclosing_loop = has_enclosing_loop;
+        self.has_enclosing_fn = has_enclosing_fn;
+        *self.bindings = bindings;
+
+        result
     }
 }

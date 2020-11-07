@@ -5,8 +5,7 @@ use crate::{
 };
 use ena::unify::{InPlaceUnificationTable, NoError, UnifyKey, UnifyValue};
 use std::{
-    borrow::Cow,
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     fmt,
     rc::Rc,
 };
@@ -43,34 +42,79 @@ impl UnifyKey for TypeVar {
 }
 
 #[derive(Debug)]
+pub struct CommonTypes {
+    pub bool: TypeVar,
+    pub unit: TypeVar,
+    pub int: TypeVar,
+    pub float: TypeVar,
+    pub str: TypeVar,
+}
+
+#[derive(Debug)]
 pub struct TyContext {
     table: InPlaceUnificationTable<TypeVar>,
     pub handler: Rc<Handler>,
     var_stack: Vec<TypeVar>,
-    methods: HashMap<TypeVar, HashMap<Symbol, Ty>>,
+    methods: HashMap<TypeVar, HashMap<Symbol, TypeVar>>,
+    common: CommonTypes,
+    done: HashSet<TypeVar>,
 }
 
 impl TyContext {
     pub fn new(handler: &Rc<Handler>) -> Self {
+        let mut table = InPlaceUnificationTable::new();
+        let common = CommonTypes {
+            bool: table.new_key(TypeVarValue::Known(Ty::Bool)),
+            unit: table.new_key(TypeVarValue::Known(Ty::Unit)),
+            int: table.new_key(TypeVarValue::Known(Ty::Int)),
+            float: table.new_key(TypeVarValue::Known(Ty::Float)),
+            str: table.new_key(TypeVarValue::Known(Ty::Str)),
+        };
         Self {
-            table: InPlaceUnificationTable::new(),
+            table,
             handler: handler.clone(),
             var_stack: Vec::new(),
             methods: HashMap::new(),
+            common,
+            done: HashSet::new(),
         }
     }
 
-    pub fn new_type_var(&mut self) -> Ty {
-        Ty::Infer(self.table.new_key(TypeVarValue::Unknown))
+    pub fn bool(&self) -> TypeVar {
+        self.common.bool
     }
 
-    pub fn get_method(&self, struct_id: TypeVar, name: Symbol) -> Option<&Ty> {
+    pub fn unit(&self) -> TypeVar {
+        self.common.unit
+    }
+
+    pub fn int(&self) -> TypeVar {
+        self.common.int
+    }
+
+    pub fn float(&self) -> TypeVar {
+        self.common.float
+    }
+
+    pub fn str(&self) -> TypeVar {
+        self.common.str
+    }
+
+    pub fn new_type_var(&mut self) -> TypeVar {
+        self.table.new_key(TypeVarValue::Unknown)
+    }
+
+    pub fn alloc_ty(&mut self, ty: Ty) -> TypeVar {
+        self.table.new_key(TypeVarValue::Known(ty))
+    }
+
+    pub fn get_method(&self, struct_id: TypeVar, name: Symbol) -> Option<TypeVar> {
         self.methods
             .get(&struct_id)
-            .and_then(|methods| methods.get(&name))
+            .and_then(|methods| methods.get(&name).copied())
     }
 
-    pub fn add_method(&mut self, struct_id: TypeVar, name: Symbol, ty: Ty) -> bool {
+    pub fn add_method(&mut self, struct_id: TypeVar, name: Symbol, ty: TypeVar) -> bool {
         self.methods
             .entry(struct_id)
             .or_insert_with(HashMap::new)
@@ -78,40 +122,56 @@ impl TyContext {
             .is_some()
     }
 
-    pub fn resolve_ty<'a>(&mut self, ty: &'a Ty) -> Cow<'a, Ty> {
-        if let Some(v) = ty.type_var() {
-            match self.table.probe_value(v).known() {
-                Some(t) => Cow::Owned(t),
-                None => Cow::Borrowed(ty),
-            }
-        } else {
-            Cow::Borrowed(ty)
-        }
+    pub fn resolve_ty(&mut self, var: TypeVar) -> Ty {
+        self.table
+            .probe_value(var)
+            .known()
+            .unwrap_or_else(|| Ty::Infer(var))
     }
 
-    pub fn unify(&mut self, expected: &Ty, actual: &Ty, span: Span) -> Result<()> {
+    pub fn unify_value(&mut self, var: TypeVar, ty: Ty) {
+        self.table.union_value(var, TypeVarValue::Known(ty));
+    }
+
+    pub fn unify(&mut self, expected: TypeVar, actual: TypeVar, span: Span) -> Result<()> {
+        self.done.clear();
+        self.unify_inner(expected, actual, span)
+    }
+
+    fn unify_inner(&mut self, expected: TypeVar, actual: TypeVar, span: Span) -> Result<()> {
+        if expected == actual || self.table.unioned(expected, actual) {
+            return Ok(());
+        }
+
+        if !self.done.insert(expected) || !self.done.insert(actual) {
+            return Ok(());
+        }
+
         let a = self.resolve_ty(expected);
         let b = self.resolve_ty(actual);
 
-        match (&*a, &*b) {
-            (Ty::Infer(a), Ty::Infer(b)) => self.table.union(*a, *b),
-            (Ty::Infer(v), other) | (other, Ty::Infer(v)) => self
-                .table
-                .union_value(*v, TypeVarValue::Known(other.clone())),
+        log::trace!("Unify {:?} with {:?}", a, b);
+
+        match (a, b) {
+            (Ty::Infer(a), Ty::Infer(b)) => self.table.union(a, b),
+            (Ty::Infer(v), other) | (other, Ty::Infer(v)) => {
+                self.table.union_value(v, TypeVarValue::Known(other))
+            }
             (Ty::Fn(params, ret), Ty::Fn(params2, ret2)) => {
-                for (p1, p2) in params.iter().zip(params2) {
-                    self.unify(p1, p2, span)?;
+                for (p1, p2) in params.iter().zip(params2.iter()) {
+                    self.unify_inner(*p1, *p2, span)?;
                 }
-                self.unify(ret, ret2, span)?;
+                self.unify_inner(ret, ret2, span)?;
             }
             (Ty::Struct(id, name, fields), Ty::Struct(id2, name2, fields2)) => {
                 if id != id2 {
-                    return self
-                        .handler
-                        .mk_err(span, &format!("Expected type {}, Actual: {}", name, name2));
+                    return self.handler.mk_err(
+                        span,
+                        &format!("Expected type `{}`, Actual: `{}`", name, name2),
+                    );
                 }
-                for ((_, f1), (_, f2)) in fields.iter().zip(fields2) {
-                    self.unify(f1, f2, span)?;
+                for ((_, f1), (_, f2)) in fields.iter().zip(fields2.iter()) {
+                    self.unify_inner(*f1, *f2, span)?;
                 }
             }
             (Ty::Unit, Ty::Unit)
@@ -121,60 +181,9 @@ impl TyContext {
             | (Ty::Str, Ty::Str) => {}
             (a, b) => self
                 .handler
-                .mk_err(span, &format!("Expected type {}, Actual: {}", a, b))?,
+                .mk_err(span, &format!("Expected type `{}`, Actual: `{}`", a, b))?,
         }
 
-        Ok(())
-    }
-
-    pub fn fill_ty(&mut self, ty: &mut Ty) -> Result<()> {
-        log::debug!("fill_ty: {:?}", ty);
-
-        self.var_stack.clear();
-        let var = ty.type_var().map(|v| self.table.find(v));
-        self.fill_ty_inner(ty, var)
-    }
-
-    pub fn fill_methods(&mut self) -> Result<()> {
-        let mut methods = std::mem::take(&mut self.methods);
-        for method in methods.values_mut().flat_map(|map| map.values_mut()) {
-            self.fill_ty(method)?;
-        }
-        self.methods = methods;
-        Ok(())
-    }
-
-    fn fill_ty_inner(&mut self, ty: &mut Ty, var: Option<TypeVar>) -> Result<()> {
-        match ty {
-            Ty::Infer(v) => {
-                let root_v = self.table.find(*v);
-                if self.var_stack.contains(&root_v) {
-                    log::warn!("Type {:?} contains cycles", root_v);
-                    return if var == Some(root_v) { Err(()) } else { Ok(()) };
-                }
-
-                if let Some(found) = self.table.probe_value(root_v).known() {
-                    log::trace!("found: {:?} == {:?}", root_v, found);
-                    self.var_stack.push(root_v);
-                    *ty = found;
-                    self.fill_ty_inner(ty, var)?;
-                    self.var_stack.pop();
-                }
-            }
-            Ty::Fn(params, ret) => {
-                for p in params {
-                    self.fill_ty_inner(p, var)?;
-                }
-                self.fill_ty_inner(ret, var)?;
-            }
-            Ty::Struct(_, _, fields) => {
-                log::trace!("fill fields");
-                for f in fields.values_mut() {
-                    self.fill_ty_inner(f, var)?;
-                }
-            }
-            _ => {}
-        }
         Ok(())
     }
 }
@@ -187,21 +196,15 @@ pub enum Ty {
     Int,
     Float,
     Str,
-    Fn(/* params: */ Vec<Ty>, /* return_ty: */ Box<Ty>),
+    Fn(
+        /* params: */ Rc<Vec<TypeVar>>,
+        /* return_ty: */ TypeVar,
+    ),
     Struct(
         /* id: */ TypeVar,
         /* name: */ Symbol,
-        /* fields: */ BTreeMap<Symbol, Ty>,
+        /* fields: */ Rc<BTreeMap<Symbol, TypeVar>>,
     ),
-}
-
-impl Ty {
-    pub fn type_var(&self) -> Option<TypeVar> {
-        match self {
-            Ty::Infer(id) => Some(*id),
-            _ => None,
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -238,26 +241,13 @@ impl UnifyValue for TypeVarValue {
 impl fmt::Display for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Ty::Infer(id) => write!(f, "{{unknown {:?}}}", id.0)?,
+            Ty::Infer(..) => f.write_str("{unknown}")?,
             Ty::Unit => f.write_str("unit")?,
             Ty::Bool => f.write_str("bool")?,
             Ty::Int => f.write_str("int")?,
             Ty::Float => f.write_str("float")?,
             Ty::Str => f.write_str("str")?,
-            Ty::Fn(params, ret) => {
-                f.write_str("fn(")?;
-                let mut first = true;
-                for p in params {
-                    if first {
-                        first = false;
-                    } else {
-                        f.write_str(", ")?;
-                    }
-                    write!(f, "{}", p)?;
-                }
-                f.write_str(")")?;
-                write!(f, " -> {}", ret)?;
-            }
+            Ty::Fn(..) => f.write_str("Function")?,
             Ty::Struct(_, name, _) => write!(f, "{}", name)?,
         }
         Ok(())
@@ -276,7 +266,7 @@ impl fmt::Debug for Ty {
             Ty::Fn(params, ret) => {
                 f.write_str("fn(")?;
                 let mut first = true;
-                for p in params {
+                for p in params.iter() {
                     if first {
                         first = false;
                     } else {
@@ -290,7 +280,7 @@ impl fmt::Debug for Ty {
             Ty::Struct(id, name, fields) => {
                 write!(f, "struct {}{} {{ ", name, id.0)?;
                 let mut first = true;
-                for (name, ty) in fields {
+                for (name, ty) in fields.iter() {
                     if first {
                         first = false;
                     } else {
