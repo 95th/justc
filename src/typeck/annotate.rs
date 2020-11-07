@@ -8,7 +8,7 @@ use crate::{
 };
 
 use super::{
-    hir::{self, SpannedTy},
+    hir,
     ty::{Ty, TyContext, TypeVar},
 };
 
@@ -219,26 +219,14 @@ impl<'a> Annotate<'a> {
             ast::ExprKind::Field(expr, name) => {
                 hir::ExprKind::Field(self.annotate_expr(expr)?, name)
             }
-            ast::ExprKind::MethodCall { callee, name, args } => {
-                let callee = self.annotate_expr(callee)?;
-                let ty = SpannedTy {
-                    ty: callee.ty,
-                    span: callee.span,
-                    is_self: false,
-                };
-                let mut annotated_args = vec![callee];
-                for arg in args {
-                    annotated_args.push(self.annotate_expr(arg)?);
-                }
-                hir::ExprKind::Call {
-                    callee: Box::new(hir::Expr {
-                        span: name.span,
-                        kind: hir::ExprKind::AssocMethod { ty, name },
-                        ty: self.env.new_type_var(),
-                    }),
-                    args: annotated_args,
-                }
-            }
+            ast::ExprKind::MethodCall { callee, name, args } => hir::ExprKind::MethodCall {
+                callee: self.annotate_expr(callee)?,
+                name,
+                args: args
+                    .into_iter()
+                    .map(|arg| self.annotate_expr(arg))
+                    .collect::<Result<_>>()?,
+            },
             ast::ExprKind::AssocMethod { ty, name } => {
                 let ty = self.ast_ty_to_spanned_ty(ty)?;
                 hir::ExprKind::AssocMethod { ty, name }

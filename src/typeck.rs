@@ -157,7 +157,7 @@ impl Typeck {
                 self.typeck_expr(body)?;
                 self.typeck_eq(*ret, body.ty, body.span)?;
             }
-            ExprKind::Call { callee, args } => {
+            ExprKind::Call { callee, args } | ExprKind::MethodCall { callee, args, .. } => {
                 self.typeck_expr(callee)?;
                 for arg in args {
                     self.typeck_expr(arg)?;

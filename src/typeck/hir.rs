@@ -66,6 +66,11 @@ pub enum ExprKind {
         ty: SpannedTy,
         name: Token,
     },
+    MethodCall {
+        callee: Box<Expr>,
+        name: Token,
+        args: Vec<Box<Expr>>,
+    },
 }
 
 #[derive(Debug, Clone)]

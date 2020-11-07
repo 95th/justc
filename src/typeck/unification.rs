@@ -142,7 +142,7 @@ impl<'a> Unifier<'a> {
             ExprKind::Call { callee, args } => {
                 self.unify_expr(callee)?;
                 let ty = self.env.resolve_ty(callee.ty);
-                self.unify_fn_call(expr, args, &ty, callee.span)?;
+                self.unify_fn_call(expr, None, args, &ty, callee.span)?;
                 for arg in args {
                     self.unify_expr(arg)?;
                 }
@@ -227,20 +227,18 @@ impl<'a> Unifier<'a> {
 
                 let ty = self.env.resolve_ty(ty.ty);
                 match ty {
-                    Ty::Struct(id, name, fields) => {
-                        let method_ty = if let Some(m) = self.env.get_method(id, method_name.symbol)
-                        {
-                            m
-                        } else if let Some(f) = fields.get(&method_name.symbol) {
-                            *f
-                        } else {
-                            return self.handler.mk_err(
-                                method_name.span,
-                                &format!(
-                                    "Method or Field `{}` not found on type `{}`",
-                                    method_name.symbol, name
-                                ),
-                            );
+                    Ty::Struct(id, name, ..) => {
+                        let method_ty = match self.env.get_method(id, method_name.symbol) {
+                            Some(ty) => ty,
+                            None => {
+                                return self.handler.mk_err(
+                                    method_name.span,
+                                    &format!(
+                                        "Method `{}` not found on type `{}`",
+                                        method_name.symbol, name
+                                    ),
+                                );
+                            }
                         };
 
                         self.env.unify(expr.ty, method_ty, method_name.span)?;
@@ -259,6 +257,67 @@ impl<'a> Unifier<'a> {
                     }
                 }
 
+                Ok(())
+            }
+            ExprKind::MethodCall {
+                callee,
+                name: method_name,
+                args,
+            } => {
+                self.unify_expr(callee)?;
+                let ty = self.env.resolve_ty(callee.ty);
+                match ty {
+                    Ty::Struct(id, name, fields) => {
+                        match self.env.get_method(id, method_name.symbol) {
+                            Some(ty) => {
+                                let method_ty = self.env.resolve_ty(ty);
+                                self.unify_fn_call(
+                                    expr,
+                                    Some(callee),
+                                    args,
+                                    &method_ty,
+                                    method_name.span,
+                                )?;
+                            }
+                            None => match fields.get(&method_name.symbol) {
+                                Some(ty) => {
+                                    let method_ty = self.env.resolve_ty(*ty);
+                                    self.unify_fn_call(
+                                        expr,
+                                        None,
+                                        args,
+                                        &method_ty,
+                                        method_name.span,
+                                    )?;
+                                }
+                                None => {
+                                    return self.handler.mk_err(
+                                        method_name.span,
+                                        &format!(
+                                            "Method or Field `{}` not found on type `{}`",
+                                            method_name.symbol, name
+                                        ),
+                                    )
+                                }
+                            },
+                        }
+                        for arg in args {
+                            self.unify_expr(arg)?;
+                        }
+                    }
+                    Ty::Infer(_) => {
+                        return self.handler.mk_err(
+                            method_name.span,
+                            "Type cannot be inferred. Please add type annotations",
+                        );
+                    }
+                    ty => {
+                        return self.handler.mk_err(
+                            method_name.span,
+                            &format!("Type error: Expected struct, Actual: `{}`", ty,),
+                        )
+                    }
+                }
                 Ok(())
             }
         }
@@ -400,22 +459,39 @@ impl<'a> Unifier<'a> {
     fn unify_fn_call(
         &mut self,
         expr: &Expr,
+        self_param: Option<&Expr>,
         args: &[Box<Expr>],
         fn_ty: &Ty,
         span: Span,
     ) -> Result<()> {
         match fn_ty {
             Ty::Fn(params, ret) => {
-                if params.len() != args.len() {
-                    return self.handler.mk_err(
+                let arg_mismatch = |expected: usize, actual: usize| {
+                    self.handler.mk_err(
                         expr.span,
                         &format!(
                             "Number of arguments mismatch: Expected: `{}`, actual: `{}`",
-                            params.len(),
-                            args.len()
+                            expected, actual
                         ),
-                    );
+                    )
+                };
+
+                let mut params = &params[..];
+                match (params, self_param) {
+                    ([first, rest_params @ ..], Some(self_param)) => {
+                        if rest_params.len() != args.len() {
+                            return arg_mismatch(rest_params.len(), args.len());
+                        }
+                        params = rest_params;
+                        self.env.unify(*first, self_param.ty, self_param.span)?;
+                    }
+                    _ => {
+                        if params.len() != args.len() {
+                            return arg_mismatch(params.len(), args.len());
+                        }
+                    }
                 }
+
                 for (param, arg) in params.iter().zip(args) {
                     self.env.unify(*param, arg.ty, arg.span)?;
                 }
