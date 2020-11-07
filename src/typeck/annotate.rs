@@ -50,6 +50,7 @@ impl<'a> Annotate<'a> {
 
     fn annotate_ast(&mut self, ast: ast::Ast) -> Result<hir::Ast> {
         let structs = self.annotate_structs(ast.structs)?;
+        self.annotate_fn_headers(&ast.functions);
         let impls = self.annotate_impls(ast.impls)?;
         let functions = self.annotate_fns(ast.functions)?;
         let stmts = self.annotate_stmts(ast.stmts)?;
@@ -238,6 +239,7 @@ impl<'a> Annotate<'a> {
     fn annotate_block(&mut self, block: ast::Block) -> Result<hir::Block> {
         self.enter_block_scope(|this| {
             let structs = this.annotate_structs(block.structs)?;
+            this.annotate_fn_headers(&block.functions);
             let impls = this.annotate_impls(block.impls)?;
             let functions = this.annotate_fns(block.functions)?;
             let stmts = this.annotate_stmts(block.stmts)?;
@@ -252,11 +254,14 @@ impl<'a> Annotate<'a> {
         })
     }
 
-    fn annotate_fns(&mut self, functions: Vec<ast::Function>) -> Result<Vec<hir::Function>> {
-        for func in &functions {
+    fn annotate_fn_headers(&mut self, functions: &[ast::Function]) {
+        for func in functions {
             self.functions
                 .insert(func.name.symbol, self.env.new_type_var());
         }
+    }
+
+    fn annotate_fns(&mut self, functions: Vec<ast::Function>) -> Result<Vec<hir::Function>> {
         functions
             .into_iter()
             .map(|func| self.annotate_fn(func))
@@ -265,6 +270,7 @@ impl<'a> Annotate<'a> {
 
     fn annotate_fn(&mut self, func: ast::Function) -> Result<hir::Function> {
         self.enter_fn_scope(|this| {
+            dbg!(&this.functions, func.name.symbol);
             let ty = *this.functions.get(func.name.symbol).unwrap();
             let params = this.annotate_params(func.params)?;
             let ret = this.ast_ty_to_spanned_ty(func.ret)?;
@@ -351,6 +357,7 @@ impl<'a> Annotate<'a> {
                 return self.handler.mk_err(i.name.span, "Not found in this scope");
             }
         };
+        self.annotate_fn_headers(&i.functions);
         let functions = self.annotate_fns(i.functions)?;
         Ok(hir::Impl { ty, functions })
     }

@@ -21,8 +21,9 @@ struct Unifier<'a> {
 pub fn unify(ast: &Ast, env: &mut TyContext, handler: &Handler) -> Result<()> {
     let mut unifier = Unifier::new(env, handler);
     unifier.unify_structs(&ast.structs)?;
+    unifier.unify_fn_headers(&ast.functions)?;
     unifier.unify_impls(&ast.impls)?;
-    unifier.unify_fns(&ast.functions)?;
+    unifier.unify_fn_bodies(&ast.functions)?;
     unifier.unify_stmts(&ast.stmts)
 }
 
@@ -325,8 +326,9 @@ impl<'a> Unifier<'a> {
 
     fn unify_block(&mut self, block: &Block) -> Result<()> {
         self.unify_structs(&block.structs)?;
+        self.unify_fn_headers(&block.functions)?;
         self.unify_impls(&block.impls)?;
-        self.unify_fns(&block.functions)?;
+        self.unify_fn_bodies(&block.functions)?;
 
         for stmt in &block.stmts {
             self.unify_stmt(stmt)?;
@@ -436,8 +438,8 @@ impl<'a> Unifier<'a> {
         }
 
         let params = function.params.iter().map(|p| p.param_ty.ty).collect();
-        let ty = self.env.alloc_ty(Ty::Fn(Rc::new(params), function.ret.ty));
-        self.env.unify(ty, function.ty, function.name.span)?;
+        self.env
+            .unify_value(function.ty, Ty::Fn(Rc::new(params), function.ret.ty));
 
         if function.ret.is_self {
             self.env.unify(

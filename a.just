@@ -8,15 +8,15 @@ impl Fibonnacci {
     }
 
     fn calc(self) -> int {
-        self.calc_inner(self.n)
+        calc_fib(self.n)
     }
+}
 
-    fn calc_inner(self, n: int) -> int {
-        if n < 2 {
-            1
-        } else {
-            self.calc_inner(n - 1) + self.calc_inner(n - 2)
-        }
+fn calc_fib(n: int) -> int {
+    if n < 2 {
+        1
+    } else {
+        calc_fib(n - 1) + calc_fib(n - 2)
     }
 }
 
