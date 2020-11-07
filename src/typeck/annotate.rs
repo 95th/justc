@@ -381,11 +381,6 @@ impl<'a> Annotate<'a> {
     fn annotate_struct(&mut self, s: ast::Struct) -> Result<hir::Struct> {
         let ty = *self.structs.get(s.name.symbol).unwrap();
         let fields = self.annotate_struct_fields(s.fields)?;
-
-        let fields_tys = fields.iter().map(|f| (f.name.symbol, f.ty)).collect();
-        self.env
-            .unify_value(ty, Ty::Struct(ty, s.name.symbol, Rc::new(fields_tys)));
-
         Ok(hir::Struct {
             name: s.name,
             fields,
