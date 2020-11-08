@@ -153,20 +153,23 @@ impl<'a> Annotate<'a> {
                 left: self.annotate_expr(left)?,
                 right: self.annotate_expr(right)?,
             },
-            ast::ExprKind::Tuple(mut exprs) => {
-                if exprs.len() == 1 {
+            ast::ExprKind::Tuple(mut exprs) => match exprs.len() {
+                0 => hir::ExprKind::Literal(ast::Lit::Unit, self.env.unit(), expr.span),
+                1 => {
                     let e = exprs.pop().unwrap();
                     return self.annotate_expr(e);
                 }
-
-                let exprs = exprs
-                    .into_iter()
-                    .map(|e| self.annotate_expr(e))
-                    .collect::<Result<_>>()?;
-                hir::ExprKind::Tuple(exprs)
-            }
+                _ => {
+                    let exprs = exprs
+                        .into_iter()
+                        .map(|e| self.annotate_expr(e))
+                        .collect::<Result<_>>()?;
+                    hir::ExprKind::Tuple(exprs)
+                }
+            },
             ast::ExprKind::Literal(lit, span) => {
                 let ty = match &lit {
+                    ast::Lit::Unit => self.env.unit(),
                     ast::Lit::Str(_) => self.env.str(),
                     ast::Lit::Integer(_) => self.env.int(),
                     ast::Lit::Float(_) => self.env.float(),

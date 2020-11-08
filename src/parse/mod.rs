@@ -898,10 +898,14 @@ impl Parser {
             }
             self.consume(CloseParen, "Expected ')'")?;
             let span = lo.to(self.prev.span);
-            return Ok(Ty {
-                kind: TyKind::Tuple(tys),
-                span,
-            });
+
+            let kind = match tys.len() {
+                0 => TyKind::Unit,
+                1 => return Ok(tys.pop().unwrap()),
+                _ => TyKind::Tuple(tys),
+            };
+
+            return Ok(Ty { kind, span });
         }
 
         self.consume(Ident, "Expected Type name")?;

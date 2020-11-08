@@ -63,6 +63,7 @@ impl fmt::Display for UnOp {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Lit {
+    Unit,
     Str(Symbol),
     Integer(i64),
     Float(Symbol),

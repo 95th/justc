@@ -1,3 +1,11 @@
-struct A(int, bool);
+struct A {
+    value: ()
+}
 
-let a: A = A(1, true);
+impl A {
+    fn add(self) {
+        add();
+    }
+}
+
+fn add() {}
