@@ -120,7 +120,7 @@ pub enum ExprKind {
         callee: Box<Expr>,
         args: Vec<Box<Expr>>,
     },
-    Struct(Token, Vec<Field>),
+    Struct(Token, Vec<Field>, /* tuple: */ bool),
     Field(Box<Expr>, Token),
     MethodCall {
         callee: Box<Expr>,

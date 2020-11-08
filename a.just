@@ -1,11 +1,7 @@
-struct A {
-    value: ()
-}
+struct A {}
 
 impl A {
-    fn add(self) {
-        add();
-    }
+    fn add() {}
 }
 
 fn add() {}

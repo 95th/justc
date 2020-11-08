@@ -30,6 +30,10 @@ impl<T> SymbolTable<T> {
         self.map.get(&key)
     }
 
+    pub fn is_defined(&self, key: Symbol) -> bool {
+        self.map.contains_key(&key)
+    }
+
     pub fn enter_scope<F, R>(&mut self, f: F) -> R
     where
         F: FnOnce(&mut Self) -> R,

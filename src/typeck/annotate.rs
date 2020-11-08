@@ -188,7 +188,12 @@ impl<'a> Annotate<'a> {
                 .or_else(|| self.functions.get(t.symbol))
             {
                 Some(ty) => hir::ExprKind::Variable(t, *ty),
-                None => return self.handler.mk_err(t.span, "Not found in this scope"),
+                None => {
+                    log::debug!("Variable `{}` not found", t.symbol);
+                    log::trace!("Bindings: {:?}", self.bindings);
+                    log::trace!("Functions: {:?}", self.functions);
+                    return self.handler.mk_err(t.span, "Not found in this scope");
+                }
             },
             ast::ExprKind::Block(block) => hir::ExprKind::Block(self.annotate_block(block)?),
             ast::ExprKind::If {
@@ -218,18 +223,40 @@ impl<'a> Annotate<'a> {
                     .map(|arg| self.annotate_expr(arg))
                     .collect::<Result<Vec<_>>>()?,
             },
-            ast::ExprKind::Struct(name, fields) => {
-                let ty = if name.is_self_ty() {
-                    self.env.new_type_var()
+            ast::ExprKind::Struct(name, fields, tuple) => {
+                if name.is_self_ty() {
+                    hir::ExprKind::Struct(
+                        name,
+                        self.annotate_fields(fields)?,
+                        self.env.new_type_var(),
+                    )
                 } else {
-                    match self.structs.get(name.symbol) {
-                        Some(ty) => *ty,
+                    match self.structs.get(name.symbol).copied() {
+                        Some(ty) => hir::ExprKind::Struct(name, self.annotate_fields(fields)?, ty),
+                        None if tuple => {
+                            if self.functions.is_defined(name.symbol) {
+                                let callee = Box::new(ast::Expr {
+                                    span: name.span,
+                                    kind: ast::ExprKind::Variable(name),
+                                });
+                                let callee = self.annotate_expr(callee)?;
+                                let args = self
+                                    .annotate_fields(fields)?
+                                    .into_iter()
+                                    .map(|f| f.expr)
+                                    .collect();
+                                hir::ExprKind::Call { callee, args }
+                            } else {
+                                log::debug!("Function `{}` not found", name.symbol);
+                                return self.handler.mk_err(name.span, "Not found in this scope");
+                            }
+                        }
                         None => {
+                            log::debug!("Struct `{}` not found", name.symbol);
                             return self.handler.mk_err(name.span, "Not found in this scope");
                         }
                     }
-                };
-                hir::ExprKind::Struct(name, self.annotate_fields(fields)?, ty)
+                }
             }
             ast::ExprKind::Field(expr, name) => {
                 hir::ExprKind::Field(self.annotate_expr(expr)?, name)

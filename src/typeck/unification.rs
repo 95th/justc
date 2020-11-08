@@ -450,6 +450,7 @@ impl<'a> Unifier<'a> {
     }
 
     fn unify_fn_header(&mut self, function: &Function) -> Result<()> {
+        log::debug!("unify_fn_header: {:#?}", function);
         let mut has_self_param = false;
         for (idx, p) in function.params.iter().enumerate() {
             if p.name.is_self_param() {

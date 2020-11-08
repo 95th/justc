@@ -51,7 +51,7 @@ impl Parser {
                 let fun = self.function(&mut declared_fns)?;
                 functions.push(fun);
             } else if self.eat(Struct) {
-                let item = self.struct_item(&mut declared_structs)?;
+                let item = self.struct_item(&mut declared_structs, &mut declared_fns)?;
                 structs.push(item);
             } else if self.eat(Impl) {
                 let item = self.impl_item()?;
@@ -139,7 +139,7 @@ impl Parser {
                 let fun = self.function(&mut declared_fns)?;
                 functions.push(fun);
             } else if self.eat(Struct) {
-                let s = self.struct_item(&mut declared_structs)?;
+                let s = self.struct_item(&mut declared_structs, &mut declared_fns)?;
                 structs.push(s);
             } else if self.eat(Impl) {
                 let item = self.impl_item()?;
@@ -208,13 +208,21 @@ impl Parser {
         })
     }
 
-    fn struct_item(&mut self, declared_structs: &mut HashSet<Symbol>) -> Result<ast::Struct> {
+    fn struct_item(
+        &mut self,
+        declared_structs: &mut HashSet<Symbol>,
+        declared_fns: &mut HashSet<Symbol>,
+    ) -> Result<ast::Struct> {
         self.without_restrictions(Restrictions::ALLOW_SELF, |this| {
-            this.struct_item_inner(declared_structs)
+            this.struct_item_inner(declared_structs, declared_fns)
         })
     }
 
-    fn struct_item_inner(&mut self, declared_structs: &mut HashSet<Symbol>) -> Result<ast::Struct> {
+    fn struct_item_inner(
+        &mut self,
+        declared_structs: &mut HashSet<Symbol>,
+        declared_fns: &mut HashSet<Symbol>,
+    ) -> Result<ast::Struct> {
         let name = self.consume(Ident, "Expected struct name")?;
         if !declared_structs.insert(name.symbol) {
             return self.handler.mk_err(
@@ -236,6 +244,13 @@ impl Parser {
 
             Ok(ast::Struct { name, fields })
         } else if self.eat(OpenParen) {
+            if !declared_fns.insert(name.symbol) {
+                return self.handler.mk_err(
+                    name.span,
+                    "Another item with same name already defined in this scope",
+                );
+            }
+
             let mut fields = vec![];
             while !self.check(CloseParen) && !self.eof() {
                 let ty = self.parse_ty()?;
@@ -691,7 +706,7 @@ impl Parser {
                 );
             }
 
-            ExprKind::Struct(name, fields)
+            ExprKind::Struct(name, fields, false)
         } else if self.eat(OpenParen) {
             let mut fields = vec![];
             while !self.check(CloseParen) && !self.eof() {
@@ -708,7 +723,7 @@ impl Parser {
             }
             self.consume(CloseParen, "Expected ')'")?;
             span = span.to(self.prev.span);
-            ExprKind::Struct(name, fields)
+            ExprKind::Struct(name, fields, true)
         } else if self.check(ColonColon) {
             let ty = self.token_to_ty()?;
             self.consume(ColonColon, "Expected '::'")?;
