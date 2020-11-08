@@ -234,7 +234,9 @@ impl<'a> Annotate<'a> {
                     match self.structs.get(name.symbol).copied() {
                         Some(ty) => hir::ExprKind::Struct(name, self.annotate_fields(fields)?, ty),
                         None if tuple => {
-                            if self.functions.is_defined(name.symbol) {
+                            if self.functions.is_defined(name.symbol)
+                                || self.bindings.is_defined(name.symbol)
+                            {
                                 let callee = Box::new(ast::Expr {
                                     span: name.span,
                                     kind: ast::ExprKind::Variable(name),
