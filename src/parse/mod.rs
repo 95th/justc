@@ -515,7 +515,16 @@ impl Parser {
                     });
                 }
             } else if self.eat(Dot) {
-                let name = self.consume(Ident, "Expected field or method name")?;
+                let name = if self.eat(Ident)
+                    || self.eat(Literal {
+                        kind: LiteralKind::Int,
+                    }) {
+                    self.prev.clone()
+                } else {
+                    return self
+                        .handler
+                        .mk_err(self.curr.span, "Expected field or method name");
+                };
                 let span = expr.span.to(name.span);
                 expr = Box::new(Expr {
                     kind: ExprKind::Field(expr, name),

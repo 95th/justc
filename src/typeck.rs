@@ -85,6 +85,7 @@ impl Typeck {
     }
 
     fn typeck_expr(&mut self, expr: &Expr) -> Result<()> {
+        self.typeck_no_var(expr.ty, expr.span)?;
         match &expr.kind {
             ExprKind::Binary { op, left, right } => {
                 self.typeck_eq(left.ty, right.ty, right.span)?;

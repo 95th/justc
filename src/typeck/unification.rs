@@ -214,7 +214,7 @@ impl<'a> Unifier<'a> {
             ExprKind::Field(e, field_name) => {
                 self.unify_expr(e)?;
                 let ty = self.env.resolve_ty(e.ty);
-                match ty {
+                match &ty {
                     Ty::Struct(_, name, fields) => {
                         if let Some(f) = fields.get(&field_name.symbol) {
                             self.env.unify(expr.ty, *f, field_name.span)
@@ -227,6 +227,30 @@ impl<'a> Unifier<'a> {
                                 ),
                             )
                         }
+                    }
+                    Ty::Tuple(tys) => {
+                        let index = field_name.symbol.as_str_with(|s| {
+                            if s == "0" {
+                                Some(0)
+                            } else if s.starts_with('0') {
+                                None
+                            } else {
+                                s.parse::<usize>().ok()
+                            }
+                        });
+                        let index = match index {
+                            Some(i) if i < tys.len() => i,
+                            _ => {
+                                return self.handler.mk_err(
+                                    field_name.span,
+                                    &format!(
+                                        "Field `{}` not found on type `{}`",
+                                        field_name.symbol, ty
+                                    ),
+                                );
+                            }
+                        };
+                        self.env.unify(expr.ty, tys[index], field_name.span)
                     }
                     Ty::Infer(_) => self.handler.mk_err(
                         e.span,
