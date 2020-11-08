@@ -167,8 +167,8 @@ impl<'a> Unifier<'a> {
                 match ty {
                     Ty::Struct(_, _, fields2) => {
                         for f in fields {
-                            match fields2.get(&f.name.symbol) {
-                                Some(t) => self.env.unify(*t, f.expr.ty, f.expr.span)?,
+                            match fields2.get(f.name.symbol) {
+                                Some(t) => self.env.unify(t, f.expr.ty, f.expr.span)?,
                                 None => {
                                     return self.handler.mk_err(
                                         f.name.span,
@@ -180,7 +180,7 @@ impl<'a> Unifier<'a> {
 
                         if fields.len() != fields2.len() {
                             let mut extra = vec![];
-                            for &f2 in fields2.keys() {
+                            for f2 in fields2.keys() {
                                 if !fields.iter().any(|f| f.name.symbol == f2) {
                                     extra.push(f2.to_string());
                                 }
@@ -216,8 +216,8 @@ impl<'a> Unifier<'a> {
                 let ty = self.env.resolve_ty(e.ty);
                 match &ty {
                     Ty::Struct(_, name, fields) => {
-                        if let Some(f) = fields.get(&field_name.symbol) {
-                            self.env.unify(expr.ty, *f, field_name.span)
+                        if let Some(f) = fields.get(field_name.symbol) {
+                            self.env.unify(expr.ty, f, field_name.span)
                         } else {
                             self.handler.mk_err(
                                 field_name.span,
@@ -325,9 +325,9 @@ impl<'a> Unifier<'a> {
                                     method_name.span,
                                 )?;
                             }
-                            None => match fields.get(&method_name.symbol) {
+                            None => match fields.get(method_name.symbol) {
                                 Some(ty) => {
-                                    let method_ty = self.env.resolve_ty(*ty);
+                                    let method_ty = self.env.resolve_ty(ty);
                                     self.unify_fn_call(
                                         expr,
                                         None,

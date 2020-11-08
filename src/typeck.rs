@@ -295,7 +295,7 @@ impl Typeck {
                 self.typeck_no_var(ret, span)
             }
             Ty::Struct(.., fields) => {
-                for f in fields.values().copied() {
+                for f in fields.values() {
                     self.typeck_no_var(f, span)?;
                 }
                 Ok(())

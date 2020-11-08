@@ -5,8 +5,9 @@ use crate::{
 };
 use ena::unify::{InPlaceUnificationTable, NoError, UnifyKey, UnifyValue};
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{HashMap, HashSet},
     fmt,
+    iter::FromIterator,
     rc::Rc,
 };
 
@@ -167,11 +168,19 @@ impl TyContext {
                 if id != id2 {
                     return self.handler.mk_err(
                         span,
-                        &format!("Type mismatch: Expected type `{}`, Actual: `{}`", name, name2),
+                        &format!(
+                            "Type mismatch: Expected type `{}`, Actual: `{}`",
+                            name, name2
+                        ),
                     );
                 }
-                for ((_, f1), (_, f2)) in fields.iter().zip(fields2.iter()) {
-                    self.unify_inner(*f1, *f2, span)?;
+                for (f1, t1) in fields.iter() {
+                    for (f2, t2) in fields2.iter() {
+                        if f1 == f2 {
+                            self.unify_inner(t1, t2, span)?;
+                            break;
+                        }
+                    }
                 }
             }
             (Ty::Tuple(tys), Ty::Tuple(tys2)) => {
@@ -218,9 +227,46 @@ pub enum Ty {
     Struct(
         /* id: */ TypeVar,
         /* name: */ Symbol,
-        /* fields: */ Rc<BTreeMap<Symbol, TypeVar>>,
+        /* fields: */ Rc<StructFields>,
     ),
     Tuple(Rc<Vec<TypeVar>>),
+}
+
+#[derive(Debug, PartialEq)]
+pub struct StructFields {
+    fields: Vec<(Symbol, TypeVar)>,
+}
+
+impl StructFields {
+    pub fn get(&self, name: Symbol) -> Option<TypeVar> {
+        self.fields
+            .iter()
+            .find_map(|(n, v)| if *n == name { Some(*v) } else { None })
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (Symbol, TypeVar)> + '_ {
+        self.fields.iter().copied()
+    }
+
+    pub fn keys(&self) -> impl Iterator<Item = Symbol> + '_ {
+        self.fields.iter().map(|(k, _)| k).copied()
+    }
+
+    pub fn values(&self) -> impl Iterator<Item = TypeVar> + '_ {
+        self.fields.iter().map(|(_, v)| v).copied()
+    }
+
+    pub fn len(&self) -> usize {
+        self.fields.len()
+    }
+}
+
+impl FromIterator<(Symbol, TypeVar)> for StructFields {
+    fn from_iter<T: IntoIterator<Item = (Symbol, TypeVar)>>(iter: T) -> Self {
+        Self {
+            fields: iter.into_iter().collect(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -319,7 +365,7 @@ impl fmt::Debug for Ty {
                     write!(f, "{:?}", t)?;
                 }
                 f.write_str(")")?;
-            },
+            }
         }
         Ok(())
     }
