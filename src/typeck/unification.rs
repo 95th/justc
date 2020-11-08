@@ -49,8 +49,8 @@ impl<'a> Unifier<'a> {
             Stmt::Expr(expr, ..) => self.unify_expr(expr),
             Stmt::Let { ty, init, .. } => {
                 if let Some(init) = init {
-                    self.unify_expr(init)?;
                     self.env.unify(*ty, init.ty, init.span)?;
+                    self.unify_expr(init)?;
                 }
                 Ok(())
             }
