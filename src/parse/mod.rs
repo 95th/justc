@@ -223,18 +223,40 @@ impl Parser {
             );
         }
 
-        self.consume(OpenBrace, "Expected '{'")?;
-        let mut fields = vec![];
-        while !self.check(CloseBrace) && !self.eof() {
-            let field = self.struct_field()?;
-            fields.push(field);
-            if !self.eat(Comma) {
-                break;
+        if self.eat(OpenBrace) {
+            let mut fields = vec![];
+            while !self.check(CloseBrace) && !self.eof() {
+                let field = self.struct_field()?;
+                fields.push(field);
+                if !self.eat(Comma) {
+                    break;
+                }
             }
-        }
-        self.consume(CloseBrace, "Expected '}'")?;
+            self.consume(CloseBrace, "Expected '}'")?;
 
-        Ok(ast::Struct { name, fields })
+            Ok(ast::Struct { name, fields })
+        } else if self.eat(OpenParen) {
+            let mut fields = vec![];
+            while !self.check(CloseParen) && !self.eof() {
+                let ty = self.parse_ty()?;
+                let name = Token {
+                    span: ty.span,
+                    kind: TokenKind::Ident,
+                    symbol: Symbol::intern(&fields.len().to_string()),
+                };
+
+                fields.push(ast::StructField { name, ty });
+                if !self.eat(Comma) {
+                    break;
+                }
+            }
+            self.consume(CloseParen, "Expected ')'")?;
+            self.consume(SemiColon, "Expected ';'")?;
+
+            Ok(ast::Struct { name, fields })
+        } else {
+            self.handler.mk_err(self.curr.span, "Expected '{' or '('")
+        }
     }
 
     fn struct_field(&mut self) -> Result<ast::StructField> {
@@ -669,6 +691,23 @@ impl Parser {
                 );
             }
 
+            ExprKind::Struct(name, fields)
+        } else if self.eat(OpenParen) {
+            let mut fields = vec![];
+            while !self.check(CloseParen) && !self.eof() {
+                let expr = self.expr()?;
+                let name = Token {
+                    span: expr.span,
+                    kind: TokenKind::Ident,
+                    symbol: Symbol::intern(&fields.len().to_string()),
+                };
+                fields.push(Field { name, expr });
+                if !self.eat(Comma) {
+                    break;
+                }
+            }
+            self.consume(CloseParen, "Expected ')'")?;
+            span = span.to(self.prev.span);
             ExprKind::Struct(name, fields)
         } else if self.check(ColonColon) {
             let ty = self.token_to_ty()?;
