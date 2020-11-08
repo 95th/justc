@@ -80,7 +80,10 @@ impl Expr {
     pub fn is_assignable(&self) -> bool {
         match &self.kind {
             ExprKind::Field(..) => true,
-            ExprKind::Grouping(e) => e.is_assignable(),
+            ExprKind::Tuple(exprs) => match &exprs[..] {
+                [e] => e.is_assignable(),
+                _ => false,
+            },
             ExprKind::Variable(v) => !v.is_self_param(),
             _ => false,
         }
@@ -94,7 +97,7 @@ pub enum ExprKind {
         left: Box<Expr>,
         right: Box<Expr>,
     },
-    Grouping(Box<Expr>),
+    Tuple(Vec<Box<Expr>>),
     Literal(Lit, Span),
     Unary {
         op: Spanned<UnOp>,
@@ -180,6 +183,7 @@ pub struct Ty {
 pub enum TyKind {
     Fn(Vec<Ty>, Box<Ty>),
     Ident(Token),
+    Tuple(Vec<Ty>),
     Infer,
     Unit,
     SelfTy,

@@ -583,13 +583,22 @@ impl Parser {
             }));
         } else if self.eat(OpenParen) {
             let lo = self.prev.span;
-            let expr =
-                self.without_restrictions(Restrictions::NO_STRUCT_LITERAL, |this| this.expr())?;
+            let mut exprs = vec![];
+            while !self.check(CloseParen) && !self.eof() {
+                let expr =
+                    self.without_restrictions(Restrictions::NO_STRUCT_LITERAL, |this| this.expr())?;
+                exprs.push(expr);
+
+                if !self.eat(Comma) {
+                    break;
+                }
+            }
+
             self.consume(CloseParen, "Expected ')' after expr")?;
             let span = lo.to(self.prev.span);
 
             return Ok(Box::new(Expr {
-                kind: ExprKind::Grouping(expr),
+                kind: ExprKind::Tuple(exprs),
                 span,
             }));
         } else if self.eat(OpenBrace) {
@@ -828,6 +837,23 @@ impl Parser {
             });
         } else if self.eat(SelfTy) {
             return self.token_to_ty();
+        } else if self.eat(OpenParen) {
+            let lo = self.prev.span;
+            let mut tys = vec![];
+            while !self.check(CloseParen) && !self.eof() {
+                let ty = self.parse_ty()?;
+                tys.push(ty);
+
+                if !self.eat(Comma) {
+                    break;
+                }
+            }
+            self.consume(CloseParen, "Expected ')'")?;
+            let span = lo.to(self.prev.span);
+            return Ok(Ty {
+                kind: TyKind::Tuple(tys),
+                span,
+            });
         }
 
         self.consume(Ident, "Expected Type name")?;

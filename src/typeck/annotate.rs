@@ -153,7 +153,7 @@ impl<'a> Annotate<'a> {
                 left: self.annotate_expr(left)?,
                 right: self.annotate_expr(right)?,
             },
-            ast::ExprKind::Grouping(e) => return self.annotate_expr(e),
+            ast::ExprKind::Tuple(exprs) => todo!(), //return self.annotate_expr(e),
             ast::ExprKind::Literal(lit, span) => {
                 let ty = match &lit {
                     ast::Lit::Str(_) => self.env.str(),
@@ -270,7 +270,6 @@ impl<'a> Annotate<'a> {
 
     fn annotate_fn(&mut self, func: ast::Function) -> Result<hir::Function> {
         self.enter_fn_scope(|this| {
-            dbg!(&this.functions, func.name.symbol);
             let ty = *this.functions.get(func.name.symbol).unwrap();
             let params = this.annotate_params(func.params)?;
             let ret = this.ast_ty_to_spanned_ty(func.ret)?;
@@ -312,6 +311,7 @@ impl<'a> Annotate<'a> {
                 self.env.alloc_ty(Ty::Fn(Rc::new(params), ret))
             }
             ast::TyKind::Ident(t) => self.token_to_ty(&t)?,
+            ast::TyKind::Tuple(tys) => todo!(),
             ast::TyKind::Infer => self.env.new_type_var(),
             ast::TyKind::Unit => self.env.unit(),
             ast::TyKind::SelfTy => self.env.new_type_var(),
@@ -332,6 +332,7 @@ impl<'a> Annotate<'a> {
                 self.env.alloc_ty(Ty::Fn(Rc::new(params), ret))
             }
             ast::TyKind::Ident(t) => self.token_to_ty(&t)?,
+            ast::TyKind::Tuple(tys) => todo!(),
             ast::TyKind::Infer => self.env.new_type_var(),
             ast::TyKind::Unit => self.env.unit(),
             ast::TyKind::SelfTy => {

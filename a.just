@@ -1,4 +1,3 @@
-struct A {
-    a: int,
-    b: fn() -> A,
+fn foo(a: int) -> (int, int) {
+    (a, a)
 }
