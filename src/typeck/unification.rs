@@ -157,17 +157,29 @@ impl<'a> Unifier<'a> {
                 let ty = self.env.resolve_ty(*ty_var);
                 match ty {
                     Ty::Struct(_, _, fields2) => {
-                        if fields.len() != fields2.len() {
-                            return self.handler.mk_err(expr.span, "Number of fields mismatch");
-                        }
-
                         for f in fields {
                             match fields2.get(&f.name.symbol) {
                                 Some(t) => self.env.unify(*t, f.expr.ty, f.expr.span)?,
                                 None => {
-                                    return self.handler.mk_err(f.name.span, "Field not found");
+                                    return self.handler.mk_err(
+                                        f.name.span,
+                                        &format!("`{}` does not have this field", name.symbol),
+                                    );
                                 }
                             }
+                        }
+
+                        if fields.len() != fields2.len() {
+                            let mut extra = vec![];
+                            for &f2 in fields2.keys() {
+                                if !fields.iter().any(|f| f.name.symbol == f2) {
+                                    extra.push(f2.to_string());
+                                }
+                            }
+                            return self.handler.mk_err(
+                                name.span,
+                                &format!("missing fields: {}", extra.join(", ")),
+                            );
                         }
                     }
                     Ty::Infer(id) => {
