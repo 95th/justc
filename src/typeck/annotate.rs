@@ -302,16 +302,28 @@ impl<'a> Annotate<'a> {
         }
     }
 
-    fn annotate_fns(&mut self, functions: Vec<ast::Function>) -> Result<Vec<hir::Function>> {
-        functions
-            .into_iter()
-            .map(|func| self.annotate_fn(func))
-            .collect::<Result<Vec<_>>>()
+    fn annotate_methods(&mut self, functions: Vec<ast::Function>) -> Result<Vec<hir::Function>> {
+        let mut out = vec![];
+        for func in functions {
+            let ty = self.env.new_type_var();
+            let func = self.annotate_fn(func, ty)?;
+            out.push(func);
+        }
+        Ok(out)
     }
 
-    fn annotate_fn(&mut self, func: ast::Function) -> Result<hir::Function> {
+    fn annotate_fns(&mut self, functions: Vec<ast::Function>) -> Result<Vec<hir::Function>> {
+        let mut out = vec![];
+        for func in functions {
+            let ty = *self.functions.get(func.name.symbol).unwrap();
+            let func = self.annotate_fn(func, ty)?;
+            out.push(func);
+        }
+        Ok(out)
+    }
+
+    fn annotate_fn(&mut self, func: ast::Function, ty: TypeVar) -> Result<hir::Function> {
         self.enter_fn_scope(|this| {
-            let ty = *this.functions.get(func.name.symbol).unwrap();
             let params = this.annotate_params(func.params)?;
             let ret = this.ast_ty_to_spanned_ty(func.ret)?;
             this.has_enclosing_fn = true;
@@ -411,8 +423,7 @@ impl<'a> Annotate<'a> {
                 return self.handler.mk_err(i.name.span, "Not found in this scope");
             }
         };
-        self.annotate_fn_headers(&i.functions);
-        let functions = self.annotate_fns(i.functions)?;
+        let functions = self.annotate_methods(i.functions)?;
         Ok(hir::Impl { ty, functions })
     }
 
