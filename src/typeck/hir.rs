@@ -39,6 +39,7 @@ pub enum ExprKind {
         left: Box<Expr>,
         right: Box<Expr>,
     },
+    Tuple(Vec<Box<Expr>>),
     Literal(Lit, TypeVar, Span),
     Unary {
         op: Spanned<UnOp>,

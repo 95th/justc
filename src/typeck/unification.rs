@@ -96,6 +96,15 @@ impl<'a> Unifier<'a> {
                 self.env.unify(left.ty, right.ty, right.span)?;
                 Ok(())
             }
+            ExprKind::Tuple(exprs) => {
+                for e in exprs {
+                    self.unify_expr(e)?;
+                }
+                let tuple_ty = Ty::Tuple(Rc::new(exprs.iter().map(|e| e.ty).collect()));
+                let ty = self.env.alloc_ty(tuple_ty);
+                self.env.unify(ty, expr.ty, expr.span)?;
+                Ok(())
+            }
             ExprKind::Literal(_, ty, _) => self.env.unify(expr.ty, *ty, expr.span),
             ExprKind::Unary { op, expr: e, .. } => {
                 self.unify_expr(e)?;

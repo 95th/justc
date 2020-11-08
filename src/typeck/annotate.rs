@@ -153,7 +153,18 @@ impl<'a> Annotate<'a> {
                 left: self.annotate_expr(left)?,
                 right: self.annotate_expr(right)?,
             },
-            ast::ExprKind::Tuple(exprs) => todo!(), //return self.annotate_expr(e),
+            ast::ExprKind::Tuple(mut exprs) => {
+                if exprs.len() == 1 {
+                    let e = exprs.pop().unwrap();
+                    return self.annotate_expr(e);
+                }
+
+                let exprs = exprs
+                    .into_iter()
+                    .map(|e| self.annotate_expr(e))
+                    .collect::<Result<_>>()?;
+                hir::ExprKind::Tuple(exprs)
+            }
             ast::ExprKind::Literal(lit, span) => {
                 let ty = match &lit {
                     ast::Lit::Str(_) => self.env.str(),
@@ -311,7 +322,13 @@ impl<'a> Annotate<'a> {
                 self.env.alloc_ty(Ty::Fn(Rc::new(params), ret))
             }
             ast::TyKind::Ident(t) => self.token_to_ty(&t)?,
-            ast::TyKind::Tuple(tys) => todo!(),
+            ast::TyKind::Tuple(types) => {
+                let types = types
+                    .into_iter()
+                    .map(|t| self.ast_ty_to_ty(t))
+                    .collect::<Result<_>>()?;
+                self.env.alloc_ty(Ty::Tuple(Rc::new(types)))
+            }
             ast::TyKind::Infer => self.env.new_type_var(),
             ast::TyKind::Unit => self.env.unit(),
             ast::TyKind::SelfTy => self.env.new_type_var(),
@@ -332,7 +349,13 @@ impl<'a> Annotate<'a> {
                 self.env.alloc_ty(Ty::Fn(Rc::new(params), ret))
             }
             ast::TyKind::Ident(t) => self.token_to_ty(&t)?,
-            ast::TyKind::Tuple(tys) => todo!(),
+            ast::TyKind::Tuple(types) => {
+                let types = types
+                    .into_iter()
+                    .map(|t| self.ast_ty_to_ty(t))
+                    .collect::<Result<_>>()?;
+                self.env.alloc_ty(Ty::Tuple(Rc::new(types)))
+            }
             ast::TyKind::Infer => self.env.new_type_var(),
             ast::TyKind::Unit => self.env.unit(),
             ast::TyKind::SelfTy => {

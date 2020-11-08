@@ -121,6 +121,11 @@ impl Typeck {
                 }
             }
             ExprKind::Literal(..) => {}
+            ExprKind::Tuple(exprs) => {
+                for e in exprs {
+                    self.typeck_no_var(e.ty, e.span)?;
+                }
+            }
             ExprKind::Unary { op, expr } => match op.val {
                 ast::UnOp::Not => match self.env.resolve_ty(expr.ty) {
                     Ty::Bool => {}
@@ -238,31 +243,35 @@ impl Typeck {
         let a = self.env.resolve_ty(a);
         let b = self.env.resolve_ty(b);
 
-        if a == b {
-            return Ok(());
-        }
-
-        if let (Ty::Struct(id, ..), Ty::Struct(id2, ..)) = (&a, &b) {
-            if id != id2 {
-                return self.handler.mk_err(
-                    span,
-                    &format!("Type mismatch: Expected: `{}`, Actual: `{}`", a, b),
-                );
+        match (&a, &b) {
+            (a, b) if a == b => return Ok(()),
+            (Ty::Struct(id, ..), Ty::Struct(id2, ..)) => {
+                if id != id2 {
+                    return self.handler.mk_err(
+                        span,
+                        &format!("Type mismatch: Expected: `{}`, Actual: `{}`", a, b),
+                    );
+                }
+                Ok(())
             }
-        }
-
-        if let (Ty::Fn(args, ret), Ty::Fn(arg2, ret2)) = (&a, &b) {
-            for (&a, &b) in args.iter().zip(arg2.iter()) {
-                self.typeck_eq(a, b, span)?;
+            (Ty::Fn(args, ret), Ty::Fn(arg2, ret2)) => {
+                for (&a, &b) in args.iter().zip(arg2.iter()) {
+                    self.typeck_eq(a, b, span)?;
+                }
+                self.typeck_eq(*ret, *ret2, span)?;
+                Ok(())
             }
-            self.typeck_eq(*ret, *ret2, span)?;
-            return Ok(());
+            (Ty::Tuple(tys), Ty::Tuple(tys2)) => {
+                for (&a, &b) in tys.iter().zip(tys2.iter()) {
+                    self.typeck_eq(a, b, span)?;
+                }
+                Ok(())
+            }
+            (a, b) => self.handler.mk_err(
+                span,
+                &format!("Type mismatch: Expected: `{}`, Actual: `{}`", a, b),
+            ),
         }
-
-        self.handler.mk_err(
-            span,
-            &format!("Type mismatch: Expected: `{}`, Actual: `{}`", a, b),
-        )
     }
 
     fn typeck_no_var(&mut self, var: TypeVar, span: Span) -> Result<()> {
@@ -287,6 +296,12 @@ impl Typeck {
             Ty::Struct(.., fields) => {
                 for f in fields.values().copied() {
                     self.typeck_no_var(f, span)?;
+                }
+                Ok(())
+            }
+            Ty::Tuple(tys) => {
+                for ty in tys.iter() {
+                    self.typeck_no_var(*ty, span)?;
                 }
                 Ok(())
             }

@@ -167,11 +167,26 @@ impl TyContext {
                 if id != id2 {
                     return self.handler.mk_err(
                         span,
-                        &format!("Expected type `{}`, Actual: `{}`", name, name2),
+                        &format!("Type mismatch: Expected type `{}`, Actual: `{}`", name, name2),
                     );
                 }
                 for ((_, f1), (_, f2)) in fields.iter().zip(fields2.iter()) {
                     self.unify_inner(*f1, *f2, span)?;
+                }
+            }
+            (Ty::Tuple(tys), Ty::Tuple(tys2)) => {
+                if tys.len() != tys2.len() {
+                    return self.handler.mk_err(
+                        span,
+                        &format!(
+                            "Tuple size mismatch: Expected `{}`, Actual: `{}`",
+                            tys.len(),
+                            tys2.len()
+                        ),
+                    );
+                }
+                for (a, b) in tys.iter().zip(tys2.iter()) {
+                    self.unify_inner(*a, *b, span)?;
                 }
             }
             (Ty::Unit, Ty::Unit)
@@ -205,6 +220,7 @@ pub enum Ty {
         /* name: */ Symbol,
         /* fields: */ Rc<BTreeMap<Symbol, TypeVar>>,
     ),
+    Tuple(Rc<Vec<TypeVar>>),
 }
 
 #[derive(Debug, Clone)]
@@ -249,6 +265,7 @@ impl fmt::Display for Ty {
             Ty::Str => f.write_str("str")?,
             Ty::Fn(..) => f.write_str("Function")?,
             Ty::Struct(_, name, _) => write!(f, "{}", name)?,
+            Ty::Tuple(..) => f.write_str("Tuple")?,
         }
         Ok(())
     }
@@ -290,6 +307,19 @@ impl fmt::Debug for Ty {
                 }
                 write!(f, " }}")?;
             }
+            Ty::Tuple(tys) => {
+                f.write_str("(")?;
+                let mut first = true;
+                for t in tys.iter() {
+                    if first {
+                        first = false;
+                    } else {
+                        f.write_str(", ")?;
+                    }
+                    write!(f, "{:?}", t)?;
+                }
+                f.write_str(")")?;
+            },
         }
         Ok(())
     }
