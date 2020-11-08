@@ -533,6 +533,11 @@ impl<'a> Unifier<'a> {
                         params = rest_params;
                         self.env.unify(*first, self_param.ty, self_param.span)?;
                     }
+                    ([], Some(_)) => {
+                        return self
+                            .handler
+                            .mk_err(span, "this is an associated function, not a method");
+                    }
                     _ => {
                         if params.len() != args.len() {
                             return arg_mismatch(params.len(), args.len());

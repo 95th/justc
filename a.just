@@ -1,7 +1,8 @@
 struct A {}
 
 impl A {
-    fn add() {}
+    fn add() -> Self { Self {} }
 }
 
-fn add() {}
+let a = A::add();
+a.add();
