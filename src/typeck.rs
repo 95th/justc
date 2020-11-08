@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{collections::HashMap, rc::Rc};
 
 use self::{
     hir::*,
@@ -19,6 +19,7 @@ mod unification;
 pub struct Typeck {
     env: TyContext,
     handler: Rc<Handler>,
+    resolved_types: HashMap<TypeVar, Ty>,
 }
 
 impl Typeck {
@@ -26,6 +27,7 @@ impl Typeck {
         Self {
             env: TyContext::new(handler),
             handler: handler.clone(),
+            resolved_types: HashMap::new(),
         }
     }
 
@@ -34,7 +36,6 @@ impl Typeck {
         dbg!(&ast);
 
         self::unification::unify(&ast, &mut self.env, &self.handler)?;
-        // env.fill(&mut ast)?;
 
         self.typeck_structs(&ast.structs)?;
         self.typeck_impls(&ast.impls)?;
@@ -265,14 +266,24 @@ impl Typeck {
     }
 
     fn typeck_no_var(&mut self, var: TypeVar, span: Span) -> Result<()> {
+        if self.resolved_types.contains_key(&var) {
+            return Ok(());
+        }
+
         let ty = self.env.resolve_ty(var);
         log::trace!("{:?} = {:?}", var, ty);
+        self.resolved_types.insert(var, ty.clone());
         match ty {
             Ty::Infer(_) => self
                 .handler
                 .mk_err(span, "Type cannot be inferred. Please add type annotations"),
             Ty::Unit | Ty::Bool | Ty::Int | Ty::Float | Ty::Str => Ok(()),
-            Ty::Fn(..) => Ok(()),
+            Ty::Fn(args, ret) => {
+                for arg in args.iter() {
+                    self.typeck_no_var(*arg, span)?;
+                }
+                self.typeck_no_var(ret, span)
+            }
             Ty::Struct(.., fields) => {
                 for f in fields.values().copied() {
                     self.typeck_no_var(f, span)?;
