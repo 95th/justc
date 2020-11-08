@@ -170,14 +170,7 @@ impl Parser {
         }
 
         self.consume(OpenParen, "Expected '('")?;
-        let mut params = vec![];
-        while !self.check(CloseParen) && !self.eof() {
-            let param = self.param(false)?;
-            params.push(param);
-            if !self.eat(Comma) {
-                break;
-            }
-        }
+        let params = self.params(CloseParen, false)?;
         self.consume(CloseParen, "Expected ')'")?;
 
         let ret = if self.eat(Arrow) {
@@ -689,18 +682,14 @@ impl Parser {
 
     fn closure(&mut self) -> Result<Box<Expr>> {
         let lo = self.prev.span;
-        let mut params = vec![];
-
-        if self.prev.kind == Or {
-            while !self.check(Or) && !self.eof() {
-                let param = self.param(true)?;
-                params.push(param);
-                if !self.eat(Comma) {
-                    break;
-                }
+        let params = match self.prev.kind {
+            Or => {
+                let params = self.params(Or, true)?;
+                self.consume(Or, "Expected '|' after closure parameters")?;
+                params
             }
-            self.consume(Or, "Expected '|' after closure parameters")?;
-        }
+            _ => vec![],
+        };
 
         let mut only_block_allowed = false;
         let ret = if self.eat(Arrow) {
@@ -759,6 +748,24 @@ impl Parser {
             },
             span,
         }))
+    }
+
+    fn params(&mut self, closing_delim: TokenKind, infer_ty: bool) -> Result<Vec<Param>> {
+        let mut params = vec![];
+        let mut names = HashSet::new();
+        while !self.check(closing_delim) && !self.eof() {
+            let param = self.param(infer_ty)?;
+            if !names.insert(param.name.symbol) {
+                return self
+                    .handler
+                    .mk_err(param.name.span, "Duplicate parameter name");
+            }
+            params.push(param);
+            if !self.eat(Comma) {
+                break;
+            }
+        }
+        Ok(params)
     }
 
     fn param(&mut self, infer_ty: bool) -> Result<Param> {
