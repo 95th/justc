@@ -160,7 +160,7 @@ impl Typeck {
             }
             ExprKind::Closure { params, ret, body } => {
                 for p in params {
-                    self.typeck_no_var(p.param_ty.ty, p.name.span)?;
+                    self.typeck_no_var(p.param_ty, p.name.span)?;
                 }
                 self.typeck_expr(body)?;
                 self.typeck_eq(*ret, body.ty, body.span)?;
@@ -180,7 +180,7 @@ impl Typeck {
                 self.typeck_expr(expr)?;
             }
             ExprKind::AssocMethod { ty, .. } => {
-                self.typeck_no_var(ty.ty, ty.span)?;
+                self.typeck_no_var(*ty, expr.span)?;
             }
         }
         Ok(())
@@ -233,7 +233,10 @@ impl Typeck {
     }
 
     fn typeck_fn(&mut self, func: &Function) -> Result<()> {
-        self.typeck_eq(func.ret.ty, func.body.ty, func.body.span)?;
+        for p in &func.params {
+            self.typeck_no_var(p.param_ty, p.name.span)?;
+        }
+        self.typeck_eq(func.ret, func.body.ty, func.body.span)?;
         self.typeck_block(&func.body)
     }
 

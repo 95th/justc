@@ -64,7 +64,7 @@ pub enum ExprKind {
     Struct(Token, Vec<Field>, TypeVar),
     Field(Box<Expr>, Token),
     AssocMethod {
-        ty: SpannedTy,
+        ty: TypeVar,
         name: Token,
     },
     MethodCall {
@@ -93,23 +93,16 @@ pub struct Block {
 #[derive(Debug, Clone)]
 pub struct Param {
     pub name: Token,
-    pub param_ty: SpannedTy,
+    pub param_ty: TypeVar,
 }
 
 #[derive(Debug, Clone)]
 pub struct Function {
     pub name: Token,
     pub params: Vec<Param>,
-    pub ret: SpannedTy,
+    pub ret: TypeVar,
     pub body: Block,
     pub ty: TypeVar,
-}
-
-#[derive(Debug, Clone)]
-pub struct SpannedTy {
-    pub ty: TypeVar,
-    pub span: Span,
-    pub is_self: bool,
 }
 
 #[derive(Debug, Clone)]

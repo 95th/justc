@@ -13,7 +13,6 @@ use super::{
 
 struct Unifier<'a> {
     enclosing_fn_ret_ty: Option<TypeVar>,
-    enclosing_self_ty: Option<TypeVar>,
     env: &'a mut TyContext,
     handler: &'a Handler,
 }
@@ -31,7 +30,6 @@ impl<'a> Unifier<'a> {
     fn new(env: &'a mut TyContext, handler: &'a Handler) -> Self {
         Self {
             enclosing_fn_ret_ty: None,
-            enclosing_self_ty: None,
             env,
             handler,
         }
@@ -142,7 +140,7 @@ impl<'a> Unifier<'a> {
                 }
             }
             ExprKind::Closure { params, ret, body } => self.enter_fn_scope(*ret, |this| {
-                let params = params.iter().map(|p| p.param_ty.ty).collect();
+                let params = params.iter().map(|p| p.param_ty).collect();
                 let ty = this.env.alloc_ty(Ty::Fn(Rc::new(params), *ret));
                 this.env.unify(ty, expr.ty, expr.span)?;
 
@@ -159,10 +157,6 @@ impl<'a> Unifier<'a> {
                 Ok(())
             }
             ExprKind::Struct(name, fields, ty_var) => {
-                if name.is_self_ty() {
-                    self.env
-                        .unify(self.enclosing_self_ty.unwrap(), *ty_var, name.span)?;
-                }
                 let ty = self.env.resolve_ty(*ty_var);
                 match ty {
                     Ty::Struct(_, _, fields2) => {
@@ -266,12 +260,7 @@ impl<'a> Unifier<'a> {
                 ty,
                 name: method_name,
             } => {
-                if ty.is_self {
-                    self.env
-                        .unify(self.enclosing_self_ty.unwrap(), ty.ty, ty.span)?;
-                }
-
-                let ty = self.env.resolve_ty(ty.ty);
+                let ty = self.env.resolve_ty(*ty);
                 match ty {
                     Ty::Struct(id, name, ..) => {
                         let method_ty = match self.env.get_method(id, method_name.symbol) {
@@ -411,7 +400,7 @@ impl<'a> Unifier<'a> {
 
     fn unify_impls(&mut self, impls: &[Impl]) -> Result<()> {
         for i in impls {
-            self.enter_self_scope(i.ty, |this| this.unify_impl(i))?;
+            self.unify_impl(i)?;
         }
         Ok(())
     }
@@ -444,14 +433,13 @@ impl<'a> Unifier<'a> {
 
     fn unify_fn_bodies(&mut self, items: &[Function]) -> Result<()> {
         for item in items {
-            self.enter_fn_scope(item.ret.ty, |this| this.unify_fn_body(item))?;
+            self.enter_fn_scope(item.ret, |this| this.unify_fn_body(item))?;
         }
         Ok(())
     }
 
     fn unify_fn_header(&mut self, function: &Function) -> Result<()> {
         log::debug!("unify_fn_header: {:#?}", function);
-        let mut has_self_param = false;
         for (idx, p) in function.params.iter().enumerate() {
             if p.name.is_self_param() {
                 if idx != 0 {
@@ -459,48 +447,20 @@ impl<'a> Unifier<'a> {
                         .handler
                         .mk_err(p.name.span, "`self` must be the first parameter");
                 }
-
-                if has_self_param {
-                    return self
-                        .handler
-                        .mk_err(p.name.span, "Multiple `self` not allowed");
-                }
-
-                self.env.unify(
-                    self.enclosing_self_ty.unwrap(),
-                    p.param_ty.ty,
-                    p.param_ty.span,
-                )?;
-                has_self_param = true;
-            }
-
-            if p.param_ty.is_self {
-                self.env.unify(
-                    self.enclosing_self_ty.unwrap(),
-                    p.param_ty.ty,
-                    p.param_ty.span,
-                )?;
             }
         }
 
-        let params = function.params.iter().map(|p| p.param_ty.ty).collect();
+        let params = function.params.iter().map(|p| p.param_ty).collect();
         self.env
-            .unify_value(function.ty, Ty::Fn(Rc::new(params), function.ret.ty));
+            .unify_value(function.ty, Ty::Fn(Rc::new(params), function.ret));
 
-        if function.ret.is_self {
-            self.env.unify(
-                self.enclosing_self_ty.unwrap(),
-                function.ret.ty,
-                function.ret.span,
-            )?;
-        }
         Ok(())
     }
 
     fn unify_fn_body(&mut self, function: &Function) -> Result<()> {
         self.unify_block(&function.body)?;
         self.env
-            .unify(function.ret.ty, function.body.ty, function.body.span)?;
+            .unify(function.ret, function.body.ty, function.body.span)?;
         Ok(())
     }
 
@@ -573,17 +533,6 @@ impl<'a> Unifier<'a> {
         self.enclosing_fn_ret_ty = Some(ty);
         let result = f(self);
         self.enclosing_fn_ret_ty = save_ret_ty;
-        result
-    }
-
-    fn enter_self_scope<F, R>(&mut self, ty: TypeVar, f: F) -> R
-    where
-        F: FnOnce(&mut Self) -> R,
-    {
-        let save_ty = self.enclosing_self_ty.take();
-        self.enclosing_self_ty = Some(ty);
-        let result = f(self);
-        self.enclosing_self_ty = save_ty;
         result
     }
 }
