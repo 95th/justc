@@ -300,6 +300,7 @@ fn is_ident_continue(c: u8) -> bool {
 fn keywords() -> HashMap<Symbol, TokenKind> {
     let mut m = HashMap::new();
     m.insert(Symbol::intern("struct"), Struct);
+    m.insert(Symbol::intern("enum"), Enum);
     m.insert(Symbol::intern("else"), Else);
     m.insert(Symbol::intern("false"), False);
     m.insert(Symbol::intern("fn"), Fn);

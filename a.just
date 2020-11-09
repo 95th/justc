@@ -1,1 +1,4 @@
-let a = 1000000000000000000;
+enum Foo {
+    A { a: int, b: str },
+    B
+}

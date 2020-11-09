@@ -42,17 +42,21 @@ impl Parser {
         let mut stmts = vec![];
         let mut functions = vec![];
         let mut structs = vec![];
+        let mut enums = vec![];
         let mut impls = vec![];
         let mut declared_fns = HashSet::new();
-        let mut declared_structs = HashSet::new();
+        let mut declared_items = HashSet::new();
 
         while !self.eof() {
             if self.eat(Fn) {
                 let fun = self.function(&mut declared_fns)?;
                 functions.push(fun);
             } else if self.eat(Struct) {
-                let item = self.struct_item(&mut declared_structs, &mut declared_fns)?;
+                let item = self.struct_item(&mut declared_items, &mut declared_fns)?;
                 structs.push(item);
+            } else if self.eat(Enum) {
+                let e = self.enum_item(&mut declared_items)?;
+                enums.push(e);
             } else if self.eat(Impl) {
                 let item = self.impl_item()?;
                 impls.push(item);
@@ -69,6 +73,7 @@ impl Parser {
                 stmts,
                 functions,
                 structs,
+                enums,
                 impls,
             })
         }
@@ -130,9 +135,10 @@ impl Parser {
         let mut stmts = vec![];
         let mut functions = vec![];
         let mut structs = vec![];
+        let mut enums = vec![];
         let mut impls = vec![];
         let mut declared_fns = HashSet::new();
-        let mut declared_structs = HashSet::new();
+        let mut declared_items = HashSet::new();
 
         while !self.check(CloseBrace) && !self.eof() {
             if self.eat(Fn) {
@@ -141,8 +147,11 @@ impl Parser {
                 })?;
                 functions.push(fun);
             } else if self.eat(Struct) {
-                let s = self.struct_item(&mut declared_structs, &mut declared_fns)?;
+                let s = self.struct_item(&mut declared_items, &mut declared_fns)?;
                 structs.push(s);
+            } else if self.eat(Enum) {
+                let e = self.enum_item(&mut declared_items)?;
+                enums.push(e);
             } else if self.eat(Impl) {
                 let item = self.impl_item()?;
                 impls.push(item);
@@ -158,6 +167,7 @@ impl Parser {
             span,
             functions,
             structs,
+            enums,
             impls,
         })
     }
@@ -210,29 +220,85 @@ impl Parser {
         })
     }
 
+    fn enum_item(&mut self, declared_items: &mut HashSet<Symbol>) -> Result<ast::Enum> {
+        self.with_restrictions(Restrictions::ALLOW_SELF, |this| {
+            this.enum_item_inner(declared_items)
+        })
+    }
+
+    fn enum_item_inner(&mut self, declared_items: &mut HashSet<Symbol>) -> Result<ast::Enum> {
+        let name = self.consume(Ident, "Expected enum name")?;
+        if !declared_items.insert(name.symbol) {
+            return self.handler.mk_err(
+                name.span,
+                "Struct or Enum with same name already defined in this scope",
+            );
+        }
+
+        self.consume(OpenBrace, "Expected '{'")?;
+        let mut variants = vec![];
+        let mut names = HashSet::new();
+        while !self.check(CloseBrace) && !self.eof() {
+            let variant = self.variant()?;
+            if !names.insert(variant.name.symbol) {
+                return self
+                    .handler
+                    .mk_err(variant.name.span, "Duplicate variant name");
+            }
+            variants.push(variant);
+            if !self.eat(Comma) {
+                break;
+            }
+        }
+        self.consume(CloseBrace, "Expected '}'")?;
+
+        Ok(ast::Enum { name, variants })
+    }
+
+    fn variant(&mut self) -> Result<ast::EnumVariant> {
+        let name = self.consume(Ident, "Expected variant name")?;
+        let kind = if self.check(OpenBrace) {
+            ast::EnumVariantKind::Struct(self.struct_fields(&name, None)?)
+        } else if self.check(OpenParen) {
+            ast::EnumVariantKind::Tuple(self.struct_fields(&name, None)?)
+        } else {
+            ast::EnumVariantKind::Empty
+        };
+        Ok(ast::EnumVariant { name, kind })
+    }
+
     fn struct_item(
         &mut self,
-        declared_structs: &mut HashSet<Symbol>,
+        declared_items: &mut HashSet<Symbol>,
         declared_fns: &mut HashSet<Symbol>,
     ) -> Result<ast::Struct> {
         self.with_restrictions(Restrictions::ALLOW_SELF, |this| {
-            this.struct_item_inner(declared_structs, declared_fns)
+            this.struct_item_inner(declared_items, declared_fns)
         })
     }
 
     fn struct_item_inner(
         &mut self,
-        declared_structs: &mut HashSet<Symbol>,
+        declared_items: &mut HashSet<Symbol>,
         declared_fns: &mut HashSet<Symbol>,
     ) -> Result<ast::Struct> {
         let name = self.consume(Ident, "Expected struct name")?;
-        if !declared_structs.insert(name.symbol) {
+        if !declared_items.insert(name.symbol) {
             return self.handler.mk_err(
                 name.span,
-                "Struct with same name already defined in this scope",
+                "Struct or Enum with same name already defined in this scope",
             );
         }
 
+        let fields = self.struct_fields(&name, Some(declared_fns))?;
+        Ok(ast::Struct { name, fields })
+    }
+
+    fn struct_fields(
+        &mut self,
+        name: &Token,
+        declared_fns: Option<&mut HashSet<Symbol>>,
+    ) -> Result<Vec<ast::StructField>> {
         if self.eat(OpenBrace) {
             let mut fields = vec![];
             while !self.check(CloseBrace) && !self.eof() {
@@ -244,13 +310,15 @@ impl Parser {
             }
             self.consume(CloseBrace, "Expected '}'")?;
 
-            Ok(ast::Struct { name, fields })
+            Ok(fields)
         } else if self.eat(OpenParen) {
-            if !declared_fns.insert(name.symbol) {
-                return self.handler.mk_err(
-                    name.span,
-                    "Another item with same name already defined in this scope",
-                );
+            if let Some(declared_fns) = declared_fns {
+                if !declared_fns.insert(name.symbol) {
+                    return self.handler.mk_err(
+                        name.span,
+                        "Another item with same name already defined in this scope",
+                    );
+                }
             }
 
             let mut fields = vec![];
@@ -270,7 +338,7 @@ impl Parser {
             self.consume(CloseParen, "Expected ')'")?;
             self.consume(SemiColon, "Expected ';'")?;
 
-            Ok(ast::Struct { name, fields })
+            Ok(fields)
         } else {
             self.handler.mk_err(self.curr.span, "Expected '{' or '('")
         }
@@ -603,7 +671,8 @@ impl Parser {
             match self.prev.symbol.parse().map(Lit::Integer) {
                 Ok(lit) => lit,
                 Err(_) => {
-                    self.handler.report(self.prev.span, "Number too large to fit into `int`");
+                    self.handler
+                        .report(self.prev.span, "Number too large to fit into `int`");
                     Lit::Err
                 }
             }

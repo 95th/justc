@@ -77,6 +77,7 @@ pub enum TokenKind {
 
     // Keywords
     Struct,
+    Enum,
     Else,
     False,
     Fn,

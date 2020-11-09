@@ -171,6 +171,7 @@ pub struct Block {
     pub span: Span,
     pub functions: Vec<Function>,
     pub structs: Vec<Struct>,
+    pub enums: Vec<Enum>,
     pub impls: Vec<Impl>,
 }
 
@@ -231,10 +232,30 @@ pub struct StructField {
     pub ty: Ty,
 }
 
+#[derive(Debug, PartialEq)]
+pub struct Enum {
+    pub name: Token,
+    pub variants: Vec<EnumVariant>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct EnumVariant {
+    pub name: Token,
+    pub kind: EnumVariantKind,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum EnumVariantKind {
+    Empty,
+    Struct(Vec<StructField>),
+    Tuple(Vec<StructField>),
+}
+
 #[derive(Debug)]
 pub struct Ast {
     pub stmts: Vec<Stmt>,
     pub functions: Vec<Function>,
     pub structs: Vec<Struct>,
+    pub enums: Vec<Enum>,
     pub impls: Vec<Impl>,
 }
