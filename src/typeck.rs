@@ -33,7 +33,7 @@ impl Typeck {
 
     pub fn typeck(&mut self, ast: ast::Ast) -> Result<Ast> {
         let ast = self::annotate::annotate(ast, &mut self.env, &self.handler)?;
-        dbg!(&ast);
+        log::debug!("{:#?}", &ast);
 
         self::unification::unify(&ast, &mut self.env, &self.handler)?;
 
