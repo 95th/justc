@@ -136,7 +136,9 @@ impl Parser {
 
         while !self.check(CloseBrace) && !self.eof() {
             if self.eat(Fn) {
-                let fun = self.function(&mut declared_fns)?;
+                let fun = self.without_restrictions(Restrictions::ALLOW_SELF, |this| {
+                    this.function(&mut declared_fns)
+                })?;
                 functions.push(fun);
             } else if self.eat(Struct) {
                 let s = self.struct_item(&mut declared_structs, &mut declared_fns)?;

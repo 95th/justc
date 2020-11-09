@@ -1,20 +1,9 @@
-struct FileReader {
-    file: File,
-}
+struct A {}
 
-impl FileReader {
-    fn open(name: str) -> Self {
-        Self {
-            file: File { name }
+impl A {
+    fn foo() {
+        fn bar() -> Self {
+            Self {}
         }
     }
-
-    fn read(self) -> int {
-        0
-    }
 }
-
-struct File { name: str }
-
-let reader = FileReader::open("hello.txt");
-reader.read();
