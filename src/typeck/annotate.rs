@@ -230,7 +230,7 @@ impl<'a> Annotate<'a> {
                     hir::ExprKind::Struct(
                         name,
                         self.annotate_fields(fields)?,
-                        self.env.new_type_var(),
+                        self.enclosing_self_ty.unwrap(),
                     )
                 } else {
                     match self.structs.get(name.symbol).copied() {
