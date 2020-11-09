@@ -1,9 +1,1 @@
-struct A {}
-
-impl A {
-    fn foo() {
-        fn bar() -> Self {
-            Self {}
-        }
-    }
-}
+let a = 1000000000000000000;

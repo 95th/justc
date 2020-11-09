@@ -600,11 +600,13 @@ impl Parser {
         } else if self.eat(Literal {
             kind: LiteralKind::Int,
         }) {
-            self.prev
-                .symbol
-                .parse()
-                .map(Lit::Integer)
-                .unwrap_or(Lit::Err)
+            match self.prev.symbol.parse().map(Lit::Integer) {
+                Ok(lit) => lit,
+                Err(_) => {
+                    self.handler.report(self.prev.span, "Number too large to fit into `int`");
+                    Lit::Err
+                }
+            }
         } else if self.eat(Literal {
             kind: LiteralKind::Float,
         }) {
