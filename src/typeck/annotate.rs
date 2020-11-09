@@ -77,7 +77,7 @@ impl<'a> Annotate<'a> {
                     None => None,
                 };
 
-                let let_ty = self.ast_ty_to_ty(ty)?;
+                let let_ty = self.ast_ty_to_ty(ty, None)?;
                 self.bindings.insert(name.symbol, let_ty);
 
                 Ok(hir::Stmt::Let {
@@ -210,7 +210,7 @@ impl<'a> Annotate<'a> {
             },
             ast::ExprKind::Closure { params, ret, body } => self.enter_block_scope(|this| {
                 let params = this.annotate_params(params)?;
-                let ret = this.ast_ty_to_ty(ret)?;
+                let ret = this.ast_ty_to_ty(ret, None)?;
                 this.has_enclosing_fn = true;
                 let body = this.annotate_expr(body)?;
                 this.has_enclosing_fn = false;
@@ -272,7 +272,7 @@ impl<'a> Annotate<'a> {
                     .collect::<Result<_>>()?,
             },
             ast::ExprKind::AssocMethod { ty, name } => {
-                let ty = self.ast_ty_to_spanned_ty(ty)?;
+                let ty = self.ast_ty_to_spanned_ty(ty, None)?;
                 hir::ExprKind::AssocMethod { ty, name }
             }
         };
@@ -327,7 +327,7 @@ impl<'a> Annotate<'a> {
     fn annotate_fn(&mut self, func: ast::Function, ty: TypeVar) -> Result<hir::Function> {
         self.enter_fn_scope(|this| {
             let params = this.annotate_params(func.params)?;
-            let ret = this.ast_ty_to_spanned_ty(func.ret)?;
+            let ret = this.ast_ty_to_spanned_ty(func.ret, None)?;
             this.has_enclosing_fn = true;
             let body = this.annotate_block(func.body)?;
             this.has_enclosing_fn = false;
@@ -345,7 +345,7 @@ impl<'a> Annotate<'a> {
         params
             .into_iter()
             .map(|p| {
-                let param_ty = self.ast_ty_to_spanned_ty(p.ty)?;
+                let param_ty = self.ast_ty_to_spanned_ty(p.ty, None)?;
                 self.bindings.insert(p.name.symbol, param_ty.ty);
                 Ok(hir::Param {
                     name: p.name,
@@ -355,63 +355,41 @@ impl<'a> Annotate<'a> {
             .collect()
     }
 
-    fn ast_ty_to_ty(&mut self, ty: ast::Ty) -> Result<TypeVar> {
-        let ty = match ty.kind {
+    fn ast_ty_to_ty(&mut self, ast_ty: ast::Ty, self_ty: Option<TypeVar>) -> Result<TypeVar> {
+        let ty = match ast_ty.kind {
             ast::TyKind::Fn(params, ret) => {
                 let params = params
                     .into_iter()
-                    .map(|p| self.ast_ty_to_ty(p))
+                    .map(|p| self.ast_ty_to_ty(p, self_ty))
                     .collect::<Result<_>>()?;
-                let ret = self.ast_ty_to_ty(*ret)?;
+                let ret = self.ast_ty_to_ty(*ret, self_ty)?;
                 self.env.alloc_ty(Ty::Fn(Rc::new(params), ret))
             }
             ast::TyKind::Ident(t) => self.token_to_ty(&t)?,
             ast::TyKind::Tuple(types) => {
                 let types = types
                     .into_iter()
-                    .map(|t| self.ast_ty_to_ty(t))
+                    .map(|t| self.ast_ty_to_ty(t, self_ty))
                     .collect::<Result<_>>()?;
                 self.env.alloc_ty(Ty::Tuple(Rc::new(types)))
             }
             ast::TyKind::Infer => self.env.new_type_var(),
             ast::TyKind::Unit => self.env.unit(),
-            ast::TyKind::SelfTy => self.env.new_type_var(),
+            ast::TyKind::SelfTy => self_ty.unwrap_or_else(|| self.env.new_type_var()),
         };
 
         Ok(ty)
     }
 
-    fn ast_ty_to_spanned_ty(&mut self, ast_ty: ast::Ty) -> Result<hir::SpannedTy> {
-        let mut is_self = false;
-        let ty = match ast_ty.kind {
-            ast::TyKind::Fn(params, ret) => {
-                let params = params
-                    .into_iter()
-                    .map(|p| self.ast_ty_to_ty(p))
-                    .collect::<Result<_>>()?;
-                let ret = self.ast_ty_to_ty(*ret)?;
-                self.env.alloc_ty(Ty::Fn(Rc::new(params), ret))
-            }
-            ast::TyKind::Ident(t) => self.token_to_ty(&t)?,
-            ast::TyKind::Tuple(types) => {
-                let types = types
-                    .into_iter()
-                    .map(|t| self.ast_ty_to_ty(t))
-                    .collect::<Result<_>>()?;
-                self.env.alloc_ty(Ty::Tuple(Rc::new(types)))
-            }
-            ast::TyKind::Infer => self.env.new_type_var(),
-            ast::TyKind::Unit => self.env.unit(),
-            ast::TyKind::SelfTy => {
-                is_self = true;
-                self.env.new_type_var()
-            }
-        };
-        Ok(hir::SpannedTy {
-            is_self,
-            span: ast_ty.span,
-            ty,
-        })
+    fn ast_ty_to_spanned_ty(
+        &mut self,
+        ast_ty: ast::Ty,
+        self_ty: Option<TypeVar>,
+    ) -> Result<hir::SpannedTy> {
+        let is_self = matches!(ast_ty.kind, ast::TyKind::SelfTy);
+        let span = ast_ty.span;
+        let ty = self.ast_ty_to_ty(ast_ty, self_ty)?;
+        Ok(hir::SpannedTy { is_self, span, ty })
     }
 
     fn annotate_impls(&mut self, impls: Vec<ast::Impl>) -> Result<Vec<hir::Impl>> {
@@ -442,7 +420,7 @@ impl<'a> Annotate<'a> {
 
     fn annotate_struct(&mut self, s: ast::Struct) -> Result<hir::Struct> {
         let ty = *self.structs.get(s.name.symbol).unwrap();
-        let fields = self.annotate_struct_fields(s.fields)?;
+        let fields = self.annotate_struct_fields(s.fields, ty)?;
         Ok(hir::Struct {
             name: s.name,
             fields,
@@ -453,17 +431,22 @@ impl<'a> Annotate<'a> {
     fn annotate_struct_fields(
         &mut self,
         fields: Vec<ast::StructField>,
+        struct_ty: TypeVar,
     ) -> Result<Vec<hir::StructField>> {
         fields
             .into_iter()
-            .map(|f| self.annotate_struct_field(f))
+            .map(|f| self.annotate_struct_field(f, struct_ty))
             .collect()
     }
 
-    fn annotate_struct_field(&mut self, field: ast::StructField) -> Result<hir::StructField> {
+    fn annotate_struct_field(
+        &mut self,
+        field: ast::StructField,
+        struct_ty: TypeVar,
+    ) -> Result<hir::StructField> {
         Ok(hir::StructField {
             name: field.name,
-            ty: self.ast_ty_to_ty(field.ty)?,
+            ty: self.ast_ty_to_ty(field.ty, Some(struct_ty))?,
         })
     }
 

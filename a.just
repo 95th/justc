@@ -1,9 +1,3 @@
-struct A { n: int }
-
-impl A {
-    fn new(n: int) -> Self {
-        Self { n }
-    }
+struct A {
+    b: fn() -> Self
 }
-
-let a: fn(A) -> int = |a| a.n + 1;

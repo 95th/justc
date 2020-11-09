@@ -213,7 +213,7 @@ impl Parser {
         declared_structs: &mut HashSet<Symbol>,
         declared_fns: &mut HashSet<Symbol>,
     ) -> Result<ast::Struct> {
-        self.without_restrictions(Restrictions::ALLOW_SELF, |this| {
+        self.with_restrictions(Restrictions::ALLOW_SELF, |this| {
             this.struct_item_inner(declared_structs, declared_fns)
         })
     }
