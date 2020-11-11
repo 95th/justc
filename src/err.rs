@@ -33,9 +33,15 @@ impl Handler {
         let hi = self.line_end(span);
         let line = &self.src[lo..hi];
         println!("{}", line);
+
+        let blank: String = line
+            .chars()
+            .take(span.lo() - lo)
+            .map(|c| if c == '\t' { '\t' } else { ' ' })
+            .collect();
         println!(
             "{}{} {}",
-            " ".repeat(span.lo() - lo),
+            blank,
             "^".repeat(span.hi().min(hi) - span.lo()),
             msg
         );

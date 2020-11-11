@@ -1,4 +1,3 @@
-enum Foo {
-    A { a: int, b: str },
-    B
-}
+let a = |x| {
+	if x { x + 1 } else { x + 1.0 }
+};
