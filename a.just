@@ -1,3 +1,5 @@
-let a = |x| {
-	if x { x + 1 } else { x + 1.0 }
+let a: bool;
+
+let f = |n| -> int {
+	n + 1000.0
 };

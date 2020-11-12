@@ -116,8 +116,9 @@ impl<'a> Unifier<'a> {
             }
             ExprKind::Variable(.., ty) => self.env.unify(*ty, expr.ty, expr.span),
             ExprKind::Block(block) => {
+                self.env.unify(expr.ty, block.ty, block.span)?;
                 self.unify_block(block)?;
-                self.env.unify(expr.ty, block.ty, block.span)
+                Ok(())
             }
             ExprKind::If {
                 cond,
@@ -127,25 +128,24 @@ impl<'a> Unifier<'a> {
                 self.unify_expr(cond)?;
                 self.env.unify(self.env.bool(), cond.ty, cond.span)?;
 
+                self.env.unify(expr.ty, then_clause.ty, then_clause.span)?;
                 self.unify_block(then_clause)?;
+
                 if let Some(else_clause) = else_clause {
+                    self.env.unify(expr.ty, else_clause.ty, else_clause.span)?;
                     self.unify_expr(else_clause)?;
-                    self.env
-                        .unify(then_clause.ty, else_clause.ty, else_clause.span)?;
-                    self.env.unify(expr.ty, then_clause.ty, then_clause.span)
                 } else {
-                    self.env
-                        .unify(self.env.unit(), then_clause.ty, then_clause.span)?;
-                    self.env.unify(self.env.unit(), expr.ty, expr.span)
+                    self.env.unify(self.env.unit(), expr.ty, expr.span)?;
                 }
+                Ok(())
             }
             ExprKind::Closure { params, ret, body } => self.enter_fn_scope(*ret, |this| {
+                this.env.unify(*ret, body.ty, body.span)?;
                 let params = params.iter().map(|p| p.param_ty).collect();
                 let ty = this.env.alloc_ty(Ty::Fn(Rc::new(params), *ret));
                 this.env.unify(ty, expr.ty, expr.span)?;
-
                 this.unify_expr(body)?;
-                this.env.unify(*ret, body.ty, body.span)
+                Ok(())
             }),
             ExprKind::Call { callee, args } => {
                 self.unify_expr(callee)?;
