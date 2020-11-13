@@ -378,6 +378,12 @@ impl Parser {
     fn expr_stmt(&mut self) -> Result<Stmt> {
         let expr = self.expr()?;
 
+        Ok(Stmt::Expr(expr, self.eat(SemiColon)))
+    }
+
+    fn expr(&mut self) -> Result<Box<Expr>> {
+        let mut expr = self.logic_or()?;
+
         if self.eat(Eq) {
             if !expr.is_assignable() {
                 return self
@@ -385,11 +391,14 @@ impl Parser {
                     .mk_err(expr.span, "Cannot assign to this expression");
             }
 
-            let val = self.expr()?;
-            self.consume(SemiColon, "Expected ';' after assignment.")?;
-            return Ok(Stmt::Assign {
-                lhs: expr,
-                rhs: val,
+            let val = self.logic_or()?;
+            let span = expr.span.to(self.prev.span);
+            expr = Box::new(Expr {
+                kind: ExprKind::Assign {
+                    lhs: expr,
+                    rhs: val,
+                },
+                span,
             });
         } else if self.eat(PlusEq) || self.eat(MinusEq) || self.eat(StarEq) || self.eat(SlashEq) {
             if !expr.is_assignable() {
@@ -406,19 +415,18 @@ impl Parser {
                 _ => unreachable!(),
             };
             let op = Spanned::new(op, self.prev.span);
-            let val = self.expr()?;
-            self.consume(SemiColon, "Expected ';' after assignment.")?;
-            return Ok(Stmt::OpAssign {
-                lhs: expr,
-                rhs: val,
-                op,
+            let val = self.logic_or()?;
+            let span = expr.span.to(self.prev.span);
+            expr = Box::new(Expr {
+                kind: ExprKind::OpAssign {
+                    lhs: expr,
+                    rhs: val,
+                    op,
+                },
+                span,
             });
         }
-        Ok(Stmt::Expr(expr, self.eat(SemiColon)))
-    }
-
-    fn expr(&mut self) -> Result<Box<Expr>> {
-        self.logic_or()
+        Ok(expr)
     }
 
     fn logic_or(&mut self) -> Result<Box<Expr>> {

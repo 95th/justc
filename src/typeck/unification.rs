@@ -52,11 +52,6 @@ impl<'a> Unifier<'a> {
                 }
                 Ok(())
             }
-            Stmt::Assign { lhs, rhs } => {
-                self.unify_expr(lhs)?;
-                self.unify_expr(rhs)?;
-                self.env.unify(lhs.ty, rhs.ty, rhs.span)
-            }
             Stmt::While { cond, body } => {
                 self.unify_expr(cond)?;
                 self.unify_block(body)?;
@@ -354,6 +349,12 @@ impl<'a> Unifier<'a> {
                     }
                 }
                 Ok(())
+            }
+            ExprKind::Assign { lhs, rhs } => {
+                self.env.unify(expr.ty, self.env.unit(), expr.span)?;
+                self.unify_expr(lhs)?;
+                self.unify_expr(rhs)?;
+                self.env.unify(lhs.ty, rhs.ty, rhs.span)
             }
         }
     }

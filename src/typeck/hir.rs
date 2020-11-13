@@ -12,10 +12,6 @@ pub enum Stmt {
         ty: TypeVar,
         init: Option<Box<Expr>>,
     },
-    Assign {
-        lhs: Box<Expr>,
-        rhs: Box<Expr>,
-    },
     While {
         cond: Box<Expr>,
         body: Block,
@@ -71,6 +67,10 @@ pub enum ExprKind {
         callee: Box<Expr>,
         name: Token,
         args: Vec<Box<Expr>>,
+    },
+    Assign {
+        lhs: Box<Expr>,
+        rhs: Box<Expr>,
     },
 }
 

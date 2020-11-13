@@ -63,11 +63,6 @@ impl Typeck {
                 }
                 Ok(())
             }
-            Stmt::Assign { lhs, rhs } => {
-                self.typeck_expr(lhs)?;
-                self.typeck_expr(rhs)?;
-                self.typeck_eq(lhs.ty, rhs.ty, rhs.span)
-            }
             Stmt::While { cond, body } => {
                 self.typeck_expr(cond)?;
                 self.typeck_eq(self.env.bool(), cond.ty, cond.span)?;
@@ -181,6 +176,11 @@ impl Typeck {
             }
             ExprKind::AssocMethod { ty, .. } => {
                 self.typeck_no_var(*ty, expr.span)?;
+            }
+            ExprKind::Assign { lhs, rhs } => {
+                self.typeck_expr(lhs)?;
+                self.typeck_expr(rhs)?;
+                self.typeck_eq(lhs.ty, rhs.ty, rhs.span)?;
             }
         }
         Ok(())

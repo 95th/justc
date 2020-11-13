@@ -131,6 +131,15 @@ pub enum ExprKind {
         ty: Ty,
         name: Token,
     },
+    Assign {
+        lhs: Box<Expr>,
+        rhs: Box<Expr>,
+    },
+    OpAssign {
+        op: Spanned<BinOp>,
+        lhs: Box<Expr>,
+        rhs: Box<Expr>,
+    },
 }
 
 #[derive(Debug, PartialEq)]
@@ -146,15 +155,6 @@ pub enum Stmt {
         name: Token,
         ty: Ty,
         init: Option<Box<Expr>>,
-    },
-    Assign {
-        lhs: Box<Expr>,
-        rhs: Box<Expr>,
-    },
-    OpAssign {
-        lhs: Box<Expr>,
-        rhs: Box<Expr>,
-        op: Spanned<BinOp>,
     },
     While {
         cond: Box<Expr>,

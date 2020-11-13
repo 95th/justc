@@ -88,24 +88,6 @@ impl<'a> Annotate<'a> {
                     init,
                 })
             }
-            ast::Stmt::Assign { lhs, rhs } => Ok(hir::Stmt::Assign {
-                lhs: self.annotate_expr(lhs)?,
-                rhs: self.annotate_expr(rhs)?,
-            }),
-            ast::Stmt::OpAssign { lhs, rhs, op } => {
-                let lhs = self.annotate_expr(lhs)?;
-                let rhs = self.annotate_expr(rhs)?;
-                let rhs = Box::new(hir::Expr {
-                    span: lhs.span.to(rhs.span),
-                    kind: hir::ExprKind::Binary {
-                        left: lhs.clone(),
-                        right: rhs,
-                        op,
-                    },
-                    ty: self.env.new_type_var(),
-                });
-                Ok(hir::Stmt::Assign { lhs, rhs })
-            }
             ast::Stmt::While { cond, body } => {
                 let cond = self.annotate_expr(cond)?;
                 let body = self.enter_loop_scope(|this| this.annotate_block(body))?;
@@ -276,6 +258,24 @@ impl<'a> Annotate<'a> {
             ast::ExprKind::AssocMethod { ty, name } => {
                 let ty = self.ast_ty_to_ty(ty)?;
                 hir::ExprKind::AssocMethod { ty, name }
+            }
+            ast::ExprKind::Assign { lhs, rhs } => hir::ExprKind::Assign {
+                lhs: self.annotate_expr(lhs)?,
+                rhs: self.annotate_expr(rhs)?,
+            },
+            ast::ExprKind::OpAssign { lhs, rhs, op } => {
+                let lhs = self.annotate_expr(lhs)?;
+                let rhs = self.annotate_expr(rhs)?;
+                let rhs = Box::new(hir::Expr {
+                    span: lhs.span.to(rhs.span),
+                    kind: hir::ExprKind::Binary {
+                        left: lhs.clone(),
+                        right: rhs,
+                        op,
+                    },
+                    ty: self.env.new_type_var(),
+                });
+                hir::ExprKind::Assign { lhs, rhs }
             }
         };
         Ok(Box::new(hir::Expr { kind, span, ty }))
