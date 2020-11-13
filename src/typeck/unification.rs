@@ -458,9 +458,9 @@ impl<'a> Unifier<'a> {
     }
 
     fn unify_fn_body(&mut self, function: &Function) -> Result<()> {
-        self.unify_block(&function.body)?;
         self.env
             .unify(function.ret, function.body.ty, function.body.span)?;
+        self.unify_block(&function.body)?;
         Ok(())
     }
 

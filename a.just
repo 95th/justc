@@ -1,5 +1,4 @@
-let a: bool;
-
-let f = |n| -> int {
-	n + 1000.0
-};
+fn foo(f: fn(int) -> bool) -> bool {
+    f(100);
+    10
+}

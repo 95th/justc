@@ -144,7 +144,7 @@ impl TyContext {
             return Ok(());
         }
 
-        if !self.done.insert(expected) || !self.done.insert(actual) {
+        if !self.done.insert(expected) && !self.done.insert(actual) {
             return Ok(());
         }
 
