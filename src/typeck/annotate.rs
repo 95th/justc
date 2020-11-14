@@ -93,38 +93,6 @@ impl<'a> Annotate<'a> {
                 let body = self.enter_loop_scope(|this| this.annotate_block(body))?;
                 Ok(hir::Stmt::While { cond, body })
             }
-            ast::Stmt::Return(span, Some(e)) => {
-                if self.has_enclosing_fn {
-                    Ok(hir::Stmt::Return(span, Some(self.annotate_expr(e)?)))
-                } else {
-                    self.handler
-                        .mk_err(span, "Cannot return without enclosing function")
-                }
-            }
-            ast::Stmt::Return(span, None) => {
-                if self.has_enclosing_fn {
-                    Ok(hir::Stmt::Return(span, None))
-                } else {
-                    self.handler
-                        .mk_err(span, "Cannot return without enclosing function")
-                }
-            }
-            ast::Stmt::Continue(span) => {
-                if self.has_enclosing_loop {
-                    Ok(hir::Stmt::Continue(span))
-                } else {
-                    self.handler
-                        .mk_err(span, "Cannot continue without an enclosing loop")
-                }
-            }
-            ast::Stmt::Break(span) => {
-                if self.has_enclosing_loop {
-                    Ok(hir::Stmt::Break(span))
-                } else {
-                    self.handler
-                        .mk_err(span, "Cannot break without an enclosing loop")
-                }
-            }
         }
     }
 
@@ -276,6 +244,38 @@ impl<'a> Annotate<'a> {
                     ty: self.env.new_type_var(),
                 });
                 hir::ExprKind::Assign { lhs, rhs }
+            }
+            ast::ExprKind::Return(span, e) => {
+                if !self.has_enclosing_fn {
+                    return self
+                        .handler
+                        .mk_err(span, "Cannot return without enclosing function");
+                }
+
+                let e = match e {
+                    Some(e) => Some(self.annotate_expr(e)?),
+                    None => None,
+                };
+
+                hir::ExprKind::Return(span, e)
+            }
+            ast::ExprKind::Continue(span) => {
+                if !self.has_enclosing_loop {
+                    return self
+                        .handler
+                        .mk_err(span, "Cannot continue without an enclosing loop");
+                }
+
+                hir::ExprKind::Continue(span)
+            }
+            ast::ExprKind::Break(span) => {
+                if self.has_enclosing_loop {
+                    return self
+                        .handler
+                        .mk_err(span, "Cannot break without an enclosing loop");
+                }
+
+                hir::ExprKind::Break(span)
             }
         };
         Ok(Box::new(hir::Expr { kind, span, ty }))

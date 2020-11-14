@@ -44,27 +44,22 @@ impl<'a> Unifier<'a> {
 
     fn unify_stmt(&mut self, stmt: &Stmt) -> Result<()> {
         match stmt {
-            Stmt::Expr(expr, ..) => self.unify_expr(expr),
+            Stmt::Expr(expr, ..) => {
+                self.unify_expr(expr)?;
+            }
             Stmt::Let { ty, init, .. } => {
                 if let Some(init) = init {
                     self.env.unify(*ty, init.ty, init.span)?;
                     self.unify_expr(init)?;
                 }
-                Ok(())
             }
             Stmt::While { cond, body } => {
                 self.unify_expr(cond)?;
                 self.unify_block(body)?;
-                self.env.unify(self.env.bool(), cond.ty, cond.span)
+                self.env.unify(self.env.bool(), cond.ty, cond.span)?;
             }
-            Stmt::Return(_, e) => {
-                if let Some(e) = e {
-                    self.unify_expr(e)?;
-                }
-                Ok(())
-            }
-            Stmt::Continue(_) | Stmt::Break(_) => Ok(()),
         }
+        Ok(())
     }
 
     fn unify_expr(&mut self, expr: &Expr) -> Result<()> {
@@ -87,7 +82,6 @@ impl<'a> Unifier<'a> {
                         self.env.unify(expr.ty, self.env.bool(), expr.span)?
                     }
                 }
-                Ok(())
             }
             ExprKind::Tuple(exprs) => {
                 for e in exprs {
@@ -96,24 +90,22 @@ impl<'a> Unifier<'a> {
                 let tuple_ty = Ty::Tuple(Rc::new(exprs.iter().map(|e| e.ty).collect()));
                 let ty = self.env.alloc_ty(tuple_ty);
                 self.env.unify(expr.ty, ty, expr.span)?;
-                Ok(())
             }
-            ExprKind::Literal(_, ty, _) => self.env.unify(expr.ty, *ty, expr.span),
+            ExprKind::Literal(_, ty, _) => self.env.unify(expr.ty, *ty, expr.span)?,
             ExprKind::Unary { op, expr: e, .. } => {
                 self.unify_expr(e)?;
                 match op.val {
                     UnOp::Not => {
                         self.env.unify(self.env.bool(), e.ty, e.span)?;
-                        self.env.unify(expr.ty, self.env.bool(), expr.span)
+                        self.env.unify(expr.ty, self.env.bool(), expr.span)?;
                     }
-                    UnOp::Neg => self.env.unify(expr.ty, e.ty, e.span),
+                    UnOp::Neg => self.env.unify(expr.ty, e.ty, e.span)?,
                 }
             }
-            ExprKind::Variable(.., ty) => self.env.unify(expr.ty, *ty, expr.span),
+            ExprKind::Variable(.., ty) => self.env.unify(expr.ty, *ty, expr.span)?,
             ExprKind::Block(block) => {
                 self.env.unify(expr.ty, block.ty, block.span)?;
                 self.unify_block(block)?;
-                Ok(())
             }
             ExprKind::If {
                 cond,
@@ -132,7 +124,6 @@ impl<'a> Unifier<'a> {
                 } else {
                     self.env.unify(expr.ty, self.env.unit(), expr.span)?;
                 }
-                Ok(())
             }
             ExprKind::Closure { params, ret, body } => self.enter_fn_scope(*ret, |this| {
                 this.env.unify(*ret, body.ty, body.span)?;
@@ -141,7 +132,7 @@ impl<'a> Unifier<'a> {
                 this.env.unify(expr.ty, ty, expr.span)?;
                 this.unify_expr(body)?;
                 Ok(())
-            }),
+            })?,
             ExprKind::Call { callee, args } => {
                 self.unify_expr(callee)?;
                 let ty = self.env.resolve_ty(callee.ty);
@@ -149,7 +140,6 @@ impl<'a> Unifier<'a> {
                 for arg in args {
                     self.unify_expr(arg)?;
                 }
-                Ok(())
             }
             ExprKind::Struct(name, fields, ty_var) => {
                 let ty = self.env.resolve_ty(*ty_var);
@@ -198,7 +188,7 @@ impl<'a> Unifier<'a> {
                     self.unify_expr(&f.expr)?;
                 }
 
-                self.env.unify(expr.ty, *ty_var, expr.span)
+                self.env.unify(expr.ty, *ty_var, expr.span)?;
             }
             ExprKind::Field(e, field_name) => {
                 self.unify_expr(e)?;
@@ -206,15 +196,15 @@ impl<'a> Unifier<'a> {
                 match &ty {
                     Ty::Struct(_, name, fields) => {
                         if let Some(f) = fields.get(field_name.symbol) {
-                            self.env.unify(expr.ty, f, field_name.span)
+                            self.env.unify(expr.ty, f, field_name.span)?;
                         } else {
-                            self.handler.mk_err(
+                            return self.handler.mk_err(
                                 field_name.span,
                                 &format!(
                                     "Field `{}` not found on type `{}`",
                                     field_name.symbol, name
                                 ),
-                            )
+                            );
                         }
                     }
                     Ty::Tuple(tys) => {
@@ -239,16 +229,20 @@ impl<'a> Unifier<'a> {
                                 );
                             }
                         };
-                        self.env.unify(expr.ty, tys[index], field_name.span)
+                        self.env.unify(expr.ty, tys[index], field_name.span)?;
                     }
-                    Ty::Infer(_) => self.handler.mk_err(
-                        e.span,
-                        "Type cannot be inferred. Please add type annotations",
-                    ),
-                    ty => self.handler.mk_err(
-                        field_name.span,
-                        &format!("Field `{}` not found on type `{}`", field_name.symbol, ty),
-                    ),
+                    Ty::Infer(_) => {
+                        return self.handler.mk_err(
+                            e.span,
+                            "Type cannot be inferred. Please add type annotations",
+                        );
+                    }
+                    ty => {
+                        return self.handler.mk_err(
+                            field_name.span,
+                            &format!("Field `{}` not found on type `{}`", field_name.symbol, ty),
+                        );
+                    }
                 }
             }
             ExprKind::AssocMethod {
@@ -286,8 +280,6 @@ impl<'a> Unifier<'a> {
                         )
                     }
                 }
-
-                Ok(())
             }
             ExprKind::MethodCall {
                 callee,
@@ -348,15 +340,26 @@ impl<'a> Unifier<'a> {
                         )
                     }
                 }
-                Ok(())
             }
             ExprKind::Assign { lhs, rhs } => {
                 self.env.unify(expr.ty, self.env.unit(), expr.span)?;
                 self.unify_expr(lhs)?;
                 self.unify_expr(rhs)?;
-                self.env.unify(lhs.ty, rhs.ty, rhs.span)
+                self.env.unify(lhs.ty, rhs.ty, rhs.span)?;
             }
+            ExprKind::Return(span, e) => {
+                if let Some(e) = e {
+                    self.env
+                        .unify(self.enclosing_fn_ret_ty.unwrap(), e.ty, e.span)?;
+                    self.unify_expr(e)?;
+                } else {
+                    self.env
+                        .unify(self.env.unit(), self.enclosing_fn_ret_ty.unwrap(), *span)?;
+                }
+            }
+            ExprKind::Continue(_) | ExprKind::Break(_) => {}
         }
+        Ok(())
     }
 
     fn unify_block(&mut self, block: &Block) -> Result<()> {
@@ -367,20 +370,10 @@ impl<'a> Unifier<'a> {
 
         for stmt in &block.stmts {
             self.unify_stmt(stmt)?;
-            if let Stmt::Return(span, e) = stmt {
-                if let Some(e) = e {
-                    self.env
-                        .unify(self.enclosing_fn_ret_ty.unwrap(), e.ty, e.span)?;
-                } else {
-                    self.env
-                        .unify(self.env.unit(), self.enclosing_fn_ret_ty.unwrap(), *span)?;
-                }
-            }
         }
 
         match block.stmts.last() {
             Some(Stmt::Expr(expr, false)) => self.env.unify(block.ty, expr.ty, expr.span),
-            Some(Stmt::Return(_, _)) => Ok(()),
             _ => self.env.unify(block.ty, self.env.unit(), block.span),
         }
     }

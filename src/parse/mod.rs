@@ -109,22 +109,6 @@ impl Parser {
             self.consume(OpenBrace, "Expected '{' after the condition")?;
             let body = self.block()?;
             Ok(Stmt::While { cond, body })
-        } else if self.eat(Return) {
-            let span = self.prev.span;
-            let mut expr = None;
-            if !self.check(SemiColon) {
-                expr = Some(self.expr()?);
-            }
-            self.consume(SemiColon, "Expected ';' after return")?;
-            Ok(Stmt::Return(span, expr))
-        } else if self.eat(Continue) {
-            let span = self.prev.span;
-            self.consume(SemiColon, "Expected ';' after continue")?;
-            Ok(Stmt::Continue(span))
-        } else if self.eat(Break) {
-            let span = self.prev.span;
-            self.consume(SemiColon, "Expected ';' after break")?;
-            Ok(Stmt::Break(span))
         } else {
             self.expr_stmt()
         }
@@ -669,6 +653,108 @@ impl Parser {
     }
 
     fn primary(&mut self) -> Result<Box<Expr>> {
+        if let Some(lit) = self.lit() {
+            return lit;
+        }
+
+        if self.eat(Ident) {
+            return self.path_or_struct();
+        }
+
+        if self.eat(SelfTy) {
+            if !self.restrictions.contains(Restrictions::ALLOW_SELF) {
+                return self
+                    .handler
+                    .mk_err(self.prev.span, "`Self` not allowed here");
+            }
+            return self.path_or_struct();
+        }
+
+        if self.eat(SelfParam) {
+            let span = self.prev.span;
+            let name = self.prev.clone();
+            return Ok(Box::new(Expr {
+                kind: ExprKind::Variable(name),
+                span,
+            }));
+        }
+
+        if self.eat(OpenParen) {
+            let lo = self.prev.span;
+            let mut exprs = vec![];
+            while !self.check(CloseParen) && !self.eof() {
+                let expr =
+                    self.without_restrictions(Restrictions::NO_STRUCT_LITERAL, |this| this.expr())?;
+                exprs.push(expr);
+
+                if !self.eat(Comma) {
+                    break;
+                }
+            }
+
+            self.consume(CloseParen, "Expected ')' after expr")?;
+            let span = lo.to(self.prev.span);
+
+            return Ok(Box::new(Expr {
+                kind: ExprKind::Tuple(exprs),
+                span,
+            }));
+        }
+
+        if self.eat(OpenBrace) {
+            let lo = self.prev.span;
+            let block = self.block()?;
+            let span = lo.to(self.prev.span);
+
+            return Ok(Box::new(Expr {
+                kind: ExprKind::Block(block),
+                span,
+            }));
+        }
+
+        if self.eat(If) {
+            return self.if_expr();
+        }
+
+        if self.eat(Or) || self.eat(OrOr) {
+            return self.closure();
+        }
+
+        if self.eat(Return) {
+            let ret_span = self.prev.span;
+            let mut span = ret_span;
+            let mut expr = None;
+            if !self.check(SemiColon) {
+                let ret_expr = self.expr()?;
+                span = ret_expr.span;
+                expr = Some(ret_expr);
+            }
+            return Ok(Box::new(Expr {
+                kind: ExprKind::Return(ret_span, expr),
+                span,
+            }));
+        }
+
+        if self.eat(Continue) {
+            let span = self.prev.span;
+            return Ok(Box::new(Expr {
+                kind: ExprKind::Continue(span),
+                span,
+            }));
+        }
+
+        if self.eat(Break) {
+            let span = self.prev.span;
+            return Ok(Box::new(Expr {
+                kind: ExprKind::Break(span),
+                span,
+            }));
+        }
+
+        return self.handler.mk_err(self.curr.span, "Expected expression");
+    }
+
+    fn lit(&mut self) -> Option<Result<Box<Expr>>> {
         let lit = if self.eat(False) {
             Lit::Bool(false)
         } else if self.eat(True) {
@@ -692,63 +778,13 @@ impl Parser {
             kind: LiteralKind::Str,
         }) {
             Lit::Str(self.prev.symbol)
-        } else if self.eat(Ident) {
-            return self.path_or_struct();
-        } else if self.eat(SelfTy) {
-            if !self.restrictions.contains(Restrictions::ALLOW_SELF) {
-                return self
-                    .handler
-                    .mk_err(self.prev.span, "`Self` not allowed here");
-            }
-            return self.path_or_struct();
-        } else if self.eat(SelfParam) {
-            let span = self.prev.span;
-            let name = self.prev.clone();
-            return Ok(Box::new(Expr {
-                kind: ExprKind::Variable(name),
-                span,
-            }));
-        } else if self.eat(OpenParen) {
-            let lo = self.prev.span;
-            let mut exprs = vec![];
-            while !self.check(CloseParen) && !self.eof() {
-                let expr =
-                    self.without_restrictions(Restrictions::NO_STRUCT_LITERAL, |this| this.expr())?;
-                exprs.push(expr);
-
-                if !self.eat(Comma) {
-                    break;
-                }
-            }
-
-            self.consume(CloseParen, "Expected ')' after expr")?;
-            let span = lo.to(self.prev.span);
-
-            return Ok(Box::new(Expr {
-                kind: ExprKind::Tuple(exprs),
-                span,
-            }));
-        } else if self.eat(OpenBrace) {
-            let lo = self.prev.span;
-            let block = self.block()?;
-            let span = lo.to(self.prev.span);
-
-            return Ok(Box::new(Expr {
-                kind: ExprKind::Block(block),
-                span,
-            }));
-        } else if self.eat(If) {
-            return self.if_expr();
-        } else if self.eat(Or) || self.eat(OrOr) {
-            return self.closure();
         } else {
-            return self.handler.mk_err(self.curr.span, "Expected expression");
+            return None;
         };
-
-        Ok(Box::new(Expr {
+        Some(Ok(Box::new(Expr {
             kind: ExprKind::Literal(lit, self.prev.span),
             span: self.prev.span,
-        }))
+        })))
     }
 
     fn path_or_struct(&mut self) -> Result<Box<Expr>> {

@@ -68,14 +68,6 @@ impl Typeck {
                 self.typeck_eq(self.env.bool(), cond.ty, cond.span)?;
                 self.typeck_block(body)
             }
-            Stmt::Return(_, e) => {
-                if let Some(e) = e {
-                    self.typeck_expr(e)
-                } else {
-                    Ok(())
-                }
-            }
-            Stmt::Continue(_) | Stmt::Break(_) => Ok(()),
         }
     }
 
@@ -182,6 +174,12 @@ impl Typeck {
                 self.typeck_expr(rhs)?;
                 self.typeck_eq(lhs.ty, rhs.ty, rhs.span)?;
             }
+            ExprKind::Return(_, e) => {
+                if let Some(e) = e {
+                    self.typeck_expr(e)?;
+                }
+            }
+            ExprKind::Continue(_) | ExprKind::Break(_) => {},
         }
         Ok(())
     }

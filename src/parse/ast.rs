@@ -140,6 +140,9 @@ pub enum ExprKind {
         lhs: Box<Expr>,
         rhs: Box<Expr>,
     },
+    Return(Span, Option<Box<Expr>>),
+    Continue(Span),
+    Break(Span),
 }
 
 #[derive(Debug, PartialEq)]
@@ -160,9 +163,6 @@ pub enum Stmt {
         cond: Box<Expr>,
         body: Block,
     },
-    Return(Span, Option<Box<Expr>>),
-    Continue(Span),
-    Break(Span),
 }
 
 #[derive(Default, Debug, PartialEq)]
