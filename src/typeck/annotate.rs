@@ -269,7 +269,7 @@ impl<'a> Annotate<'a> {
                 hir::ExprKind::Continue(span)
             }
             ast::ExprKind::Break(span) => {
-                if self.has_enclosing_loop {
+                if !self.has_enclosing_loop {
                     return self
                         .handler
                         .mk_err(span, "Cannot break without an enclosing loop");
