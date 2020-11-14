@@ -13,6 +13,7 @@ use super::{
 
 struct Unifier<'a> {
     enclosing_fn_ret_ty: Option<TypeVar>,
+    enclosing_loop_ty: Option<TypeVar>,
     env: &'a mut TyContext,
     handler: &'a Handler,
 }
@@ -30,6 +31,7 @@ impl<'a> Unifier<'a> {
     fn new(env: &'a mut TyContext, handler: &'a Handler) -> Self {
         Self {
             enclosing_fn_ret_ty: None,
+            enclosing_loop_ty: None,
             env,
             handler,
         }
@@ -355,11 +357,19 @@ impl<'a> Unifier<'a> {
                     self.env.unify(ret_ty, self.env.unit(), expr.span)?;
                 }
             }
-            ExprKind::Continue | ExprKind::Break => {}
+            ExprKind::Continue => {}
+            ExprKind::Break(e) => {
+                let loop_ty = self.enclosing_loop_ty.unwrap();
+                if let Some(e) = e {
+                    self.env.unify(loop_ty, e.ty, e.span)?;
+                    self.unify_expr(e)?;
+                } else {
+                    self.env.unify(loop_ty, self.env.unit(), expr.span)?;
+                }
+            }
             ExprKind::Loop(body) => {
-                self.env.unify(expr.ty, body.ty, body.span)?;
-                self.unify_block(body)?;
-            },
+                self.enter_loop_scope(expr.ty, |this| this.unify_block(body))?;
+            }
         }
         Ok(())
     }
@@ -534,6 +544,17 @@ impl<'a> Unifier<'a> {
         self.enclosing_fn_ret_ty = Some(ty);
         let result = f(self);
         self.enclosing_fn_ret_ty = save_ret_ty;
+        result
+    }
+
+    fn enter_loop_scope<F, R>(&mut self, ty: TypeVar, f: F) -> R
+    where
+        F: FnOnce(&mut Self) -> R,
+    {
+        let save_loop_ty = self.enclosing_loop_ty.take();
+        self.enclosing_loop_ty = Some(ty);
+        let result = f(self);
+        self.enclosing_loop_ty = save_loop_ty;
         result
     }
 }

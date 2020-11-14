@@ -760,9 +760,15 @@ impl Parser {
         }
 
         if self.eat(Break) {
+            let mut span = self.prev.span;
+            let mut expr = None;
+            if !self.check(Comma) && !self.check(SemiColon) && !self.check(CloseBrace) {
+                expr = Some(self.expr()?);
+                span = span.to(self.prev.span);
+            }
             return Ok(Box::new(Expr {
-                kind: ExprKind::Break,
-                span: self.prev.span,
+                kind: ExprKind::Break(expr),
+                span,
             }));
         }
 

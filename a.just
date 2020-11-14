@@ -1,5 +1,4 @@
-loop {
-    if true {
-        break 10;
-    }
-}
+let n = loop {
+    if true { break true; }
+};
+n += 1;

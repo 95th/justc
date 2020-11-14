@@ -254,6 +254,20 @@ impl<'a> Annotate<'a> {
 
                 hir::ExprKind::Return(e)
             }
+            ast::ExprKind::Break(e) => {
+                if !self.has_enclosing_loop {
+                    return self
+                        .handler
+                        .mk_err(span, "Cannot break without an enclosing loop");
+                }
+
+                let e = match e {
+                    Some(e) => Some(self.annotate_expr(e)?),
+                    None => None,
+                };
+
+                hir::ExprKind::Break(e)
+            }
             ast::ExprKind::Continue => {
                 if !self.has_enclosing_loop {
                     return self
@@ -263,15 +277,6 @@ impl<'a> Annotate<'a> {
 
                 hir::ExprKind::Continue
             }
-            ast::ExprKind::Break => {
-                if !self.has_enclosing_loop {
-                    return self
-                        .handler
-                        .mk_err(span, "Cannot break without an enclosing loop");
-                }
-
-                hir::ExprKind::Break
-            }
             ast::ExprKind::While { cond, body } => {
                 let cond = self.annotate_expr(cond)?;
                 let body = self.enter_loop_scope(|this| {
@@ -279,7 +284,7 @@ impl<'a> Annotate<'a> {
                     let then_clause = hir::Block {
                         stmts: vec![hir::Stmt::Expr(
                             Box::new(hir::Expr {
-                                kind: hir::ExprKind::Break,
+                                kind: hir::ExprKind::Break(None),
                                 span: cond.span,
                                 ty: this.env.unit(),
                             }),

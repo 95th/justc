@@ -141,8 +141,8 @@ pub enum ExprKind {
         rhs: Box<Expr>,
     },
     Return(Option<Box<Expr>>),
+    Break(Option<Box<Expr>>),
     Continue,
-    Break,
     Loop(Block),
     While {
         cond: Box<Expr>,
