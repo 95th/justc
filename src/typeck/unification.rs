@@ -353,12 +353,11 @@ impl<'a> Unifier<'a> {
             }
             ExprKind::Return(span, e) => {
                 let ret_ty = self.enclosing_fn_ret_ty.unwrap();
-                self.env.unify(ret_ty, expr.ty, *span)?;
                 if let Some(e) = e {
-                    self.env.unify(expr.ty, e.ty, e.span)?;
+                    self.env.unify(ret_ty, e.ty, e.span)?;
                     self.unify_expr(e)?;
                 } else {
-                    self.env.unify(expr.ty, self.env.unit(), *span)?;
+                    self.env.unify(ret_ty, self.env.unit(), *span)?;
                 }
             }
             ExprKind::Continue(_) | ExprKind::Break(_) => {}
@@ -373,7 +372,12 @@ impl<'a> Unifier<'a> {
         self.unify_fn_bodies(&block.functions)?;
 
         match block.stmts.last() {
-            Some(Stmt::Expr(expr, false)) => self.env.unify(block.ty, expr.ty, expr.span)?,
+            Some(Stmt::Expr(expr, semicolon)) => {
+                if !semicolon || expr.is_flow_control() {
+                    dbg!(expr.ty);
+                    self.env.unify(block.ty, expr.ty, expr.span)?;
+                }
+            }
             _ => self.env.unify(block.ty, self.env.unit(), block.span)?,
         }
 
@@ -439,7 +443,6 @@ impl<'a> Unifier<'a> {
     }
 
     fn unify_fn_header(&mut self, function: &Function) -> Result<()> {
-        log::debug!("unify_fn_header: {:#?}", function);
         for (idx, p) in function.params.iter().enumerate() {
             if p.name.is_self_param() {
                 if idx != 0 {

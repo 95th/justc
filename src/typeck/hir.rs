@@ -25,6 +25,15 @@ pub struct Expr {
     pub ty: TypeVar,
 }
 
+impl Expr {
+    pub fn is_flow_control(&self) -> bool {
+        matches!(
+            self.kind,
+            ExprKind::Return(..) | ExprKind::Break(..) | ExprKind::Continue(..)
+        )
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum ExprKind {
     Binary {
