@@ -240,7 +240,7 @@ impl<'a> Annotate<'a> {
                 });
                 hir::ExprKind::Assign { lhs, rhs }
             }
-            ast::ExprKind::Return(span, e) => {
+            ast::ExprKind::Return(e) => {
                 if !self.has_enclosing_fn {
                     return self
                         .handler
@@ -252,32 +252,65 @@ impl<'a> Annotate<'a> {
                     None => None,
                 };
 
-                hir::ExprKind::Return(span, e)
+                hir::ExprKind::Return(e)
             }
-            ast::ExprKind::Continue(span) => {
+            ast::ExprKind::Continue => {
                 if !self.has_enclosing_loop {
                     return self
                         .handler
                         .mk_err(span, "Cannot continue without an enclosing loop");
                 }
 
-                hir::ExprKind::Continue(span)
+                hir::ExprKind::Continue
             }
-            ast::ExprKind::Break(span) => {
+            ast::ExprKind::Break => {
                 if !self.has_enclosing_loop {
                     return self
                         .handler
                         .mk_err(span, "Cannot break without an enclosing loop");
                 }
 
-                hir::ExprKind::Break(span)
+                hir::ExprKind::Break
             }
             ast::ExprKind::While { cond, body } => {
                 let cond = self.annotate_expr(cond)?;
-                let body = self.enter_loop_scope(|this| this.annotate_block(body))?;
-                hir::ExprKind::While { cond, body }
+                let body = self.enter_loop_scope(|this| {
+                    let mut body = this.annotate_block(body)?;
+                    let then_clause = hir::Block {
+                        stmts: vec![hir::Stmt::Expr(
+                            Box::new(hir::Expr {
+                                kind: hir::ExprKind::Break,
+                                span: cond.span,
+                                ty: this.env.unit(),
+                            }),
+                            true,
+                        )],
+                        structs: vec![],
+                        impls: vec![],
+                        functions: vec![],
+                        span: cond.span,
+                        ty: this.env.unit(),
+                    };
+                    let if_expr = hir::Expr {
+                        span: cond.span,
+                        kind: hir::ExprKind::If {
+                            cond,
+                            then_clause,
+                            else_clause: None,
+                        },
+                        ty: this.env.unit(),
+                    };
+                    let mut stmts = vec![hir::Stmt::Expr(Box::new(if_expr), false)];
+                    stmts.append(&mut body.stmts);
+                    body = hir::Block { stmts, ..body };
+                    Ok(body)
+                })?;
+                hir::ExprKind::Loop(body)
             }
-            ast::ExprKind::Loop(block) => todo!(),
+            ast::ExprKind::Loop(body) => {
+                let body = self.enter_loop_scope(|this| this.annotate_block(body))?;
+                hir::ExprKind::Loop(body)
+            }
         };
         Ok(Box::new(hir::Expr { kind, span, ty }))
     }

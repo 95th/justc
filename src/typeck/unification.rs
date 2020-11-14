@@ -346,25 +346,20 @@ impl<'a> Unifier<'a> {
                 self.unify_expr(rhs)?;
                 self.env.unify(lhs.ty, rhs.ty, rhs.span)?;
             }
-            ExprKind::Return(span, e) => {
+            ExprKind::Return(e) => {
                 let ret_ty = self.enclosing_fn_ret_ty.unwrap();
                 if let Some(e) = e {
                     self.env.unify(ret_ty, e.ty, e.span)?;
                     self.unify_expr(e)?;
                 } else {
-                    self.env.unify(ret_ty, self.env.unit(), *span)?;
+                    self.env.unify(ret_ty, self.env.unit(), expr.span)?;
                 }
             }
-            ExprKind::Continue(_) | ExprKind::Break(_) => {}
-            ExprKind::While { cond, body } => {
-                self.env.unify(self.env.bool(), cond.ty, cond.span)?;
-                self.unify_expr(cond)?;
-
-                self.env.unify(self.env.unit(), body.ty, cond.span)?;
+            ExprKind::Continue | ExprKind::Break => {}
+            ExprKind::Loop(body) => {
+                self.env.unify(expr.ty, body.ty, body.span)?;
                 self.unify_block(body)?;
-
-                self.env.unify(expr.ty, self.env.unit(), expr.span)?;
-            }
+            },
         }
         Ok(())
     }

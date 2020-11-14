@@ -1,1 +1,5 @@
-while true {}
+loop {
+    if true {
+        break 10;
+    }
+}

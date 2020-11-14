@@ -739,33 +739,30 @@ impl Parser {
         }
 
         if self.eat(Return) {
-            let ret_span = self.prev.span;
-            let mut span = ret_span;
+            let mut span = self.prev.span;
             let mut expr = None;
             if !self.check(SemiColon) {
                 let ret_expr = self.expr()?;
-                span = ret_expr.span;
+                span = span.to(ret_expr.span);
                 expr = Some(ret_expr);
             }
             return Ok(Box::new(Expr {
-                kind: ExprKind::Return(ret_span, expr),
+                kind: ExprKind::Return(expr),
                 span,
             }));
         }
 
         if self.eat(Continue) {
-            let span = self.prev.span;
             return Ok(Box::new(Expr {
-                kind: ExprKind::Continue(span),
-                span,
+                kind: ExprKind::Continue,
+                span: self.prev.span,
             }));
         }
 
         if self.eat(Break) {
-            let span = self.prev.span;
             return Ok(Box::new(Expr {
-                kind: ExprKind::Break(span),
-                span,
+                kind: ExprKind::Break,
+                span: self.prev.span,
             }));
         }
 

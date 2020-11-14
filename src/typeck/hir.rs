@@ -25,7 +25,7 @@ impl Expr {
     pub fn is_flow_control(&self) -> bool {
         matches!(
             self.kind,
-            ExprKind::Return(..) | ExprKind::Break(..) | ExprKind::Continue(..)
+            ExprKind::Return(..) | ExprKind::Break | ExprKind::Continue
         )
     }
 }
@@ -74,13 +74,10 @@ pub enum ExprKind {
         lhs: Box<Expr>,
         rhs: Box<Expr>,
     },
-    Return(Span, Option<Box<Expr>>),
-    Continue(Span),
-    Break(Span),
-    While {
-        cond: Box<Expr>,
-        body: Block,
-    },
+    Return(Option<Box<Expr>>),
+    Continue,
+    Break,
+    Loop(Block),
 }
 
 #[derive(Debug, Clone)]

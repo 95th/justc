@@ -169,17 +169,13 @@ impl Typeck {
                 self.typeck_expr(rhs)?;
                 self.typeck_eq(lhs.ty, rhs.ty, rhs.span)?;
             }
-            ExprKind::Return(_, e) => {
+            ExprKind::Return(e) => {
                 if let Some(e) = e {
                     self.typeck_expr(e)?;
                 }
             }
-            ExprKind::Continue(_) | ExprKind::Break(_) => {}
-            ExprKind::While { cond, body } => {
-                self.typeck_expr(cond)?;
-                self.typeck_eq(self.env.bool(), cond.ty, cond.span)?;
-                self.typeck_block(body)?;
-            }
+            ExprKind::Continue | ExprKind::Break => {}
+            ExprKind::Loop(body) => self.typeck_block(body)?,
         }
         Ok(())
     }
