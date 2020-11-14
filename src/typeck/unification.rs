@@ -112,8 +112,8 @@ impl<'a> Unifier<'a> {
                 then_clause,
                 else_clause,
             } => {
-                self.unify_expr(cond)?;
                 self.env.unify(self.env.bool(), cond.ty, cond.span)?;
+                self.unify_expr(cond)?;
 
                 self.env.unify(expr.ty, then_clause.ty, then_clause.span)?;
                 self.unify_block(then_clause)?;
@@ -122,6 +122,10 @@ impl<'a> Unifier<'a> {
                     self.env.unify(expr.ty, else_clause.ty, else_clause.span)?;
                     self.unify_expr(else_clause)?;
                 } else {
+                    self.env.unify(expr.ty, self.env.unit(), expr.span)?;
+                }
+
+                if let Ty::Infer(_) = self.env.resolve_ty(expr.ty) {
                     self.env.unify(expr.ty, self.env.unit(), expr.span)?;
                 }
             }
@@ -349,11 +353,12 @@ impl<'a> Unifier<'a> {
             }
             ExprKind::Return(span, e) => {
                 let ret_ty = self.enclosing_fn_ret_ty.unwrap();
+                self.env.unify(ret_ty, expr.ty, *span)?;
                 if let Some(e) = e {
-                    self.env.unify(ret_ty, e.ty, e.span)?;
+                    self.env.unify(expr.ty, e.ty, e.span)?;
                     self.unify_expr(e)?;
                 } else {
-                    self.env.unify(ret_ty, self.env.unit(), *span)?;
+                    self.env.unify(expr.ty, self.env.unit(), *span)?;
                 }
             }
             ExprKind::Continue(_) | ExprKind::Break(_) => {}
@@ -367,16 +372,15 @@ impl<'a> Unifier<'a> {
         self.unify_impls(&block.impls)?;
         self.unify_fn_bodies(&block.functions)?;
 
+        match block.stmts.last() {
+            Some(Stmt::Expr(expr, false)) => self.env.unify(block.ty, expr.ty, expr.span)?,
+            _ => self.env.unify(block.ty, self.env.unit(), block.span)?,
+        }
+
         for stmt in &block.stmts {
             self.unify_stmt(stmt)?;
         }
 
-        match block.stmts.last() {
-            Some(Stmt::Expr(expr, false)) => {
-                self.env.unify(block.ty, expr.ty, expr.span)?;
-            }
-            _ => self.env.unify(block.ty, self.env.unit(), block.span)?,
-        }
         Ok(())
     }
 
