@@ -159,6 +159,11 @@ impl TyContext {
                 self.table.union_value(v, TypeVarValue::Known(other))
             }
             (Ty::Fn(params, ret), Ty::Fn(params2, ret2)) => {
+                if params.len() != params2.len() {
+                    return self
+                        .handler
+                        .mk_err(span, "Type mismatch: Incorrect number of parameters");
+                }
                 for (p1, p2) in params.iter().zip(params2.iter()) {
                     self.unify_inner(*p1, *p2, span)?;
                 }
