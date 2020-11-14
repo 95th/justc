@@ -8,8 +8,8 @@ while true {
 
 fn fib(n: int) -> int {
     if n < 2 {
-        return 1
-    }  
+        return 1;
+    }
     fib(n - 1) + fib(n - 2)
 }
 
@@ -41,5 +41,6 @@ while true {
     } else {
         continue
     };
-    x + 1000;
 }
+
+let n = || if true { return 1; };

@@ -374,7 +374,6 @@ impl<'a> Unifier<'a> {
         match block.stmts.last() {
             Some(Stmt::Expr(expr, semicolon)) => {
                 if !semicolon || expr.is_flow_control() {
-                    dbg!(expr.ty);
                     self.env.unify(block.ty, expr.ty, expr.span)?;
                 }
             }
