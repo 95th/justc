@@ -1,5 +1,1 @@
-fn foo(f: fn(int) -> bool) -> bool {
-    f(100)
-}
-
-foo(|n| n = 0)
+let f: fn(int) -> bool = |x: str| 10.0;

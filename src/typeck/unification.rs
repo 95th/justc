@@ -74,19 +74,19 @@ impl<'a> Unifier<'a> {
             } => {
                 self.unify_expr(left)?;
                 self.unify_expr(right)?;
+                self.env.unify(left.ty, right.ty, right.span)?;
                 match op.val {
                     BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Rem => {
-                        self.env.unify(expr.ty, left.ty, left.span)?
+                        self.env.unify(expr.ty, left.ty, expr.span)?
                     }
                     BinOp::Lt | BinOp::Gt | BinOp::Le | BinOp::Ge | BinOp::Ne | BinOp::Eq => {
-                        self.env.unify(self.env.bool(), expr.ty, expr.span)?
+                        self.env.unify(expr.ty, self.env.bool(), expr.span)?
                     }
                     BinOp::And | BinOp::Or => {
-                        self.env.unify(self.env.bool(), left.ty, left.span)?;
-                        self.env.unify(self.env.bool(), right.ty, right.span)?;
+                        self.env.unify(expr.ty, left.ty, left.span)?;
+                        self.env.unify(expr.ty, self.env.bool(), expr.span)?
                     }
                 }
-                self.env.unify(left.ty, right.ty, right.span)?;
                 Ok(())
             }
             ExprKind::Tuple(exprs) => {
@@ -95,7 +95,7 @@ impl<'a> Unifier<'a> {
                 }
                 let tuple_ty = Ty::Tuple(Rc::new(exprs.iter().map(|e| e.ty).collect()));
                 let ty = self.env.alloc_ty(tuple_ty);
-                self.env.unify(ty, expr.ty, expr.span)?;
+                self.env.unify(expr.ty, ty, expr.span)?;
                 Ok(())
             }
             ExprKind::Literal(_, ty, _) => self.env.unify(expr.ty, *ty, expr.span),
@@ -103,13 +103,13 @@ impl<'a> Unifier<'a> {
                 self.unify_expr(e)?;
                 match op.val {
                     UnOp::Not => {
-                        self.env.unify(self.env.bool(), expr.ty, expr.span)?;
-                        self.env.unify(self.env.bool(), e.ty, e.span)
+                        self.env.unify(self.env.bool(), e.ty, e.span)?;
+                        self.env.unify(expr.ty, self.env.bool(), expr.span)
                     }
                     UnOp::Neg => self.env.unify(expr.ty, e.ty, e.span),
                 }
             }
-            ExprKind::Variable(.., ty) => self.env.unify(*ty, expr.ty, expr.span),
+            ExprKind::Variable(.., ty) => self.env.unify(expr.ty, *ty, expr.span),
             ExprKind::Block(block) => {
                 self.env.unify(expr.ty, block.ty, block.span)?;
                 self.unify_block(block)?;
@@ -130,7 +130,7 @@ impl<'a> Unifier<'a> {
                     self.env.unify(expr.ty, else_clause.ty, else_clause.span)?;
                     self.unify_expr(else_clause)?;
                 } else {
-                    self.env.unify(self.env.unit(), expr.ty, expr.span)?;
+                    self.env.unify(expr.ty, self.env.unit(), expr.span)?;
                 }
                 Ok(())
             }
@@ -138,7 +138,7 @@ impl<'a> Unifier<'a> {
                 this.env.unify(*ret, body.ty, body.span)?;
                 let params = params.iter().map(|p| p.param_ty).collect();
                 let ty = this.env.alloc_ty(Ty::Fn(Rc::new(params), *ret));
-                this.env.unify(ty, expr.ty, expr.span)?;
+                this.env.unify(expr.ty, ty, expr.span)?;
                 this.unify_expr(body)?;
                 Ok(())
             }),
@@ -198,7 +198,7 @@ impl<'a> Unifier<'a> {
                     self.unify_expr(&f.expr)?;
                 }
 
-                self.env.unify(*ty_var, expr.ty, expr.span)
+                self.env.unify(expr.ty, *ty_var, expr.span)
             }
             ExprKind::Field(e, field_name) => {
                 self.unify_expr(e)?;
