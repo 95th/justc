@@ -1,3 +1,1 @@
-loop {
-    break 10;
-}
+while true {}

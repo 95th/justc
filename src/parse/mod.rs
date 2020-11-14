@@ -102,13 +102,6 @@ impl Parser {
             };
 
             Ok(Stmt::Expr(Box::new(block), false))
-        } else if self.eat(While) {
-            let cond =
-                self.with_restrictions(Restrictions::NO_STRUCT_LITERAL, |this| this.expr())?;
-
-            self.consume(OpenBrace, "Expected '{' after the condition")?;
-            let body = self.block()?;
-            Ok(Stmt::While { cond, body })
         } else {
             self.expr_stmt()
         }
@@ -659,6 +652,20 @@ impl Parser {
 
         if self.eat(Ident) {
             return self.path_or_struct();
+        }
+
+        if self.eat(While) {
+            let span = self.prev.span;
+            let cond =
+                self.with_restrictions(Restrictions::NO_STRUCT_LITERAL, |this| this.expr())?;
+
+            self.consume(OpenBrace, "Expected '{' after the condition")?;
+            let body = self.block()?;
+            let span = span.to(self.prev.span);
+            return Ok(Box::new(Expr {
+                kind: ExprKind::While { cond, body },
+                span,
+            }));
         }
 
         if self.eat(Loop) {

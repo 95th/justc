@@ -53,11 +53,6 @@ impl<'a> Unifier<'a> {
                     self.unify_expr(init)?;
                 }
             }
-            Stmt::While { cond, body } => {
-                self.unify_expr(cond)?;
-                self.unify_block(body)?;
-                self.env.unify(self.env.bool(), cond.ty, cond.span)?;
-            }
         }
         Ok(())
     }
@@ -361,6 +356,15 @@ impl<'a> Unifier<'a> {
                 }
             }
             ExprKind::Continue(_) | ExprKind::Break(_) => {}
+            ExprKind::While { cond, body } => {
+                self.env.unify(self.env.bool(), cond.ty, cond.span)?;
+                self.unify_expr(cond)?;
+
+                self.env.unify(self.env.unit(), body.ty, cond.span)?;
+                self.unify_block(body)?;
+
+                self.env.unify(expr.ty, self.env.unit(), expr.span)?;
+            }
         }
         Ok(())
     }

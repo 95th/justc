@@ -63,11 +63,6 @@ impl Typeck {
                 }
                 Ok(())
             }
-            Stmt::While { cond, body } => {
-                self.typeck_expr(cond)?;
-                self.typeck_eq(self.env.bool(), cond.ty, cond.span)?;
-                self.typeck_block(body)
-            }
         }
     }
 
@@ -179,7 +174,12 @@ impl Typeck {
                     self.typeck_expr(e)?;
                 }
             }
-            ExprKind::Continue(_) | ExprKind::Break(_) => {},
+            ExprKind::Continue(_) | ExprKind::Break(_) => {}
+            ExprKind::While { cond, body } => {
+                self.typeck_expr(cond)?;
+                self.typeck_eq(self.env.bool(), cond.ty, cond.span)?;
+                self.typeck_block(body)?;
+            }
         }
         Ok(())
     }

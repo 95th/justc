@@ -144,6 +144,10 @@ pub enum ExprKind {
     Continue(Span),
     Break(Span),
     Loop(Block),
+    While {
+        cond: Box<Expr>,
+        body: Block,
+    },
 }
 
 #[derive(Debug, PartialEq)]
@@ -159,10 +163,6 @@ pub enum Stmt {
         name: Token,
         ty: Ty,
         init: Option<Box<Expr>>,
-    },
-    While {
-        cond: Box<Expr>,
-        body: Block,
     },
 }
 

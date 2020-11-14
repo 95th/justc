@@ -12,10 +12,6 @@ pub enum Stmt {
         ty: TypeVar,
         init: Option<Box<Expr>>,
     },
-    While {
-        cond: Box<Expr>,
-        body: Block,
-    },
 }
 
 #[derive(Debug, Clone)]
@@ -81,6 +77,10 @@ pub enum ExprKind {
     Return(Span, Option<Box<Expr>>),
     Continue(Span),
     Break(Span),
+    While {
+        cond: Box<Expr>,
+        body: Block,
+    },
 }
 
 #[derive(Debug, Clone)]

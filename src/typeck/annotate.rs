@@ -88,11 +88,6 @@ impl<'a> Annotate<'a> {
                     init,
                 })
             }
-            ast::Stmt::While { cond, body } => {
-                let cond = self.annotate_expr(cond)?;
-                let body = self.enter_loop_scope(|this| this.annotate_block(body))?;
-                Ok(hir::Stmt::While { cond, body })
-            }
         }
     }
 
@@ -276,6 +271,11 @@ impl<'a> Annotate<'a> {
                 }
 
                 hir::ExprKind::Break(span)
+            }
+            ast::ExprKind::While { cond, body } => {
+                let cond = self.annotate_expr(cond)?;
+                let body = self.enter_loop_scope(|this| this.annotate_block(body))?;
+                hir::ExprKind::While { cond, body }
             }
             ast::ExprKind::Loop(block) => todo!(),
         };
