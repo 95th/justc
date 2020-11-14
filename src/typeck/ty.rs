@@ -304,7 +304,7 @@ impl fmt::Display for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Ty::Infer(..) => f.write_str("{unknown}")?,
-            Ty::Unit => f.write_str("unit")?,
+            Ty::Unit => f.write_str("()")?,
             Ty::Bool => f.write_str("bool")?,
             Ty::Int => f.write_str("int")?,
             Ty::Float => f.write_str("float")?,
@@ -321,7 +321,7 @@ impl fmt::Debug for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Ty::Infer(id) => write!(f, "{:?}", id)?,
-            Ty::Unit => f.write_str("unit")?,
+            Ty::Unit => f.write_str("()")?,
             Ty::Bool => f.write_str("bool")?,
             Ty::Int => f.write_str("int")?,
             Ty::Float => f.write_str("float")?,
