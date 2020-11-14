@@ -143,6 +143,7 @@ pub enum ExprKind {
     Return(Span, Option<Box<Expr>>),
     Continue(Span),
     Break(Span),
+    Loop(Block),
 }
 
 #[derive(Debug, PartialEq)]

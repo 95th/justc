@@ -277,6 +277,7 @@ impl<'a> Annotate<'a> {
 
                 hir::ExprKind::Break(span)
             }
+            ast::ExprKind::Loop(block) => todo!(),
         };
         Ok(Box::new(hir::Expr { kind, span, ty }))
     }

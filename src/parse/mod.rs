@@ -661,6 +661,17 @@ impl Parser {
             return self.path_or_struct();
         }
 
+        if self.eat(Loop) {
+            let span = self.prev.span;
+            self.consume(OpenBrace, "Expected '{'")?;
+            let block = self.block()?;
+            let span = span.to(self.prev.span);
+            return Ok(Box::new(Expr {
+                kind: ExprKind::Loop(block),
+                span,
+            }));
+        }
+
         if self.eat(SelfTy) {
             if !self.restrictions.contains(Restrictions::ALLOW_SELF) {
                 return self
