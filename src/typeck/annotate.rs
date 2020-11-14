@@ -285,7 +285,7 @@ impl<'a> Annotate<'a> {
                         stmts: vec![hir::Stmt::Expr(
                             Box::new(hir::Expr {
                                 kind: hir::ExprKind::Break(None),
-                                span: cond.span,
+                                span,
                                 ty: this.env.unit(),
                             }),
                             true,
@@ -293,11 +293,11 @@ impl<'a> Annotate<'a> {
                         structs: vec![],
                         impls: vec![],
                         functions: vec![],
-                        span: cond.span,
+                        span,
                         ty: this.env.unit(),
                     };
                     let if_expr = hir::Expr {
-                        span: cond.span,
+                        span,
                         kind: hir::ExprKind::If {
                             cond,
                             then_clause,
