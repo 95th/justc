@@ -368,6 +368,7 @@ impl<'a> Unifier<'a> {
                 }
             }
             ExprKind::Loop(body) => {
+                self.env.unify(self.env.unit(), body.ty, body.span)?;
                 self.enter_loop_scope(expr.ty, |this| this.unify_block(body))?;
             }
         }
