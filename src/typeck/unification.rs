@@ -476,7 +476,7 @@ impl<'a> Unifier<'a> {
         &mut self,
         expr: &Expr,
         self_param: Option<&Expr>,
-        args: &[Box<Expr>],
+        args: &[Expr],
         fn_ty: &Ty,
         span: Span,
     ) -> Result<()> {

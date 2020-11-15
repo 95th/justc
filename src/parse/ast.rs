@@ -98,7 +98,7 @@ pub enum ExprKind {
         lhs: Box<Expr>,
         rhs: Box<Expr>,
     },
-    Tuple(Vec<Box<Expr>>),
+    Tuple(Vec<Expr>),
     Literal(Lit, Span),
     Unary {
         op: Spanned<UnOp>,
@@ -118,14 +118,14 @@ pub enum ExprKind {
     },
     Call {
         callee: Box<Expr>,
-        args: Vec<Box<Expr>>,
+        args: Vec<Expr>,
     },
     Struct(Token, Vec<Field>, /* tuple: */ bool),
     Field(Box<Expr>, Token),
     MethodCall {
         callee: Box<Expr>,
         name: Token,
-        args: Vec<Box<Expr>>,
+        args: Vec<Expr>,
     },
     AssocMethod {
         ty: Ty,
@@ -153,16 +153,16 @@ pub enum ExprKind {
 #[derive(Debug, PartialEq)]
 pub struct Field {
     pub name: Token,
-    pub expr: Box<Expr>,
+    pub expr: Expr,
 }
 
 #[derive(Debug, PartialEq)]
 pub enum Stmt {
-    Expr(Box<Expr>, /* semicolon: */ bool),
+    Expr(Expr, /* semicolon: */ bool),
     Let {
         name: Token,
         ty: Ty,
-        init: Option<Box<Expr>>,
+        init: Option<Expr>,
     },
 }
 

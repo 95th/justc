@@ -6,11 +6,11 @@ use super::ty::TypeVar;
 
 #[derive(Debug, Clone)]
 pub enum Stmt {
-    Expr(Box<Expr>, bool),
+    Expr(Expr, bool),
     Let {
         name: Token,
         ty: TypeVar,
-        init: Option<Box<Expr>>,
+        init: Option<Expr>,
     },
 }
 
@@ -37,7 +37,7 @@ pub enum ExprKind {
         lhs: Box<Expr>,
         rhs: Box<Expr>,
     },
-    Tuple(Vec<Box<Expr>>),
+    Tuple(Vec<Expr>),
     Literal(Lit, TypeVar, Span),
     Unary {
         op: Spanned<UnOp>,
@@ -57,7 +57,7 @@ pub enum ExprKind {
     },
     Call {
         callee: Box<Expr>,
-        args: Vec<Box<Expr>>,
+        args: Vec<Expr>,
     },
     Struct(Token, Vec<Field>, TypeVar),
     Field(Box<Expr>, Token),
@@ -68,7 +68,7 @@ pub enum ExprKind {
     MethodCall {
         callee: Box<Expr>,
         name: Token,
-        args: Vec<Box<Expr>>,
+        args: Vec<Expr>,
     },
     Assign {
         lhs: Box<Expr>,
@@ -83,7 +83,7 @@ pub enum ExprKind {
 #[derive(Debug, Clone)]
 pub struct Field {
     pub name: Token,
-    pub expr: Box<Expr>,
+    pub expr: Expr,
 }
 
 #[derive(Debug, Clone)]

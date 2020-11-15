@@ -91,15 +91,19 @@ impl<'a> Annotate<'a> {
         }
     }
 
-    fn annotate_expr(&mut self, expr: Box<ast::Expr>) -> Result<Box<hir::Expr>> {
+    fn annotate_expr(&mut self, expr: ast::Expr) -> Result<hir::Expr> {
         let ty = self.env.new_type_var();
         let (kind, span) = (expr.kind, expr.span);
         let kind = match kind {
-            ast::ExprKind::Binary { op, lhs, rhs } => hir::ExprKind::Binary {
-                op,
-                lhs: self.annotate_expr(lhs)?,
-                rhs: self.annotate_expr(rhs)?,
-            },
+            ast::ExprKind::Binary { op, lhs, rhs } => {
+                let lhs = self.annotate_expr(*lhs)?;
+                let rhs = self.annotate_expr(*rhs)?;
+                hir::ExprKind::Binary {
+                    op,
+                    lhs: Box::new(lhs),
+                    rhs: Box::new(rhs),
+                }
+            }
             ast::ExprKind::Tuple(mut exprs) => match exprs.len() {
                 0 => hir::ExprKind::Literal(ast::Lit::Unit, self.env.unit(), expr.span),
                 1 => {
@@ -125,10 +129,13 @@ impl<'a> Annotate<'a> {
                 };
                 hir::ExprKind::Literal(lit, ty, span)
             }
-            ast::ExprKind::Unary { op, expr } => hir::ExprKind::Unary {
-                op,
-                expr: self.annotate_expr(expr)?,
-            },
+            ast::ExprKind::Unary { op, expr } => {
+                let expr = self.annotate_expr(*expr)?;
+                hir::ExprKind::Unary {
+                    op,
+                    expr: Box::new(expr),
+                }
+            }
             ast::ExprKind::Variable(t) => match self
                 .bindings
                 .get(t.symbol)
@@ -147,29 +154,45 @@ impl<'a> Annotate<'a> {
                 cond,
                 then_clause,
                 else_clause,
-            } => hir::ExprKind::If {
-                cond: self.annotate_expr(cond)?,
-                then_clause: self.annotate_block(then_clause)?,
-                else_clause: match else_clause {
-                    Some(e) => Some(self.annotate_expr(e)?),
+            } => {
+                let cond = self.annotate_expr(*cond)?;
+                let then_clause = self.annotate_block(then_clause)?;
+                let else_clause = match else_clause {
+                    Some(e) => {
+                        let e = self.annotate_expr(*e)?;
+                        Some(Box::new(e))
+                    }
                     None => None,
-                },
-            },
+                };
+                hir::ExprKind::If {
+                    cond: Box::new(cond),
+                    then_clause,
+                    else_clause,
+                }
+            }
             ast::ExprKind::Closure { params, ret, body } => self.enter_block_scope(|this| {
                 let params = this.annotate_params(params)?;
                 let ret = this.ast_ty_to_ty(ret)?;
                 this.has_enclosing_fn = true;
-                let body = this.annotate_expr(body)?;
+                let body = this.annotate_expr(*body)?;
                 this.has_enclosing_fn = false;
-                Ok(hir::ExprKind::Closure { params, ret, body })
+                Ok(hir::ExprKind::Closure {
+                    params,
+                    ret,
+                    body: Box::new(body),
+                })
             })?,
-            ast::ExprKind::Call { callee, args } => hir::ExprKind::Call {
-                callee: self.annotate_expr(callee)?,
-                args: args
+            ast::ExprKind::Call { callee, args } => {
+                let callee = self.annotate_expr(*callee)?;
+                let args = args
                     .into_iter()
                     .map(|arg| self.annotate_expr(arg))
-                    .collect::<Result<Vec<_>>>()?,
-            },
+                    .collect::<Result<_>>()?;
+                hir::ExprKind::Call {
+                    callee: Box::new(callee),
+                    args,
+                }
+            }
             ast::ExprKind::Struct(name, fields, tuple) => {
                 if name.is_self_ty() {
                     hir::ExprKind::Struct(
@@ -188,13 +211,16 @@ impl<'a> Annotate<'a> {
                                     span: name.span,
                                     kind: ast::ExprKind::Variable(name),
                                 });
-                                let callee = self.annotate_expr(callee)?;
+                                let callee = self.annotate_expr(*callee)?;
                                 let args = self
                                     .annotate_fields(fields)?
                                     .into_iter()
                                     .map(|f| f.expr)
                                     .collect();
-                                hir::ExprKind::Call { callee, args }
+                                hir::ExprKind::Call {
+                                    callee: Box::new(callee),
+                                    args,
+                                }
                             } else {
                                 log::debug!("Function `{}` not found", name.symbol);
                                 return self.handler.mk_err(name.span, "Not found in this scope");
@@ -208,37 +234,49 @@ impl<'a> Annotate<'a> {
                 }
             }
             ast::ExprKind::Field(expr, name) => {
-                hir::ExprKind::Field(self.annotate_expr(expr)?, name)
+                let expr = self.annotate_expr(*expr)?;
+                hir::ExprKind::Field(Box::new(expr), name)
             }
-            ast::ExprKind::MethodCall { callee, name, args } => hir::ExprKind::MethodCall {
-                callee: self.annotate_expr(callee)?,
-                name,
-                args: args
+            ast::ExprKind::MethodCall { callee, name, args } => {
+                let callee = self.annotate_expr(*callee)?;
+                let args = args
                     .into_iter()
                     .map(|arg| self.annotate_expr(arg))
-                    .collect::<Result<_>>()?,
-            },
+                    .collect::<Result<_>>()?;
+                hir::ExprKind::MethodCall {
+                    callee: Box::new(callee),
+                    name,
+                    args,
+                }
+            }
             ast::ExprKind::AssocMethod { ty, name } => {
                 let ty = self.ast_ty_to_ty(ty)?;
                 hir::ExprKind::AssocMethod { ty, name }
             }
-            ast::ExprKind::Assign { lhs, rhs } => hir::ExprKind::Assign {
-                lhs: self.annotate_expr(lhs)?,
-                rhs: self.annotate_expr(rhs)?,
-            },
+            ast::ExprKind::Assign { lhs, rhs } => {
+                let lhs = self.annotate_expr(*lhs)?;
+                let rhs = self.annotate_expr(*rhs)?;
+                hir::ExprKind::Assign {
+                    lhs: Box::new(lhs),
+                    rhs: Box::new(rhs),
+                }
+            }
             ast::ExprKind::OpAssign { lhs, rhs, op } => {
-                let lhs = self.annotate_expr(lhs)?;
-                let rhs = self.annotate_expr(rhs)?;
-                let rhs = Box::new(hir::Expr {
+                let lhs = self.annotate_expr(*lhs)?;
+                let rhs = self.annotate_expr(*rhs)?;
+                let rhs = hir::Expr {
                     span: lhs.span.to(rhs.span),
                     kind: hir::ExprKind::Binary {
-                        lhs: lhs.clone(),
-                        rhs,
+                        lhs: Box::new(lhs.clone()),
+                        rhs: Box::new(rhs),
                         op,
                     },
                     ty: self.env.new_type_var(),
-                });
-                hir::ExprKind::Assign { lhs, rhs }
+                };
+                hir::ExprKind::Assign {
+                    lhs: Box::new(lhs),
+                    rhs: Box::new(rhs),
+                }
             }
             ast::ExprKind::Return(e) => {
                 if !self.has_enclosing_fn {
@@ -248,7 +286,10 @@ impl<'a> Annotate<'a> {
                 }
 
                 let e = match e {
-                    Some(e) => Some(self.annotate_expr(e)?),
+                    Some(e) => {
+                        let e = self.annotate_expr(*e)?;
+                        Some(Box::new(e))
+                    }
                     None => None,
                 };
 
@@ -262,7 +303,10 @@ impl<'a> Annotate<'a> {
                 }
 
                 let e = match e {
-                    Some(e) => Some(self.annotate_expr(e)?),
+                    Some(e) => {
+                        let e = self.annotate_expr(*e)?;
+                        Some(Box::new(e))
+                    }
                     None => None,
                 };
 
@@ -278,15 +322,15 @@ impl<'a> Annotate<'a> {
                 hir::ExprKind::Continue
             }
             ast::ExprKind::While { cond, body } => {
-                let cond = self.annotate_expr(cond)?;
+                let cond = self.annotate_expr(*cond)?;
                 let mut body = self.enter_loop_scope(|this| this.annotate_block(body))?;
                 let then_clause = hir::Block {
                     stmts: vec![hir::Stmt::Expr(
-                        Box::new(hir::Expr {
+                        hir::Expr {
                             kind: hir::ExprKind::Break(None),
                             span,
                             ty: self.env.unit(),
-                        }),
+                        },
                         true,
                     )],
                     structs: vec![],
@@ -297,14 +341,14 @@ impl<'a> Annotate<'a> {
                 };
                 let if_expr = hir::Expr {
                     kind: hir::ExprKind::If {
-                        cond,
+                        cond: Box::new(cond),
                         then_clause,
                         else_clause: None,
                     },
                     span,
                     ty: self.env.unit(),
                 };
-                let mut stmts = vec![hir::Stmt::Expr(Box::new(if_expr), false)];
+                let mut stmts = vec![hir::Stmt::Expr(if_expr, false)];
                 stmts.append(&mut body.stmts);
                 body = hir::Block { stmts, ..body };
                 hir::ExprKind::Loop(body)
@@ -314,7 +358,7 @@ impl<'a> Annotate<'a> {
                 hir::ExprKind::Loop(body)
             }
         };
-        Ok(Box::new(hir::Expr { kind, span, ty }))
+        Ok(hir::Expr { kind, span, ty })
     }
 
     fn annotate_block(&mut self, block: ast::Block) -> Result<hir::Block> {

@@ -101,7 +101,7 @@ impl Parser {
                 span: lo.to(self.prev.span),
             };
 
-            Ok(Stmt::Expr(Box::new(block), false))
+            Ok(Stmt::Expr(block, false))
         } else {
             self.expr_stmt()
         }
@@ -358,7 +358,7 @@ impl Parser {
         Ok(Stmt::Expr(expr, self.eat(SemiColon)))
     }
 
-    fn expr(&mut self) -> Result<Box<Expr>> {
+    fn expr(&mut self) -> Result<Expr> {
         let mut expr = self.logic_or()?;
 
         if self.eat(Eq) {
@@ -370,13 +370,13 @@ impl Parser {
 
             let val = self.logic_or()?;
             let span = expr.span.to(self.prev.span);
-            expr = Box::new(Expr {
+            expr = Expr {
                 kind: ExprKind::Assign {
-                    lhs: expr,
-                    rhs: val,
+                    lhs: Box::new(expr),
+                    rhs: Box::new(val),
                 },
                 span,
-            });
+            };
         } else if self.eat(PlusEq) || self.eat(MinusEq) || self.eat(StarEq) || self.eat(SlashEq) {
             if !expr.is_assignable() {
                 return self
@@ -394,19 +394,19 @@ impl Parser {
             let op = Spanned::new(op, self.prev.span);
             let val = self.logic_or()?;
             let span = expr.span.to(self.prev.span);
-            expr = Box::new(Expr {
+            expr = Expr {
                 kind: ExprKind::OpAssign {
-                    lhs: expr,
-                    rhs: val,
+                    lhs: Box::new(expr),
+                    rhs: Box::new(val),
                     op,
                 },
                 span,
-            });
+            };
         }
         Ok(expr)
     }
 
-    fn logic_or(&mut self) -> Result<Box<Expr>> {
+    fn logic_or(&mut self) -> Result<Expr> {
         let mut lhs = self.logic_and()?;
 
         while self.eat(OrOr) {
@@ -414,20 +414,20 @@ impl Parser {
             let rhs = self.logic_and()?;
 
             let span = lhs.span.to(rhs.span);
-            lhs = Box::new(Expr {
+            lhs = Expr {
                 kind: ExprKind::Binary {
                     op: Spanned::new(BinOp::Or, op_span),
-                    lhs,
-                    rhs,
+                    lhs: Box::new(lhs),
+                    rhs: Box::new(rhs),
                 },
                 span,
-            });
+            };
         }
 
         Ok(lhs)
     }
 
-    fn logic_and(&mut self) -> Result<Box<Expr>> {
+    fn logic_and(&mut self) -> Result<Expr> {
         let mut lhs = self.equality()?;
 
         while self.eat(AndAnd) {
@@ -435,20 +435,20 @@ impl Parser {
             let rhs = self.equality()?;
             let span = lhs.span.to(rhs.span);
 
-            lhs = Box::new(Expr {
+            lhs = Expr {
                 kind: ExprKind::Binary {
                     op: Spanned::new(BinOp::And, op_span),
-                    lhs,
-                    rhs,
+                    lhs: Box::new(lhs),
+                    rhs: Box::new(rhs),
                 },
                 span,
-            });
+            };
         }
 
         Ok(lhs)
     }
 
-    fn equality(&mut self) -> Result<Box<Expr>> {
+    fn equality(&mut self) -> Result<Expr> {
         let mut lhs = self.comparison()?;
 
         loop {
@@ -463,20 +463,20 @@ impl Parser {
             let rhs = self.comparison()?;
             let span = lhs.span.to(rhs.span);
 
-            lhs = Box::new(Expr {
+            lhs = Expr {
                 kind: ExprKind::Binary {
                     op: Spanned::new(op, op_span),
-                    lhs,
-                    rhs,
+                    lhs: Box::new(lhs),
+                    rhs: Box::new(rhs),
                 },
                 span,
-            });
+            };
         }
 
         Ok(lhs)
     }
 
-    fn comparison(&mut self) -> Result<Box<Expr>> {
+    fn comparison(&mut self) -> Result<Expr> {
         let mut lhs = self.addition()?;
 
         loop {
@@ -495,20 +495,20 @@ impl Parser {
             let rhs = self.addition()?;
             let span = lhs.span.to(rhs.span);
 
-            lhs = Box::new(Expr {
+            lhs = Expr {
                 kind: ExprKind::Binary {
                     op: Spanned::new(op, op_span),
-                    lhs,
-                    rhs,
+                    lhs: Box::new(lhs),
+                    rhs: Box::new(rhs),
                 },
                 span,
-            });
+            };
         }
 
         Ok(lhs)
     }
 
-    fn addition(&mut self) -> Result<Box<Expr>> {
+    fn addition(&mut self) -> Result<Expr> {
         let mut lhs = self.multiplication()?;
 
         loop {
@@ -523,20 +523,20 @@ impl Parser {
             let rhs = self.multiplication()?;
             let span = lhs.span.to(rhs.span);
 
-            lhs = Box::new(Expr {
+            lhs = Expr {
                 kind: ExprKind::Binary {
                     op: Spanned::new(op, op_span),
-                    lhs,
-                    rhs,
+                    lhs: Box::new(lhs),
+                    rhs: Box::new(rhs),
                 },
                 span,
-            });
+            };
         }
 
         Ok(lhs)
     }
 
-    fn multiplication(&mut self) -> Result<Box<Expr>> {
+    fn multiplication(&mut self) -> Result<Expr> {
         let mut lhs = self.unary()?;
 
         loop {
@@ -553,20 +553,20 @@ impl Parser {
             let rhs = self.unary()?;
             let span = lhs.span.to(rhs.span);
 
-            lhs = Box::new(Expr {
+            lhs = Expr {
                 kind: ExprKind::Binary {
                     op: Spanned::new(op, op_span),
-                    lhs,
-                    rhs,
+                    lhs: Box::new(lhs),
+                    rhs: Box::new(rhs),
                 },
                 span,
-            });
+            };
         }
 
         Ok(lhs)
     }
 
-    fn unary(&mut self) -> Result<Box<Expr>> {
+    fn unary(&mut self) -> Result<Expr> {
         let op = if self.eat(Not) {
             UnOp::Not
         } else if self.eat(Minus) {
@@ -579,16 +579,16 @@ impl Parser {
         let expr = self.unary()?;
         let span = op_span.to(self.prev.span);
 
-        Ok(Box::new(Expr {
+        Ok(Expr {
             kind: ExprKind::Unary {
                 op: Spanned::new(op, op_span),
-                expr,
+                expr: Box::new(expr),
             },
             span,
-        }))
+        })
     }
 
-    fn call(&mut self) -> Result<Box<Expr>> {
+    fn call(&mut self) -> Result<Expr> {
         let mut expr = self.primary()?;
 
         loop {
@@ -596,15 +596,18 @@ impl Parser {
                 let args = self.finish_call()?;
                 let span = expr.span.to(self.prev.span);
                 if let ExprKind::Field(callee, name) = expr.kind {
-                    expr = Box::new(Expr {
+                    expr = Expr {
                         kind: ExprKind::MethodCall { callee, name, args },
                         span,
-                    });
+                    };
                 } else {
-                    expr = Box::new(Expr {
-                        kind: ExprKind::Call { callee: expr, args },
+                    expr = Expr {
+                        kind: ExprKind::Call {
+                            callee: Box::new(expr),
+                            args,
+                        },
                         span,
-                    });
+                    };
                 }
             } else if self.eat(Dot) {
                 let name = if self.eat(Ident)
@@ -618,10 +621,10 @@ impl Parser {
                         .mk_err(self.curr.span, "Expected field or method name");
                 };
                 let span = expr.span.to(name.span);
-                expr = Box::new(Expr {
-                    kind: ExprKind::Field(expr, name),
+                expr = Expr {
+                    kind: ExprKind::Field(Box::new(expr), name),
                     span,
-                })
+                };
             } else {
                 break;
             }
@@ -630,7 +633,7 @@ impl Parser {
         Ok(expr)
     }
 
-    fn finish_call(&mut self) -> Result<Vec<Box<Expr>>> {
+    fn finish_call(&mut self) -> Result<Vec<Expr>> {
         let mut args = vec![];
         while !self.check(CloseParen) && !self.eof() {
             let arg = self.expr()?;
@@ -645,7 +648,7 @@ impl Parser {
         Ok(args)
     }
 
-    fn primary(&mut self) -> Result<Box<Expr>> {
+    fn primary(&mut self) -> Result<Expr> {
         if let Some(lit) = self.lit() {
             return lit;
         }
@@ -662,10 +665,13 @@ impl Parser {
             self.consume(OpenBrace, "Expected '{' after the condition")?;
             let body = self.block()?;
             let span = span.to(self.prev.span);
-            return Ok(Box::new(Expr {
-                kind: ExprKind::While { cond, body },
+            return Ok(Expr {
+                kind: ExprKind::While {
+                    cond: Box::new(cond),
+                    body,
+                },
                 span,
-            }));
+            });
         }
 
         if self.eat(Loop) {
@@ -673,10 +679,10 @@ impl Parser {
             self.consume(OpenBrace, "Expected '{'")?;
             let block = self.block()?;
             let span = span.to(self.prev.span);
-            return Ok(Box::new(Expr {
+            return Ok(Expr {
                 kind: ExprKind::Loop(block),
                 span,
-            }));
+            });
         }
 
         if self.eat(SelfTy) {
@@ -691,10 +697,10 @@ impl Parser {
         if self.eat(SelfParam) {
             let span = self.prev.span;
             let name = self.prev.clone();
-            return Ok(Box::new(Expr {
+            return Ok(Expr {
                 kind: ExprKind::Variable(name),
                 span,
-            }));
+            });
         }
 
         if self.eat(OpenParen) {
@@ -713,10 +719,10 @@ impl Parser {
             self.consume(CloseParen, "Expected ')' after expr")?;
             let span = lo.to(self.prev.span);
 
-            return Ok(Box::new(Expr {
+            return Ok(Expr {
                 kind: ExprKind::Tuple(exprs),
                 span,
-            }));
+            });
         }
 
         if self.eat(OpenBrace) {
@@ -724,10 +730,10 @@ impl Parser {
             let block = self.block()?;
             let span = lo.to(self.prev.span);
 
-            return Ok(Box::new(Expr {
+            return Ok(Expr {
                 kind: ExprKind::Block(block),
                 span,
-            }));
+            });
         }
 
         if self.eat(If) {
@@ -742,40 +748,39 @@ impl Parser {
             let mut span = self.prev.span;
             let mut expr = None;
             if !self.check(SemiColon) {
-                let ret_expr = self.expr()?;
-                span = span.to(ret_expr.span);
-                expr = Some(ret_expr);
+                expr = Some(Box::new(self.expr()?));
+                span = span.to(self.prev.span);
             }
-            return Ok(Box::new(Expr {
+            return Ok(Expr {
                 kind: ExprKind::Return(expr),
                 span,
-            }));
+            });
         }
 
         if self.eat(Continue) {
-            return Ok(Box::new(Expr {
+            return Ok(Expr {
                 kind: ExprKind::Continue,
                 span: self.prev.span,
-            }));
+            });
         }
 
         if self.eat(Break) {
             let mut span = self.prev.span;
             let mut expr = None;
             if !self.check(Comma) && !self.check(SemiColon) && !self.check(CloseBrace) {
-                expr = Some(self.expr()?);
+                expr = Some(Box::new(self.expr()?));
                 span = span.to(self.prev.span);
             }
-            return Ok(Box::new(Expr {
+            return Ok(Expr {
                 kind: ExprKind::Break(expr),
                 span,
-            }));
+            });
         }
 
         self.handler.mk_err(self.curr.span, "Expected expression")
     }
 
-    fn lit(&mut self) -> Option<Result<Box<Expr>>> {
+    fn lit(&mut self) -> Option<Result<Expr>> {
         let lit = if self.eat(False) {
             Lit::Bool(false)
         } else if self.eat(True) {
@@ -802,13 +807,13 @@ impl Parser {
         } else {
             return None;
         };
-        Some(Ok(Box::new(Expr {
+        Some(Ok(Expr {
             kind: ExprKind::Literal(lit, self.prev.span),
             span: self.prev.span,
-        })))
+        }))
     }
 
-    fn path_or_struct(&mut self) -> Result<Box<Expr>> {
+    fn path_or_struct(&mut self) -> Result<Expr> {
         let mut span = self.prev.span;
         let name = self.prev.clone();
 
@@ -823,10 +828,10 @@ impl Parser {
                     self.expr()?
                 } else {
                     let var_span = name.span;
-                    Box::new(Expr {
+                    Expr {
                         kind: ExprKind::Variable(name.clone()),
                         span: var_span,
-                    })
+                    }
                 };
                 fields.push(Field { name, expr });
 
@@ -887,10 +892,10 @@ impl Parser {
             ExprKind::Variable(name)
         };
 
-        Ok(Box::new(Expr { kind, span }))
+        Ok(Expr { kind, span })
     }
 
-    fn closure(&mut self) -> Result<Box<Expr>> {
+    fn closure(&mut self) -> Result<Expr> {
         let lo = self.prev.span;
         let params = match self.prev.kind {
             Or => {
@@ -915,22 +920,26 @@ impl Parser {
             let block = self.block()?;
             let span = lo.to(self.prev.span);
 
-            Box::new(Expr {
+            Expr {
                 kind: ExprKind::Block(block),
                 span,
-            })
+            }
         } else {
             self.expr()?
         };
 
         let span = lo.to(self.prev.span);
-        Ok(Box::new(Expr {
-            kind: ExprKind::Closure { params, ret, body },
+        Ok(Expr {
+            kind: ExprKind::Closure {
+                params,
+                ret,
+                body: Box::new(body),
+            },
             span,
-        }))
+        })
     }
 
-    fn if_expr(&mut self) -> Result<Box<Expr>> {
+    fn if_expr(&mut self) -> Result<Expr> {
         let lo = self.prev.span;
         let cond = self.with_restrictions(Restrictions::NO_STRUCT_LITERAL, |this| this.expr())?;
         self.consume(OpenBrace, "Expected '{' after if condition")?;
@@ -938,7 +947,7 @@ impl Parser {
         let mut else_clause = None;
         if self.eat(Else) {
             if self.eat(If) {
-                else_clause = Some(self.if_expr()?);
+                else_clause = Some(Box::new(self.if_expr()?));
             } else {
                 self.consume(OpenBrace, "Expected '{' after else")?;
                 let block = self.block()?;
@@ -950,14 +959,14 @@ impl Parser {
             }
         }
         let span = lo.to(self.prev.span);
-        Ok(Box::new(Expr {
+        Ok(Expr {
             kind: ExprKind::If {
-                cond,
+                cond: Box::new(cond),
                 then_clause,
                 else_clause,
             },
             span,
-        }))
+        })
     }
 
     fn params(&mut self, closing_delim: TokenKind, infer_ty: bool) -> Result<Vec<Param>> {
@@ -1181,10 +1190,10 @@ mod tests {
 
     macro_rules! expr {
         ($kind:expr, ($lo:expr, $hi:expr)) => {
-            Box::new(Expr {
+            Expr {
                 kind: $kind,
                 span: Span::new($lo, $hi),
-            })
+            }
         };
     }
 
@@ -1202,8 +1211,8 @@ mod tests {
             expr!(
                 ExprKind::Binary {
                     op: Spanned::new(BinOp::$op, Span::DUMMY),
-                    lhs: $lhs,
-                    rhs: $rhs,
+                    lhs: Box::new($lhs),
+                    rhs: Box::new($rhs),
                 },
                 ($lo, $hi)
             )
