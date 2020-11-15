@@ -1,6 +1,4 @@
-use crate::{
-    lex::Span, lex::Spanned, lex::Token, parse::ast::BinOp, parse::ast::Lit, parse::ast::UnOp,
-};
+use crate::{lex::Span, lex::Spanned, lex::Token, parse::ast::BinOp, parse::ast::Lit, parse::ast::UnOp};
 
 use super::ty::TypeVar;
 

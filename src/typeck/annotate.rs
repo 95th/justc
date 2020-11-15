@@ -70,9 +70,7 @@ impl<'a> Annotate<'a> {
 
     fn annotate_stmt(&mut self, stmt: &ast::Stmt) -> Result<hir::Stmt> {
         match stmt {
-            ast::Stmt::Expr(expr, semicolon) => {
-                Ok(hir::Stmt::Expr(self.annotate_expr(expr)?, *semicolon))
-            }
+            ast::Stmt::Expr(expr, semicolon) => Ok(hir::Stmt::Expr(self.annotate_expr(expr)?, *semicolon)),
             ast::Stmt::Let { name, init, ty } => {
                 let init = match init {
                     Some(e) => Some(self.annotate_expr(e)?),
@@ -108,10 +106,7 @@ impl<'a> Annotate<'a> {
                 [] => hir::ExprKind::Literal(ast::Lit::Unit, self.env.unit(), expr.span),
                 [e] => return self.annotate_expr(&e),
                 exprs => {
-                    let exprs = exprs
-                        .iter()
-                        .map(|e| self.annotate_expr(e))
-                        .collect::<Result<_>>()?;
+                    let exprs = exprs.iter().map(|e| self.annotate_expr(e)).collect::<Result<_>>()?;
                     hir::ExprKind::Tuple(exprs)
                 }
             },
@@ -133,11 +128,7 @@ impl<'a> Annotate<'a> {
                     expr: Box::new(expr),
                 }
             }
-            ast::ExprKind::Variable(t) => match self
-                .bindings
-                .get(t.symbol)
-                .or_else(|| self.functions.get(t.symbol))
-            {
+            ast::ExprKind::Variable(t) => match self.bindings.get(t.symbol).or_else(|| self.functions.get(t.symbol)) {
                 Some(ty) => hir::ExprKind::Variable(t.clone(), *ty),
                 None => {
                     log::debug!("Variable `{}` not found", t.symbol);
@@ -181,10 +172,7 @@ impl<'a> Annotate<'a> {
             })?,
             ast::ExprKind::Call { callee, args } => {
                 let callee = self.annotate_expr(callee)?;
-                let args = args
-                    .iter()
-                    .map(|arg| self.annotate_expr(arg))
-                    .collect::<Result<_>>()?;
+                let args = args.iter().map(|arg| self.annotate_expr(arg)).collect::<Result<_>>()?;
                 hir::ExprKind::Call {
                     callee: Box::new(callee),
                     args,
@@ -199,13 +187,9 @@ impl<'a> Annotate<'a> {
                     )
                 } else {
                     match self.structs.get(name.symbol).copied() {
-                        Some(ty) => {
-                            hir::ExprKind::Struct(name.clone(), self.annotate_fields(fields)?, ty)
-                        }
+                        Some(ty) => hir::ExprKind::Struct(name.clone(), self.annotate_fields(fields)?, ty),
                         None if *tuple => {
-                            if self.functions.is_defined(name.symbol)
-                                || self.bindings.is_defined(name.symbol)
-                            {
+                            if self.functions.is_defined(name.symbol) || self.bindings.is_defined(name.symbol) {
                                 let callee = ast::Expr {
                                     span: name.span,
                                     kind: ast::ExprKind::Variable(name.clone()),
@@ -237,10 +221,7 @@ impl<'a> Annotate<'a> {
             }
             ast::ExprKind::MethodCall { callee, name, args } => {
                 let callee = self.annotate_expr(callee)?;
-                let args = args
-                    .iter()
-                    .map(|arg| self.annotate_expr(arg))
-                    .collect::<Result<_>>()?;
+                let args = args.iter().map(|arg| self.annotate_expr(arg)).collect::<Result<_>>()?;
                 hir::ExprKind::MethodCall {
                     callee: Box::new(callee),
                     name: name.clone(),
@@ -249,10 +230,7 @@ impl<'a> Annotate<'a> {
             }
             ast::ExprKind::AssocMethod { ty, name } => {
                 let ty = self.ast_ty_to_ty(ty)?;
-                hir::ExprKind::AssocMethod {
-                    ty,
-                    name: name.clone(),
-                }
+                hir::ExprKind::AssocMethod { ty, name: name.clone() }
             }
             ast::ExprKind::Assign { lhs, rhs } => {
                 let lhs = self.annotate_expr(lhs)?;
@@ -281,9 +259,7 @@ impl<'a> Annotate<'a> {
             }
             ast::ExprKind::Return(e) => {
                 if !self.has_enclosing_fn {
-                    return self
-                        .handler
-                        .mk_err(span, "Cannot return without enclosing function");
+                    return self.handler.mk_err(span, "Cannot return without enclosing function");
                 }
 
                 let e = match e {
@@ -298,9 +274,7 @@ impl<'a> Annotate<'a> {
             }
             ast::ExprKind::Break(e) => {
                 if !self.has_enclosing_loop {
-                    return self
-                        .handler
-                        .mk_err(span, "Cannot break without an enclosing loop");
+                    return self.handler.mk_err(span, "Cannot break without an enclosing loop");
                 }
 
                 let e = match e {
@@ -315,9 +289,7 @@ impl<'a> Annotate<'a> {
             }
             ast::ExprKind::Continue => {
                 if !self.has_enclosing_loop {
-                    return self
-                        .handler
-                        .mk_err(span, "Cannot continue without an enclosing loop");
+                    return self.handler.mk_err(span, "Cannot continue without an enclosing loop");
                 }
 
                 hir::ExprKind::Continue
@@ -382,8 +354,7 @@ impl<'a> Annotate<'a> {
 
     fn annotate_fn_headers(&mut self, functions: &[ast::Function]) {
         for func in functions {
-            self.functions
-                .insert(func.name.symbol, self.env.new_type_var());
+            self.functions.insert(func.name.symbol, self.env.new_type_var());
         }
     }
 
@@ -441,19 +412,13 @@ impl<'a> Annotate<'a> {
     fn ast_ty_to_ty(&mut self, ast_ty: &ast::Ty) -> Result<TypeVar> {
         let ty = match &ast_ty.kind {
             ast::TyKind::Fn(params, ret) => {
-                let params = params
-                    .iter()
-                    .map(|p| self.ast_ty_to_ty(p))
-                    .collect::<Result<_>>()?;
+                let params = params.iter().map(|p| self.ast_ty_to_ty(p)).collect::<Result<_>>()?;
                 let ret = self.ast_ty_to_ty(ret)?;
                 self.env.alloc_ty(Ty::Fn(Rc::new(params), ret))
             }
             ast::TyKind::Ident(t) => self.token_to_ty(&t)?,
             ast::TyKind::Tuple(types) => {
-                let types = types
-                    .iter()
-                    .map(|t| self.ast_ty_to_ty(t))
-                    .collect::<Result<_>>()?;
+                let types = types.iter().map(|t| self.ast_ty_to_ty(t)).collect::<Result<_>>()?;
                 self.env.alloc_ty(Ty::Tuple(Rc::new(types)))
             }
             ast::TyKind::Infer => self.env.new_type_var(),
@@ -497,14 +462,8 @@ impl<'a> Annotate<'a> {
         })
     }
 
-    fn annotate_struct_fields(
-        &mut self,
-        fields: &[ast::StructField],
-    ) -> Result<Vec<hir::StructField>> {
-        fields
-            .iter()
-            .map(|f| self.annotate_struct_field(f))
-            .collect()
+    fn annotate_struct_fields(&mut self, fields: &[ast::StructField]) -> Result<Vec<hir::StructField>> {
+        fields.iter().map(|f| self.annotate_struct_field(f)).collect()
     }
 
     fn annotate_struct_field(&mut self, field: &ast::StructField) -> Result<hir::StructField> {

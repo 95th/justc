@@ -159,11 +159,7 @@ pub struct Field {
 #[derive(Debug, PartialEq)]
 pub enum Stmt {
     Expr(Expr, /* semicolon: */ bool),
-    Let {
-        name: Token,
-        ty: Ty,
-        init: Option<Expr>,
-    },
+    Let { name: Token, ty: Ty, init: Option<Expr> },
 }
 
 #[derive(Default, Debug, PartialEq)]

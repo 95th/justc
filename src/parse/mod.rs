@@ -1,8 +1,6 @@
 pub mod ast;
 
-use self::ast::{
-    Ast, BinOp, Block, Expr, ExprKind, Field, Function, Lit, Param, Stmt, Ty, TyKind, UnOp,
-};
+use self::ast::{Ast, BinOp, Block, Expr, ExprKind, Field, Function, Lit, Param, Stmt, Ty, TyKind, UnOp};
 use crate::{
     err::{Handler, Result},
     lex::{Lexer, LiteralKind, Spanned, Token, TokenKind, TokenKind::*},
@@ -119,9 +117,8 @@ impl Parser {
 
         while !self.check(CloseBrace) && !self.eof() {
             if self.eat(Fn) {
-                let fun = self.without_restrictions(Restrictions::ALLOW_SELF, |this| {
-                    this.function(&mut declared_fns)
-                })?;
+                let fun =
+                    self.without_restrictions(Restrictions::ALLOW_SELF, |this| this.function(&mut declared_fns))?;
                 functions.push(fun);
             } else if self.eat(Struct) {
                 let s = self.struct_item(&mut declared_items, &mut declared_fns)?;
@@ -152,10 +149,9 @@ impl Parser {
     fn function(&mut self, declared_fns: &mut HashSet<Symbol>) -> Result<Function> {
         let name = self.consume(Ident, "Expected function name")?;
         if !declared_fns.insert(name.symbol) {
-            return self.handler.mk_err(
-                name.span,
-                "Function with same name already defined in this scope",
-            );
+            return self
+                .handler
+                .mk_err(name.span, "Function with same name already defined in this scope");
         }
 
         self.consume(OpenParen, "Expected '('")?;
@@ -198,18 +194,15 @@ impl Parser {
     }
 
     fn enum_item(&mut self, declared_items: &mut HashSet<Symbol>) -> Result<ast::Enum> {
-        self.with_restrictions(Restrictions::ALLOW_SELF, |this| {
-            this.enum_item_inner(declared_items)
-        })
+        self.with_restrictions(Restrictions::ALLOW_SELF, |this| this.enum_item_inner(declared_items))
     }
 
     fn enum_item_inner(&mut self, declared_items: &mut HashSet<Symbol>) -> Result<ast::Enum> {
         let name = self.consume(Ident, "Expected enum name")?;
         if !declared_items.insert(name.symbol) {
-            return self.handler.mk_err(
-                name.span,
-                "Struct or Enum with same name already defined in this scope",
-            );
+            return self
+                .handler
+                .mk_err(name.span, "Struct or Enum with same name already defined in this scope");
         }
 
         self.consume(OpenBrace, "Expected '{'")?;
@@ -218,9 +211,7 @@ impl Parser {
         while !self.check(CloseBrace) && !self.eof() {
             let variant = self.variant()?;
             if !names.insert(variant.name.symbol) {
-                return self
-                    .handler
-                    .mk_err(variant.name.span, "Duplicate variant name");
+                return self.handler.mk_err(variant.name.span, "Duplicate variant name");
             }
             variants.push(variant);
             if !self.eat(Comma) {
@@ -261,10 +252,9 @@ impl Parser {
     ) -> Result<ast::Struct> {
         let name = self.consume(Ident, "Expected struct name")?;
         if !declared_items.insert(name.symbol) {
-            return self.handler.mk_err(
-                name.span,
-                "Struct or Enum with same name already defined in this scope",
-            );
+            return self
+                .handler
+                .mk_err(name.span, "Struct or Enum with same name already defined in this scope");
         }
 
         let fields = self.struct_fields(&name, Some(declared_fns))?;
@@ -291,10 +281,9 @@ impl Parser {
         } else if self.eat(OpenParen) {
             if let Some(declared_fns) = declared_fns {
                 if !declared_fns.insert(name.symbol) {
-                    return self.handler.mk_err(
-                        name.span,
-                        "Another item with same name already defined in this scope",
-                    );
+                    return self
+                        .handler
+                        .mk_err(name.span, "Another item with same name already defined in this scope");
                 }
             }
 
@@ -326,9 +315,7 @@ impl Parser {
         self.consume(Colon, "Expected ':' after field name")?;
         let ty = self.parse_ty()?;
         if ty.kind == TyKind::Infer {
-            return self
-                .handler
-                .mk_err(ty.span, "not allowed in type signatures");
+            return self.handler.mk_err(ty.span, "not allowed in type signatures");
         }
 
         Ok(ast::StructField { name, ty })
@@ -363,9 +350,7 @@ impl Parser {
 
         if self.eat(Eq) {
             if !expr.is_assignable() {
-                return self
-                    .handler
-                    .mk_err(expr.span, "Cannot assign to this expression");
+                return self.handler.mk_err(expr.span, "Cannot assign to this expression");
             }
 
             let val = self.logic_or()?;
@@ -379,9 +364,7 @@ impl Parser {
             };
         } else if self.eat(PlusEq) || self.eat(MinusEq) || self.eat(StarEq) || self.eat(SlashEq) {
             if !expr.is_assignable() {
-                return self
-                    .handler
-                    .mk_err(expr.span, "Cannot assign to this expression");
+                return self.handler.mk_err(expr.span, "Cannot assign to this expression");
             }
 
             let op = match self.prev.kind {
@@ -610,15 +593,10 @@ impl Parser {
                     };
                 }
             } else if self.eat(Dot) {
-                let name = if self.eat(Ident)
-                    || self.eat(Literal {
-                        kind: LiteralKind::Int,
-                    }) {
+                let name = if self.eat(Ident) || self.eat(Literal { kind: LiteralKind::Int }) {
                     self.prev.clone()
                 } else {
-                    return self
-                        .handler
-                        .mk_err(self.curr.span, "Expected field or method name");
+                    return self.handler.mk_err(self.curr.span, "Expected field or method name");
                 };
                 let span = expr.span.to(name.span);
                 expr = Expr {
@@ -659,8 +637,7 @@ impl Parser {
 
         if self.eat(While) {
             let span = self.prev.span;
-            let cond =
-                self.with_restrictions(Restrictions::NO_STRUCT_LITERAL, |this| this.expr())?;
+            let cond = self.with_restrictions(Restrictions::NO_STRUCT_LITERAL, |this| this.expr())?;
 
             self.consume(OpenBrace, "Expected '{' after the condition")?;
             let body = self.block()?;
@@ -687,9 +664,7 @@ impl Parser {
 
         if self.eat(SelfTy) {
             if !self.restrictions.contains(Restrictions::ALLOW_SELF) {
-                return self
-                    .handler
-                    .mk_err(self.prev.span, "`Self` not allowed here");
+                return self.handler.mk_err(self.prev.span, "`Self` not allowed here");
             }
             return self.path_or_struct();
         }
@@ -707,8 +682,7 @@ impl Parser {
             let lo = self.prev.span;
             let mut exprs = vec![];
             while !self.check(CloseParen) && !self.eof() {
-                let expr =
-                    self.without_restrictions(Restrictions::NO_STRUCT_LITERAL, |this| this.expr())?;
+                let expr = self.without_restrictions(Restrictions::NO_STRUCT_LITERAL, |this| this.expr())?;
                 exprs.push(expr);
 
                 if !self.eat(Comma) {
@@ -785,9 +759,7 @@ impl Parser {
             Lit::Bool(false)
         } else if self.eat(True) {
             Lit::Bool(true)
-        } else if self.eat(Literal {
-            kind: LiteralKind::Int,
-        }) {
+        } else if self.eat(Literal { kind: LiteralKind::Int }) {
             match self.prev.symbol.parse().map(Lit::Integer) {
                 Ok(lit) => lit,
                 Err(_) => {
@@ -800,9 +772,7 @@ impl Parser {
             kind: LiteralKind::Float,
         }) {
             Lit::Float(self.prev.symbol)
-        } else if self.eat(Literal {
-            kind: LiteralKind::Str,
-        }) {
+        } else if self.eat(Literal { kind: LiteralKind::Str }) {
             Lit::Str(self.prev.symbol)
         } else {
             return None;
@@ -843,10 +813,9 @@ impl Parser {
             span = span.to(self.prev.span);
 
             if self.restrictions.contains(Restrictions::NO_STRUCT_LITERAL) {
-                return self.handler.mk_err(
-                    span,
-                    "struct literal not allowed here. Use parentheses around it",
-                );
+                return self
+                    .handler
+                    .mk_err(span, "struct literal not allowed here. Use parentheses around it");
             }
 
             ExprKind::Struct(name, fields, false)
@@ -872,10 +841,7 @@ impl Parser {
             self.consume(ColonColon, "Expected '::'")?;
             let method_name = self.consume(Ident, "Expected identifier")?;
             span = span.to(self.prev.span);
-            let assoc_method = ExprKind::AssocMethod {
-                ty,
-                name: method_name,
-            };
+            let assoc_method = ExprKind::AssocMethod { ty, name: method_name };
 
             if self.eat(OpenParen) {
                 let callee = Box::new(Expr {
@@ -975,9 +941,7 @@ impl Parser {
         while !self.check(closing_delim) && !self.eof() {
             let param = self.param(infer_ty)?;
             if !names.insert(param.name.symbol) {
-                return self
-                    .handler
-                    .mk_err(param.name.span, "Duplicate parameter name");
+                return self.handler.mk_err(param.name.span, "Duplicate parameter name");
             }
             params.push(param);
             if !self.eat(Comma) {
@@ -1009,9 +973,7 @@ impl Parser {
         } else if infer_ty {
             TyKind::Infer.into()
         } else {
-            return self
-                .handler
-                .mk_err(self.curr.span, "Expected parameter type");
+            return self.handler.mk_err(self.curr.span, "Expected parameter type");
         };
 
         Ok(Param { name, ty })
@@ -1077,9 +1039,7 @@ impl Parser {
     fn token_to_ty(&self) -> Result<Ty> {
         if self.prev.is_self_ty() {
             if !self.restrictions.contains(Restrictions::ALLOW_SELF) {
-                return self
-                    .handler
-                    .mk_err(self.prev.span, "`Self` not allowed here");
+                return self.handler.mk_err(self.prev.span, "`Self` not allowed here");
             }
             return Ok(Ty {
                 span: self.prev.span,
@@ -1199,10 +1159,7 @@ mod tests {
 
     macro_rules! litint {
         ($val:literal, ($lo:expr, $hi:expr)) => {
-            expr!(
-                ExprKind::Literal(Lit::Integer($val), Span::DUMMY),
-                ($lo, $hi)
-            )
+            expr!(ExprKind::Literal(Lit::Integer($val), Span::DUMMY), ($lo, $hi))
         };
     }
 

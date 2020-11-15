@@ -220,12 +220,7 @@ impl Lexer {
         self.advance();
 
         let symbol = Symbol::intern(&self.src[self.start_pos + 1..self.pos - 1]);
-        Some(self.add_token_with_symbol(
-            Literal {
-                kind: LiteralKind::Str,
-            },
-            symbol,
-        ))
+        Some(self.add_token_with_symbol(Literal { kind: LiteralKind::Str }, symbol))
     }
 
     fn number(&mut self) -> Token {
@@ -269,19 +264,11 @@ impl Lexer {
     }
 
     fn peek(&self) -> u8 {
-        self.src
-            .as_bytes()
-            .get(self.pos)
-            .copied()
-            .unwrap_or_default()
+        self.src.as_bytes().get(self.pos).copied().unwrap_or_default()
     }
 
     fn peek_next(&self) -> u8 {
-        self.src
-            .as_bytes()
-            .get(self.pos + 1)
-            .copied()
-            .unwrap_or_default()
+        self.src.as_bytes().get(self.pos + 1).copied().unwrap_or_default()
     }
 
     fn advance(&mut self) {

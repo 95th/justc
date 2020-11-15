@@ -124,10 +124,7 @@ impl TyContext {
     }
 
     pub fn resolve_ty(&mut self, var: TypeVar) -> Ty {
-        self.table
-            .probe_value(var)
-            .known()
-            .unwrap_or_else(|| Ty::Infer(var))
+        self.table.probe_value(var).known().unwrap_or_else(|| Ty::Infer(var))
     }
 
     pub fn unify_value(&mut self, var: TypeVar, ty: Ty) {
@@ -155,9 +152,7 @@ impl TyContext {
 
         match (a, b) {
             (Ty::Infer(a), Ty::Infer(b)) => self.table.union(a, b),
-            (Ty::Infer(v), other) | (other, Ty::Infer(v)) => {
-                self.table.union_value(v, TypeVarValue::Known(other))
-            }
+            (Ty::Infer(v), other) | (other, Ty::Infer(v)) => self.table.union_value(v, TypeVarValue::Known(other)),
             (Ty::Fn(params, ret), Ty::Fn(params2, ret2)) => {
                 if params.len() != params2.len() {
                     return self
@@ -173,10 +168,7 @@ impl TyContext {
                 if id != id2 {
                     return self.handler.mk_err(
                         span,
-                        &format!(
-                            "Type mismatch: Expected type `{}`, Actual: `{}`",
-                            name, name2
-                        ),
+                        &format!("Type mismatch: Expected type `{}`, Actual: `{}`", name, name2),
                     );
                 }
                 for (f1, t1) in fields.iter() {
@@ -225,10 +217,7 @@ pub enum Ty {
     Int,
     Float,
     Str,
-    Fn(
-        /* params: */ Rc<Vec<TypeVar>>,
-        /* return_ty: */ TypeVar,
-    ),
+    Fn(/* params: */ Rc<Vec<TypeVar>>, /* return_ty: */ TypeVar),
     Struct(
         /* id: */ TypeVar,
         /* name: */ Symbol,

@@ -74,32 +74,18 @@ impl Typeck {
 
                 use ast::BinOp::*;
                 match op.val {
-                    Add | Sub | Mul | Div | Rem | Lt | Gt | Le | Ge => {
-                        match self.env.resolve_ty(lhs.ty) {
-                            Ty::Int | Ty::Float => {}
-                            ty => {
-                                return self
-                                    .handler
-                                    .mk_err(op.span, &format!("Not supported for `{}`", ty))
-                            }
-                        }
-                    }
+                    Add | Sub | Mul | Div | Rem | Lt | Gt | Le | Ge => match self.env.resolve_ty(lhs.ty) {
+                        Ty::Int | Ty::Float => {}
+                        ty => return self.handler.mk_err(op.span, &format!("Not supported for `{}`", ty)),
+                    },
 
                     Ne | Eq => match self.env.resolve_ty(lhs.ty) {
                         Ty::Int | Ty::Float | Ty::Bool => {}
-                        ty => {
-                            return self
-                                .handler
-                                .mk_err(op.span, &format!("Not supported for `{}`", ty))
-                        }
+                        ty => return self.handler.mk_err(op.span, &format!("Not supported for `{}`", ty)),
                     },
                     And | Or => match self.env.resolve_ty(lhs.ty) {
                         Ty::Bool => {}
-                        ty => {
-                            return self
-                                .handler
-                                .mk_err(op.span, &format!("Not supported for `{}`", ty))
-                        }
+                        ty => return self.handler.mk_err(op.span, &format!("Not supported for `{}`", ty)),
                     },
                 }
             }
@@ -112,19 +98,11 @@ impl Typeck {
             ExprKind::Unary { op, expr } => match op.val {
                 ast::UnOp::Not => match self.env.resolve_ty(expr.ty) {
                     Ty::Bool => {}
-                    ty => {
-                        return self
-                            .handler
-                            .mk_err(op.span, &format!("Not supported for `{}`", ty))
-                    }
+                    ty => return self.handler.mk_err(op.span, &format!("Not supported for `{}`", ty)),
                 },
                 ast::UnOp::Neg => match self.env.resolve_ty(expr.ty) {
                     Ty::Int | Ty::Float => {}
-                    ty => {
-                        return self
-                            .handler
-                            .mk_err(op.span, &format!("Not supported for `{}`", ty))
-                    }
+                    ty => return self.handler.mk_err(op.span, &format!("Not supported for `{}`", ty)),
                 },
             },
             ExprKind::Variable(_, _) => {}
@@ -245,10 +223,9 @@ impl Typeck {
             (a, b) if a == b => {}
             (Ty::Struct(id, ..), Ty::Struct(id2, ..)) => {
                 if id != id2 {
-                    return self.handler.mk_err(
-                        span,
-                        &format!("Type mismatch: Expected: `{}`, Actual: `{}`", a, b),
-                    );
+                    return self
+                        .handler
+                        .mk_err(span, &format!("Type mismatch: Expected: `{}`, Actual: `{}`", a, b));
                 }
             }
             (Ty::Fn(args, ret), Ty::Fn(arg2, ret2)) => {
@@ -263,10 +240,9 @@ impl Typeck {
                 }
             }
             (a, b) => {
-                return self.handler.mk_err(
-                    span,
-                    &format!("Type mismatch: Expected: `{}`, Actual: `{}`", a, b),
-                );
+                return self
+                    .handler
+                    .mk_err(span, &format!("Type mismatch: Expected: `{}`, Actual: `{}`", a, b));
             }
         }
         Ok(())

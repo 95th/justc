@@ -39,12 +39,7 @@ impl Handler {
             .take(span.lo() - lo)
             .map(|c| if c == '\t' { '\t' } else { ' ' })
             .collect();
-        println!(
-            "{}{} {}",
-            blank,
-            "^".repeat(span.hi().min(hi) - span.lo()),
-            msg
-        );
+        println!("{}{} {}", blank, "^".repeat(span.hi().min(hi) - span.lo()), msg);
     }
 
     pub fn has_errors(&self) -> bool {
@@ -52,10 +47,7 @@ impl Handler {
     }
 
     fn line_start(&self, span: Span) -> usize {
-        self.src[..span.lo()]
-            .rfind('\n')
-            .map(|i| i + 1)
-            .unwrap_or(0)
+        self.src[..span.lo()].rfind('\n').map(|i| i + 1).unwrap_or(0)
     }
 
     fn line_end(&self, span: Span) -> usize {
