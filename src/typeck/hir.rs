@@ -34,8 +34,8 @@ impl Expr {
 pub enum ExprKind {
     Binary {
         op: Spanned<BinOp>,
-        left: Box<Expr>,
-        right: Box<Expr>,
+        lhs: Box<Expr>,
+        rhs: Box<Expr>,
     },
     Tuple(Vec<Box<Expr>>),
     Literal(Lit, TypeVar, Span),

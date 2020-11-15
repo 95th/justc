@@ -407,49 +407,49 @@ impl Parser {
     }
 
     fn logic_or(&mut self) -> Result<Box<Expr>> {
-        let mut left = self.logic_and()?;
+        let mut lhs = self.logic_and()?;
 
         while self.eat(OrOr) {
             let op_span = self.prev.span;
-            let right = self.logic_and()?;
+            let rhs = self.logic_and()?;
 
-            let span = left.span.to(right.span);
-            left = Box::new(Expr {
+            let span = lhs.span.to(rhs.span);
+            lhs = Box::new(Expr {
                 kind: ExprKind::Binary {
                     op: Spanned::new(BinOp::Or, op_span),
-                    left,
-                    right,
+                    lhs,
+                    rhs,
                 },
                 span,
             });
         }
 
-        Ok(left)
+        Ok(lhs)
     }
 
     fn logic_and(&mut self) -> Result<Box<Expr>> {
-        let mut left = self.equality()?;
+        let mut lhs = self.equality()?;
 
         while self.eat(AndAnd) {
             let op_span = self.prev.span;
-            let right = self.equality()?;
-            let span = left.span.to(right.span);
+            let rhs = self.equality()?;
+            let span = lhs.span.to(rhs.span);
 
-            left = Box::new(Expr {
+            lhs = Box::new(Expr {
                 kind: ExprKind::Binary {
                     op: Spanned::new(BinOp::And, op_span),
-                    left,
-                    right,
+                    lhs,
+                    rhs,
                 },
                 span,
             });
         }
 
-        Ok(left)
+        Ok(lhs)
     }
 
     fn equality(&mut self) -> Result<Box<Expr>> {
-        let mut left = self.comparison()?;
+        let mut lhs = self.comparison()?;
 
         loop {
             let op = if self.eat(Ne) {
@@ -460,24 +460,24 @@ impl Parser {
                 break;
             };
             let op_span = self.prev.span;
-            let right = self.comparison()?;
-            let span = left.span.to(right.span);
+            let rhs = self.comparison()?;
+            let span = lhs.span.to(rhs.span);
 
-            left = Box::new(Expr {
+            lhs = Box::new(Expr {
                 kind: ExprKind::Binary {
                     op: Spanned::new(op, op_span),
-                    left,
-                    right,
+                    lhs,
+                    rhs,
                 },
                 span,
             });
         }
 
-        Ok(left)
+        Ok(lhs)
     }
 
     fn comparison(&mut self) -> Result<Box<Expr>> {
-        let mut left = self.addition()?;
+        let mut lhs = self.addition()?;
 
         loop {
             let op = if self.eat(Gt) {
@@ -492,24 +492,24 @@ impl Parser {
                 break;
             };
             let op_span = self.prev.span;
-            let right = self.addition()?;
-            let span = left.span.to(right.span);
+            let rhs = self.addition()?;
+            let span = lhs.span.to(rhs.span);
 
-            left = Box::new(Expr {
+            lhs = Box::new(Expr {
                 kind: ExprKind::Binary {
                     op: Spanned::new(op, op_span),
-                    left,
-                    right,
+                    lhs,
+                    rhs,
                 },
                 span,
             });
         }
 
-        Ok(left)
+        Ok(lhs)
     }
 
     fn addition(&mut self) -> Result<Box<Expr>> {
-        let mut left = self.multiplication()?;
+        let mut lhs = self.multiplication()?;
 
         loop {
             let op = if self.eat(Minus) {
@@ -520,24 +520,24 @@ impl Parser {
                 break;
             };
             let op_span = self.prev.span;
-            let right = self.multiplication()?;
-            let span = left.span.to(right.span);
+            let rhs = self.multiplication()?;
+            let span = lhs.span.to(rhs.span);
 
-            left = Box::new(Expr {
+            lhs = Box::new(Expr {
                 kind: ExprKind::Binary {
                     op: Spanned::new(op, op_span),
-                    left,
-                    right,
+                    lhs,
+                    rhs,
                 },
                 span,
             });
         }
 
-        Ok(left)
+        Ok(lhs)
     }
 
     fn multiplication(&mut self) -> Result<Box<Expr>> {
-        let mut left = self.unary()?;
+        let mut lhs = self.unary()?;
 
         loop {
             let op = if self.eat(Slash) {
@@ -550,20 +550,20 @@ impl Parser {
                 break;
             };
             let op_span = self.prev.span;
-            let right = self.unary()?;
-            let span = left.span.to(right.span);
+            let rhs = self.unary()?;
+            let span = lhs.span.to(rhs.span);
 
-            left = Box::new(Expr {
+            lhs = Box::new(Expr {
                 kind: ExprKind::Binary {
                     op: Spanned::new(op, op_span),
-                    left,
-                    right,
+                    lhs,
+                    rhs,
                 },
                 span,
             });
         }
 
-        Ok(left)
+        Ok(lhs)
     }
 
     fn unary(&mut self) -> Result<Box<Expr>> {
@@ -1198,12 +1198,12 @@ mod tests {
     }
 
     macro_rules! binop {
-        ($op:ident, $left:expr, $right:expr, ($lo:expr, $hi:expr)) => {
+        ($op:ident, $lhs:expr, $rhs:expr, ($lo:expr, $hi:expr)) => {
             expr!(
                 ExprKind::Binary {
                     op: Spanned::new(BinOp::$op, Span::DUMMY),
-                    left: $left,
-                    right: $right,
+                    lhs: $lhs,
+                    rhs: $rhs,
                 },
                 ($lo, $hi)
             )

@@ -95,10 +95,10 @@ impl<'a> Annotate<'a> {
         let ty = self.env.new_type_var();
         let (kind, span) = (expr.kind, expr.span);
         let kind = match kind {
-            ast::ExprKind::Binary { op, left, right } => hir::ExprKind::Binary {
+            ast::ExprKind::Binary { op, lhs, rhs } => hir::ExprKind::Binary {
                 op,
-                left: self.annotate_expr(left)?,
-                right: self.annotate_expr(right)?,
+                lhs: self.annotate_expr(lhs)?,
+                rhs: self.annotate_expr(rhs)?,
             },
             ast::ExprKind::Tuple(mut exprs) => match exprs.len() {
                 0 => hir::ExprKind::Literal(ast::Lit::Unit, self.env.unit(), expr.span),
@@ -232,8 +232,8 @@ impl<'a> Annotate<'a> {
                 let rhs = Box::new(hir::Expr {
                     span: lhs.span.to(rhs.span),
                     kind: hir::ExprKind::Binary {
-                        left: lhs.clone(),
-                        right: rhs,
+                        lhs: lhs.clone(),
+                        rhs,
                         op,
                     },
                     ty: self.env.new_type_var(),

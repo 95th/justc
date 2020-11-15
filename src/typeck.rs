@@ -69,13 +69,13 @@ impl Typeck {
     fn typeck_expr(&mut self, expr: &Expr) -> Result<()> {
         self.typeck_no_var(expr.ty, expr.span)?;
         match &expr.kind {
-            ExprKind::Binary { op, left, right } => {
-                self.typeck_eq(left.ty, right.ty, right.span)?;
+            ExprKind::Binary { op, lhs, rhs } => {
+                self.typeck_eq(lhs.ty, rhs.ty, rhs.span)?;
 
                 use ast::BinOp::*;
                 match op.val {
                     Add | Sub | Mul | Div | Rem | Lt | Gt | Le | Ge => {
-                        match self.env.resolve_ty(left.ty) {
+                        match self.env.resolve_ty(lhs.ty) {
                             Ty::Int | Ty::Float => {}
                             ty => {
                                 return self
@@ -85,7 +85,7 @@ impl Typeck {
                         }
                     }
 
-                    Ne | Eq => match self.env.resolve_ty(left.ty) {
+                    Ne | Eq => match self.env.resolve_ty(lhs.ty) {
                         Ty::Int | Ty::Float | Ty::Bool => {}
                         ty => {
                             return self
@@ -93,7 +93,7 @@ impl Typeck {
                                 .mk_err(op.span, &format!("Not supported for `{}`", ty))
                         }
                     },
-                    And | Or => match self.env.resolve_ty(left.ty) {
+                    And | Or => match self.env.resolve_ty(lhs.ty) {
                         Ty::Bool => {}
                         ty => {
                             return self

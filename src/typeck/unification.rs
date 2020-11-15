@@ -61,21 +61,19 @@ impl<'a> Unifier<'a> {
 
     fn unify_expr(&mut self, expr: &Expr) -> Result<()> {
         match &expr.kind {
-            ExprKind::Binary {
-                op, left, right, ..
-            } => {
-                self.unify_expr(left)?;
-                self.unify_expr(right)?;
-                self.env.unify(left.ty, right.ty, right.span)?;
+            ExprKind::Binary { op, lhs, rhs } => {
+                self.unify_expr(lhs)?;
+                self.unify_expr(rhs)?;
+                self.env.unify(lhs.ty, rhs.ty, rhs.span)?;
                 match op.val {
                     BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Rem => {
-                        self.env.unify(expr.ty, left.ty, expr.span)?
+                        self.env.unify(expr.ty, lhs.ty, expr.span)?
                     }
                     BinOp::Lt | BinOp::Gt | BinOp::Le | BinOp::Ge | BinOp::Ne | BinOp::Eq => {
                         self.env.unify(expr.ty, self.env.bool(), expr.span)?
                     }
                     BinOp::And | BinOp::Or => {
-                        self.env.unify(expr.ty, left.ty, left.span)?;
+                        self.env.unify(expr.ty, lhs.ty, lhs.span)?;
                         self.env.unify(expr.ty, self.env.bool(), expr.span)?
                     }
                 }
