@@ -26,8 +26,7 @@ impl Compiler {
         let src = Rc::new(src);
         let handler = Rc::new(Handler::new(&src));
         let ast = Parser::new(src, &handler).parse()?;
-        log::trace!("ast: {:#?}", ast);
-        Typeck::new(&handler).typeck(ast)?;
+        Typeck::new(&handler).typeck(&ast)?;
         Ok(())
     }
 }

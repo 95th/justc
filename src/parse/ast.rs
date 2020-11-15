@@ -4,7 +4,7 @@ use crate::{
 };
 use std::fmt;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum BinOp {
     // Math
     Add,
@@ -46,7 +46,7 @@ impl fmt::Display for BinOp {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum UnOp {
     Not,
     Neg,

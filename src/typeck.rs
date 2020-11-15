@@ -31,7 +31,7 @@ impl Typeck {
         }
     }
 
-    pub fn typeck(&mut self, ast: ast::Ast) -> Result<Ast> {
+    pub fn typeck(&mut self, ast: &ast::Ast) -> Result<Ast> {
         let ast = self::annotate::annotate(ast, &mut self.env, &self.handler)?;
         log::debug!("{:#?}", &ast);
 

@@ -12,7 +12,7 @@ use super::{
     ty::{Ty, TyContext, TypeVar},
 };
 
-pub fn annotate(ast: ast::Ast, env: &mut TyContext, handler: &Handler) -> Result<hir::Ast> {
+pub fn annotate(ast: &ast::Ast, env: &mut TyContext, handler: &Handler) -> Result<hir::Ast> {
     let bindings = &mut SymbolTable::new();
     let functions = &mut SymbolTable::new();
     let structs = &mut SymbolTable::new();
@@ -50,12 +50,12 @@ impl<'a> Annotate<'a> {
         }
     }
 
-    fn annotate_ast(&mut self, ast: ast::Ast) -> Result<hir::Ast> {
-        let structs = self.annotate_structs(ast.structs)?;
+    fn annotate_ast(&mut self, ast: &ast::Ast) -> Result<hir::Ast> {
+        let structs = self.annotate_structs(&ast.structs)?;
         self.annotate_fn_headers(&ast.functions);
-        let impls = self.annotate_impls(ast.impls)?;
-        let functions = self.annotate_fns(ast.functions)?;
-        let stmts = self.annotate_stmts(ast.stmts)?;
+        let impls = self.annotate_impls(&ast.impls)?;
+        let functions = self.annotate_fns(&ast.functions)?;
+        let stmts = self.annotate_stmts(&ast.stmts)?;
         Ok(hir::Ast {
             structs,
             impls,
@@ -64,14 +64,14 @@ impl<'a> Annotate<'a> {
         })
     }
 
-    fn annotate_stmts(&mut self, stmts: Vec<ast::Stmt>) -> Result<Vec<hir::Stmt>> {
-        stmts.into_iter().map(|s| self.annotate_stmt(s)).collect()
+    fn annotate_stmts(&mut self, stmts: &[ast::Stmt]) -> Result<Vec<hir::Stmt>> {
+        stmts.iter().map(|s| self.annotate_stmt(s)).collect()
     }
 
-    fn annotate_stmt(&mut self, stmt: ast::Stmt) -> Result<hir::Stmt> {
+    fn annotate_stmt(&mut self, stmt: &ast::Stmt) -> Result<hir::Stmt> {
         match stmt {
             ast::Stmt::Expr(expr, semicolon) => {
-                Ok(hir::Stmt::Expr(self.annotate_expr(expr)?, semicolon))
+                Ok(hir::Stmt::Expr(self.annotate_expr(expr)?, *semicolon))
             }
             ast::Stmt::Let { name, init, ty } => {
                 let init = match init {
@@ -83,7 +83,7 @@ impl<'a> Annotate<'a> {
                 self.bindings.insert(name.symbol, let_ty);
 
                 Ok(hir::Stmt::Let {
-                    name,
+                    name: name.clone(),
                     ty: let_ty,
                     init,
                 })
@@ -91,35 +91,32 @@ impl<'a> Annotate<'a> {
         }
     }
 
-    fn annotate_expr(&mut self, expr: ast::Expr) -> Result<hir::Expr> {
+    fn annotate_expr(&mut self, expr: &ast::Expr) -> Result<hir::Expr> {
         let ty = self.env.new_type_var();
-        let (kind, span) = (expr.kind, expr.span);
+        let (kind, span) = (&expr.kind, expr.span);
         let kind = match kind {
             ast::ExprKind::Binary { op, lhs, rhs } => {
-                let lhs = self.annotate_expr(*lhs)?;
-                let rhs = self.annotate_expr(*rhs)?;
+                let lhs = self.annotate_expr(lhs)?;
+                let rhs = self.annotate_expr(rhs)?;
                 hir::ExprKind::Binary {
-                    op,
+                    op: *op,
                     lhs: Box::new(lhs),
                     rhs: Box::new(rhs),
                 }
             }
-            ast::ExprKind::Tuple(mut exprs) => match exprs.len() {
-                0 => hir::ExprKind::Literal(ast::Lit::Unit, self.env.unit(), expr.span),
-                1 => {
-                    let e = exprs.pop().unwrap();
-                    return self.annotate_expr(e);
-                }
-                _ => {
+            ast::ExprKind::Tuple(exprs) => match &exprs[..] {
+                [] => hir::ExprKind::Literal(ast::Lit::Unit, self.env.unit(), expr.span),
+                [e] => return self.annotate_expr(&e),
+                exprs => {
                     let exprs = exprs
-                        .into_iter()
+                        .iter()
                         .map(|e| self.annotate_expr(e))
                         .collect::<Result<_>>()?;
                     hir::ExprKind::Tuple(exprs)
                 }
             },
             ast::ExprKind::Literal(lit, span) => {
-                let ty = match &lit {
+                let ty = match lit {
                     ast::Lit::Unit => self.env.unit(),
                     ast::Lit::Str(_) => self.env.str(),
                     ast::Lit::Integer(_) => self.env.int(),
@@ -127,12 +124,12 @@ impl<'a> Annotate<'a> {
                     ast::Lit::Bool(_) => self.env.bool(),
                     ast::Lit::Err => self.env.new_type_var(),
                 };
-                hir::ExprKind::Literal(lit, ty, span)
+                hir::ExprKind::Literal(lit.clone(), ty, *span)
             }
             ast::ExprKind::Unary { op, expr } => {
-                let expr = self.annotate_expr(*expr)?;
+                let expr = self.annotate_expr(expr)?;
                 hir::ExprKind::Unary {
-                    op,
+                    op: *op,
                     expr: Box::new(expr),
                 }
             }
@@ -141,7 +138,7 @@ impl<'a> Annotate<'a> {
                 .get(t.symbol)
                 .or_else(|| self.functions.get(t.symbol))
             {
-                Some(ty) => hir::ExprKind::Variable(t, *ty),
+                Some(ty) => hir::ExprKind::Variable(t.clone(), *ty),
                 None => {
                     log::debug!("Variable `{}` not found", t.symbol);
                     log::trace!("Bindings: {:?}", self.bindings);
@@ -155,11 +152,11 @@ impl<'a> Annotate<'a> {
                 then_clause,
                 else_clause,
             } => {
-                let cond = self.annotate_expr(*cond)?;
+                let cond = self.annotate_expr(cond)?;
                 let then_clause = self.annotate_block(then_clause)?;
                 let else_clause = match else_clause {
                     Some(e) => {
-                        let e = self.annotate_expr(*e)?;
+                        let e = self.annotate_expr(e)?;
                         Some(Box::new(e))
                     }
                     None => None,
@@ -174,7 +171,7 @@ impl<'a> Annotate<'a> {
                 let params = this.annotate_params(params)?;
                 let ret = this.ast_ty_to_ty(ret)?;
                 this.has_enclosing_fn = true;
-                let body = this.annotate_expr(*body)?;
+                let body = this.annotate_expr(body)?;
                 this.has_enclosing_fn = false;
                 Ok(hir::ExprKind::Closure {
                     params,
@@ -183,9 +180,9 @@ impl<'a> Annotate<'a> {
                 })
             })?,
             ast::ExprKind::Call { callee, args } => {
-                let callee = self.annotate_expr(*callee)?;
+                let callee = self.annotate_expr(callee)?;
                 let args = args
-                    .into_iter()
+                    .iter()
                     .map(|arg| self.annotate_expr(arg))
                     .collect::<Result<_>>()?;
                 hir::ExprKind::Call {
@@ -196,22 +193,24 @@ impl<'a> Annotate<'a> {
             ast::ExprKind::Struct(name, fields, tuple) => {
                 if name.is_self_ty() {
                     hir::ExprKind::Struct(
-                        name,
+                        name.clone(),
                         self.annotate_fields(fields)?,
                         self.enclosing_self_ty.unwrap(),
                     )
                 } else {
                     match self.structs.get(name.symbol).copied() {
-                        Some(ty) => hir::ExprKind::Struct(name, self.annotate_fields(fields)?, ty),
-                        None if tuple => {
+                        Some(ty) => {
+                            hir::ExprKind::Struct(name.clone(), self.annotate_fields(fields)?, ty)
+                        }
+                        None if *tuple => {
                             if self.functions.is_defined(name.symbol)
                                 || self.bindings.is_defined(name.symbol)
                             {
-                                let callee = Box::new(ast::Expr {
+                                let callee = ast::Expr {
                                     span: name.span,
-                                    kind: ast::ExprKind::Variable(name),
-                                });
-                                let callee = self.annotate_expr(*callee)?;
+                                    kind: ast::ExprKind::Variable(name.clone()),
+                                };
+                                let callee = self.annotate_expr(&callee)?;
                                 let args = self
                                     .annotate_fields(fields)?
                                     .into_iter()
@@ -234,42 +233,45 @@ impl<'a> Annotate<'a> {
                 }
             }
             ast::ExprKind::Field(expr, name) => {
-                let expr = self.annotate_expr(*expr)?;
-                hir::ExprKind::Field(Box::new(expr), name)
+                let expr = self.annotate_expr(expr)?;
+                hir::ExprKind::Field(Box::new(expr), name.clone())
             }
             ast::ExprKind::MethodCall { callee, name, args } => {
-                let callee = self.annotate_expr(*callee)?;
+                let callee = self.annotate_expr(callee)?;
                 let args = args
-                    .into_iter()
+                    .iter()
                     .map(|arg| self.annotate_expr(arg))
                     .collect::<Result<_>>()?;
                 hir::ExprKind::MethodCall {
                     callee: Box::new(callee),
-                    name,
+                    name: name.clone(),
                     args,
                 }
             }
             ast::ExprKind::AssocMethod { ty, name } => {
                 let ty = self.ast_ty_to_ty(ty)?;
-                hir::ExprKind::AssocMethod { ty, name }
+                hir::ExprKind::AssocMethod {
+                    ty,
+                    name: name.clone(),
+                }
             }
             ast::ExprKind::Assign { lhs, rhs } => {
-                let lhs = self.annotate_expr(*lhs)?;
-                let rhs = self.annotate_expr(*rhs)?;
+                let lhs = self.annotate_expr(lhs)?;
+                let rhs = self.annotate_expr(rhs)?;
                 hir::ExprKind::Assign {
                     lhs: Box::new(lhs),
                     rhs: Box::new(rhs),
                 }
             }
             ast::ExprKind::OpAssign { lhs, rhs, op } => {
-                let lhs = self.annotate_expr(*lhs)?;
-                let rhs = self.annotate_expr(*rhs)?;
+                let lhs = self.annotate_expr(lhs)?;
+                let rhs = self.annotate_expr(rhs)?;
                 let rhs = hir::Expr {
                     span: lhs.span.to(rhs.span),
                     kind: hir::ExprKind::Binary {
                         lhs: Box::new(lhs.clone()),
                         rhs: Box::new(rhs),
-                        op,
+                        op: *op,
                     },
                     ty: self.env.new_type_var(),
                 };
@@ -287,7 +289,7 @@ impl<'a> Annotate<'a> {
 
                 let e = match e {
                     Some(e) => {
-                        let e = self.annotate_expr(*e)?;
+                        let e = self.annotate_expr(e)?;
                         Some(Box::new(e))
                     }
                     None => None,
@@ -304,7 +306,7 @@ impl<'a> Annotate<'a> {
 
                 let e = match e {
                     Some(e) => {
-                        let e = self.annotate_expr(*e)?;
+                        let e = self.annotate_expr(e)?;
                         Some(Box::new(e))
                     }
                     None => None,
@@ -322,7 +324,7 @@ impl<'a> Annotate<'a> {
                 hir::ExprKind::Continue
             }
             ast::ExprKind::While { cond, body } => {
-                let cond = self.annotate_expr(*cond)?;
+                let cond = self.annotate_expr(cond)?;
                 let mut body = self.enter_loop_scope(|this| this.annotate_block(body))?;
                 let then_clause = hir::Block {
                     stmts: vec![hir::Stmt::Expr(
@@ -361,13 +363,13 @@ impl<'a> Annotate<'a> {
         Ok(hir::Expr { kind, span, ty })
     }
 
-    fn annotate_block(&mut self, block: ast::Block) -> Result<hir::Block> {
+    fn annotate_block(&mut self, block: &ast::Block) -> Result<hir::Block> {
         self.enter_block_scope(|this| {
-            let structs = this.annotate_structs(block.structs)?;
+            let structs = this.annotate_structs(&block.structs)?;
             this.annotate_fn_headers(&block.functions);
-            let impls = this.annotate_impls(block.impls)?;
-            let functions = this.annotate_fns(block.functions)?;
-            let stmts = this.annotate_stmts(block.stmts)?;
+            let impls = this.annotate_impls(&block.impls)?;
+            let functions = this.annotate_fns(&block.functions)?;
+            let stmts = this.annotate_stmts(&block.stmts)?;
             Ok(hir::Block {
                 stmts,
                 impls,
@@ -386,7 +388,7 @@ impl<'a> Annotate<'a> {
         }
     }
 
-    fn annotate_methods(&mut self, functions: Vec<ast::Function>) -> Result<Vec<hir::Function>> {
+    fn annotate_methods(&mut self, functions: &[ast::Function]) -> Result<Vec<hir::Function>> {
         let mut out = vec![];
         for func in functions {
             let ty = self.env.new_type_var();
@@ -396,7 +398,7 @@ impl<'a> Annotate<'a> {
         Ok(out)
     }
 
-    fn annotate_fns(&mut self, functions: Vec<ast::Function>) -> Result<Vec<hir::Function>> {
+    fn annotate_fns(&mut self, functions: &[ast::Function]) -> Result<Vec<hir::Function>> {
         let mut out = vec![];
         for func in functions {
             let ty = *self.functions.get(func.name.symbol).unwrap();
@@ -406,15 +408,15 @@ impl<'a> Annotate<'a> {
         Ok(out)
     }
 
-    fn annotate_fn(&mut self, func: ast::Function, ty: TypeVar) -> Result<hir::Function> {
+    fn annotate_fn(&mut self, func: &ast::Function, ty: TypeVar) -> Result<hir::Function> {
         self.enter_fn_scope(|this| {
-            let params = this.annotate_params(func.params)?;
-            let ret = this.ast_ty_to_ty(func.ret)?;
+            let params = this.annotate_params(&func.params)?;
+            let ret = this.ast_ty_to_ty(&func.ret)?;
             this.has_enclosing_fn = true;
-            let body = this.annotate_block(func.body)?;
+            let body = this.annotate_block(&func.body)?;
             this.has_enclosing_fn = false;
             Ok(hir::Function {
-                name: func.name,
+                name: func.name.clone(),
                 params,
                 ret,
                 body,
@@ -423,34 +425,34 @@ impl<'a> Annotate<'a> {
         })
     }
 
-    fn annotate_params(&mut self, params: Vec<ast::Param>) -> Result<Vec<hir::Param>> {
+    fn annotate_params(&mut self, params: &[ast::Param]) -> Result<Vec<hir::Param>> {
         params
-            .into_iter()
+            .iter()
             .map(|p| {
-                let param_ty = self.ast_ty_to_ty(p.ty)?;
+                let param_ty = self.ast_ty_to_ty(&p.ty)?;
                 self.bindings.insert(p.name.symbol, param_ty);
                 Ok(hir::Param {
-                    name: p.name,
+                    name: p.name.clone(),
                     param_ty,
                 })
             })
             .collect()
     }
 
-    fn ast_ty_to_ty(&mut self, ast_ty: ast::Ty) -> Result<TypeVar> {
-        let ty = match ast_ty.kind {
+    fn ast_ty_to_ty(&mut self, ast_ty: &ast::Ty) -> Result<TypeVar> {
+        let ty = match &ast_ty.kind {
             ast::TyKind::Fn(params, ret) => {
                 let params = params
-                    .into_iter()
+                    .iter()
                     .map(|p| self.ast_ty_to_ty(p))
                     .collect::<Result<_>>()?;
-                let ret = self.ast_ty_to_ty(*ret)?;
+                let ret = self.ast_ty_to_ty(ret)?;
                 self.env.alloc_ty(Ty::Fn(Rc::new(params), ret))
             }
             ast::TyKind::Ident(t) => self.token_to_ty(&t)?,
             ast::TyKind::Tuple(types) => {
                 let types = types
-                    .into_iter()
+                    .iter()
                     .map(|t| self.ast_ty_to_ty(t))
                     .collect::<Result<_>>()?;
                 self.env.alloc_ty(Ty::Tuple(Rc::new(types)))
@@ -463,38 +465,34 @@ impl<'a> Annotate<'a> {
         Ok(ty)
     }
 
-    fn annotate_impls(&mut self, impls: Vec<ast::Impl>) -> Result<Vec<hir::Impl>> {
-        impls.into_iter().map(|i| self.annotate_impl(i)).collect()
+    fn annotate_impls(&mut self, impls: &[ast::Impl]) -> Result<Vec<hir::Impl>> {
+        impls.iter().map(|i| self.annotate_impl(i)).collect()
     }
 
-    fn annotate_impl(&mut self, i: ast::Impl) -> Result<hir::Impl> {
+    fn annotate_impl(&mut self, i: &ast::Impl) -> Result<hir::Impl> {
         let ty = match self.structs.get(i.name.symbol) {
             Some(ty) => *ty,
             None => {
                 return self.handler.mk_err(i.name.span, "Not found in this scope");
             }
         };
-        let functions = self.enter_self_scope(ty, |this| this.annotate_methods(i.functions))?;
+        let functions = self.enter_self_scope(ty, |this| this.annotate_methods(&i.functions))?;
         Ok(hir::Impl { ty, functions })
     }
 
-    fn annotate_structs(&mut self, structs: Vec<ast::Struct>) -> Result<Vec<hir::Struct>> {
-        for s in &structs {
+    fn annotate_structs(&mut self, structs: &[ast::Struct]) -> Result<Vec<hir::Struct>> {
+        for s in structs {
             self.structs.insert(s.name.symbol, self.env.new_type_var());
         }
 
-        structs
-            .into_iter()
-            .map(|s| self.annotate_struct(s))
-            .collect()
+        structs.iter().map(|s| self.annotate_struct(s)).collect()
     }
 
-    fn annotate_struct(&mut self, s: ast::Struct) -> Result<hir::Struct> {
+    fn annotate_struct(&mut self, s: &ast::Struct) -> Result<hir::Struct> {
         let ty = *self.structs.get(s.name.symbol).unwrap();
-        let fields = s.fields;
-        let fields = self.enter_self_scope(ty, |this| this.annotate_struct_fields(fields))?;
+        let fields = self.enter_self_scope(ty, |this| this.annotate_struct_fields(&s.fields))?;
         Ok(hir::Struct {
-            name: s.name,
+            name: s.name.clone(),
             fields,
             ty,
         })
@@ -502,29 +500,29 @@ impl<'a> Annotate<'a> {
 
     fn annotate_struct_fields(
         &mut self,
-        fields: Vec<ast::StructField>,
+        fields: &[ast::StructField],
     ) -> Result<Vec<hir::StructField>> {
         fields
-            .into_iter()
+            .iter()
             .map(|f| self.annotate_struct_field(f))
             .collect()
     }
 
-    fn annotate_struct_field(&mut self, field: ast::StructField) -> Result<hir::StructField> {
+    fn annotate_struct_field(&mut self, field: &ast::StructField) -> Result<hir::StructField> {
         Ok(hir::StructField {
-            name: field.name,
-            ty: self.ast_ty_to_ty(field.ty)?,
+            name: field.name.clone(),
+            ty: self.ast_ty_to_ty(&field.ty)?,
         })
     }
 
-    fn annotate_fields(&mut self, fields: Vec<ast::Field>) -> Result<Vec<hir::Field>> {
-        fields.into_iter().map(|f| self.annotate_field(f)).collect()
+    fn annotate_fields(&mut self, fields: &[ast::Field]) -> Result<Vec<hir::Field>> {
+        fields.iter().map(|f| self.annotate_field(f)).collect()
     }
 
-    fn annotate_field(&mut self, field: ast::Field) -> Result<hir::Field> {
+    fn annotate_field(&mut self, field: &ast::Field) -> Result<hir::Field> {
         Ok(hir::Field {
-            name: field.name,
-            expr: self.annotate_expr(field.expr)?,
+            name: field.name.clone(),
+            expr: self.annotate_expr(&field.expr)?,
         })
     }
 
