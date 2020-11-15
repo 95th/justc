@@ -211,11 +211,10 @@ impl<'a> Annotate<'a> {
                                     kind: ast::ExprKind::Variable(name.clone()),
                                 };
                                 let callee = self.annotate_expr(&callee)?;
-                                let args = self
-                                    .annotate_fields(fields)?
-                                    .into_iter()
-                                    .map(|f| f.expr)
-                                    .collect();
+                                let args = fields
+                                    .iter()
+                                    .map(|f| self.annotate_expr(&f.expr))
+                                    .collect::<Result<_>>()?;
                                 hir::ExprKind::Call {
                                     callee: Box::new(callee),
                                     args,
