@@ -62,6 +62,6 @@ impl Handler {
         self.src[span.lo()..]
             .find('\n')
             .map(|i| span.lo() + i)
-            .unwrap_or(self.src.len())
+            .unwrap_or_else(|| self.src.len())
     }
 }

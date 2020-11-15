@@ -451,12 +451,10 @@ impl<'a> Unifier<'a> {
 
     fn unify_fn_header(&mut self, function: &Function) -> Result<()> {
         for (idx, p) in function.params.iter().enumerate() {
-            if p.name.is_self_param() {
-                if idx != 0 {
-                    return self
-                        .handler
-                        .mk_err(p.name.span, "`self` must be the first parameter");
-                }
+            if p.name.is_self_param() && idx != 0 {
+                return self
+                    .handler
+                    .mk_err(p.name.span, "`self` must be the first parameter");
             }
         }
 

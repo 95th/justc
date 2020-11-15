@@ -21,12 +21,7 @@ fn run_file(file_name: PathBuf) {
 fn run_prompt() {
     let mut editor = Editor::<()>::new();
     let mut c = Compiler::new();
-    loop {
-        match editor.readline("$ ") {
-            Ok(line) => {
-                c.run(line).ok();
-            }
-            Err(_) => break,
-        }
+    while let Ok(line) = editor.readline("$ ") {
+        c.run(line).ok();
     }
 }

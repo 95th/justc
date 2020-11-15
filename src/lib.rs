@@ -14,6 +14,7 @@ mod symbol;
 mod typeck;
 mod util;
 
+#[derive(Default)]
 pub struct Compiler {}
 
 impl Compiler {

@@ -84,7 +84,7 @@ impl Parser {
             Ok(s) => Ok(s),
             Err(()) => {
                 self.synchronize();
-                return Err(());
+                Err(())
             }
         }
     }
@@ -772,7 +772,7 @@ impl Parser {
             }));
         }
 
-        return self.handler.mk_err(self.curr.span, "Expected expression");
+        self.handler.mk_err(self.curr.span, "Expected expression")
     }
 
     fn lit(&mut self) -> Option<Result<Box<Expr>>> {
@@ -1142,7 +1142,7 @@ impl Parser {
             return Ok(self.prev.clone());
         }
 
-        return self.handler.mk_err(self.curr.span, msg);
+        self.handler.mk_err(self.curr.span, msg)
     }
 
     fn eat(&mut self, kind: TokenKind) -> bool {
