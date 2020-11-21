@@ -342,7 +342,17 @@ impl Parser {
     fn expr_stmt(&mut self) -> Result<Stmt> {
         let expr = self.expr()?;
 
-        Ok(Stmt::Expr(expr, self.eat(SemiColon)))
+        if self.eat(SemiColon) {
+            return Ok(Stmt::Expr(expr, true));
+        }
+
+        if !self.check(Dot) && !self.check(CloseBrace) && !self.check_op() {
+            return self
+                .handler
+                .mk_err(self.curr.span, "Expected one of `.`, `;`, `}` or an operator");
+        }
+
+        Ok(Stmt::Expr(expr, false))
     }
 
     fn expr(&mut self) -> Result<Expr> {
@@ -1103,6 +1113,10 @@ impl Parser {
         let result = f(self);
         self.restrictions = save;
         result
+    }
+
+    fn check_op(&self) -> bool {
+        self.curr.kind.is_op()
     }
 
     fn consume(&mut self, kind: TokenKind, msg: &'static str) -> Result<Token> {

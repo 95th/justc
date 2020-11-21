@@ -348,8 +348,8 @@ impl<'a> Unifier<'a> {
         self.unify_fn_bodies(&block.functions)?;
 
         match block.stmts.last() {
-            Some(Stmt::Expr(expr, semicolon)) => {
-                if !semicolon || expr.is_flow_control() {
+            Some(Stmt::Expr(expr, false)) => {
+                if !expr.is_flow_control() {
                     self.env.unify(block.ty, expr.ty, expr.span)?;
                 }
             }

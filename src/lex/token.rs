@@ -98,6 +98,35 @@ pub enum TokenKind {
     Eof,
 }
 
+impl TokenKind {
+    pub fn is_op(&self) -> bool {
+        use TokenKind::*;
+        matches!(
+            self,
+            Plus | PlusEq
+                | Minus
+                | MinusEq
+                | Star
+                | StarEq
+                | Slash
+                | SlashEq
+                | Percent
+                | And
+                | AndAnd
+                | Or
+                | OrOr
+                | EqEq
+                | Ne
+                | Gt
+                | Ge
+                | Lt
+                | Le
+                | Range
+                | RangeClosed
+        )
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LiteralKind {
     Str,
