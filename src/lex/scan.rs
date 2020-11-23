@@ -33,7 +33,7 @@ impl Lexer {
         let pos = self.pos;
 
         let mut t = Token {
-            kind: TokenKind::Eof,
+            kind: Eof,
             span: Span::DUMMY,
             symbol: Symbol::intern(""),
         };
@@ -57,7 +57,12 @@ impl Lexer {
                 return t;
             }
         }
-        self.add_token(TokenKind::Eof)
+
+        Token {
+            kind: Eof,
+            span: Span::new(self.src.len(), self.src.len()),
+            symbol: Symbol::intern(""),
+        }
     }
 
     fn scan_token(&mut self) -> Option<Token> {
@@ -150,23 +155,23 @@ impl Lexer {
             b'"' => return self.string(),
             b':' => {
                 if self.eat(b':') {
-                    self.add_token(TokenKind::ColonColon)
+                    self.add_token(ColonColon)
                 } else {
                     self.add_token(Colon)
                 }
             }
             b'&' => {
                 if self.eat(b'&') {
-                    self.add_token(TokenKind::AndAnd)
+                    self.add_token(AndAnd)
                 } else {
-                    self.add_token(TokenKind::And)
+                    self.add_token(And)
                 }
             }
             b'|' => {
                 if self.eat(b'|') {
-                    self.add_token(TokenKind::OrOr)
+                    self.add_token(OrOr)
                 } else {
-                    self.add_token(TokenKind::Or)
+                    self.add_token(Or)
                 }
             }
             c if c.is_ascii_digit() => self.number(),
@@ -305,6 +310,5 @@ fn keywords() -> HashMap<Symbol, TokenKind> {
     m.insert(Symbol::intern("continue"), Continue);
     m.insert(Symbol::intern("print"), Print);
     m.insert(Symbol::intern("impl"), Impl);
-    m.insert(Symbol::intern("eof"), Eof);
     m
 }

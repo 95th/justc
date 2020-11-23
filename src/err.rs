@@ -25,6 +25,7 @@ impl Handler {
     pub fn report(&self, mut span: Span, msg: &str) {
         self.had_errors.set(true);
 
+        let orig_span = span;
         if span.lo() >= self.src.len() {
             span = Span::new(self.src.len() - 1, self.src.len());
         }
@@ -36,7 +37,7 @@ impl Handler {
 
         let blank: String = line
             .chars()
-            .take(span.lo() - lo)
+            .take(orig_span.lo() - lo)
             .map(|c| if c == '\t' { '\t' } else { ' ' })
             .collect();
         println!("{}{} {}", blank, "^".repeat(span.hi().min(hi) - span.lo()), msg);
