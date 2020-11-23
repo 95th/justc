@@ -295,6 +295,32 @@ impl<'a> Unifier<'a> {
                             self.unify_expr(arg)?;
                         }
                     }
+                    Ty::Tuple(fields) => {
+                        let index = match method_name.symbol.parse::<usize>() {
+                            Ok(i) => i,
+                            Err(_) => {
+                                return self.handler.mk_err(
+                                    method_name.span,
+                                    &format!("Method or Field `{}` not found on tuple", method_name.symbol),
+                                )
+                            }
+                        };
+                        match fields.get(index) {
+                            Some(ty) => {
+                                let method_ty = self.env.resolve_ty(*ty);
+                                self.unify_fn_call(expr, None, args, &method_ty, method_name.span)?;
+                            }
+                            None => {
+                                return self.handler.mk_err(
+                                    method_name.span,
+                                    &format!("Method or Field `{}` not found on tuple", method_name.symbol),
+                                )
+                            }
+                        }
+                        for arg in args {
+                            self.unify_expr(arg)?;
+                        }
+                    }
                     Ty::Infer(_) => {
                         return self
                             .handler

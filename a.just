@@ -1,17 +1,3 @@
-struct Range {
-    lo: int,
-    hi: int,
+fn foo(f: (fn(), fn() -> (int))) -> int {
+    f.1()
 }
-
-impl Range {
-    fn new(lo: int, hi: int) -> Self {
-        Self { lo, hi }
-    }
-
-    fn zero() -> Self {
-        Self::new(0, 0)
-    }
-}
-
-let r = Range::new(1, 2);
-r.lo + r.hi
