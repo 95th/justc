@@ -1,1 +1,5 @@
-let x = |x| x.a();
+enum Foo {
+    A,
+    B { a: int, b: float },
+    C(int, float),
+}

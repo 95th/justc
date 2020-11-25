@@ -257,7 +257,11 @@ impl Parser {
                 .mk_err(name.span, "Struct or Enum with same name already defined in this scope");
         }
 
+        let is_tuple = self.check(OpenParen);
         let fields = self.struct_fields(&name, Some(declared_fns))?;
+        if is_tuple {
+            self.consume(SemiColon, "Expected ';'")?;
+        }
         Ok(ast::Struct { name, fields })
     }
 
@@ -302,7 +306,6 @@ impl Parser {
                 }
             }
             self.consume(CloseParen, "Expected ')'")?;
-            self.consume(SemiColon, "Expected ';'")?;
 
             Ok(fields)
         } else {
