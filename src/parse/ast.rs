@@ -127,10 +127,7 @@ pub enum ExprKind {
         name: Token,
         args: Vec<Expr>,
     },
-    AssocMethod {
-        ty: Ty,
-        name: Token,
-    },
+    Path(Vec<Token>),
     Assign {
         lhs: Box<Expr>,
         rhs: Box<Expr>,

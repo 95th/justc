@@ -232,9 +232,19 @@ impl<'a> Annotate<'a> {
                     args,
                 }
             }
-            ast::ExprKind::AssocMethod { ty, name } => {
-                let ty = self.ast_ty_to_ty(ty)?;
-                hir::ExprKind::AssocMethod { ty, name: name.clone() }
+            ast::ExprKind::Path(segments) => {
+                if let [first, second] = &segments[..] {
+                    let tvar = match self.types.get(first.symbol) {
+                        Some(x) => *x,
+                        None => return self.handler.mk_err(first.span, "Unknown type"),
+                    };
+                    hir::ExprKind::AssocMethod {
+                        ty: tvar,
+                        name: second.clone(),
+                    }
+                } else {
+                    return self.handler.mk_err(expr.span, "Invalid path: Must of form `X::Y`");
+                }
             }
             ast::ExprKind::Assign { lhs, rhs } => {
                 let lhs = self.annotate_expr(lhs)?;

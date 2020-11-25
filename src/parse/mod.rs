@@ -850,22 +850,24 @@ impl Parser {
             span = span.to(self.prev.span);
             ExprKind::Struct(name, fields, true)
         } else if self.check(ColonColon) {
-            let ty = self.token_to_ty()?;
-            self.consume(ColonColon, "Expected '::'")?;
-            let method_name = self.consume(Ident, "Expected identifier")?;
+            let mut path_segments = vec![name];
+            while self.eat(ColonColon) {
+                let segment = self.consume(Ident, "Expected identifier")?;
+                path_segments.push(segment);
+            }
             span = span.to(self.prev.span);
-            let assoc_method = ExprKind::AssocMethod { ty, name: method_name };
+            let path = ExprKind::Path(path_segments);
 
             if self.eat(OpenParen) {
                 let callee = Box::new(Expr {
-                    kind: assoc_method,
+                    kind: path,
                     span,
                 });
                 let args = self.finish_call()?;
                 span = span.to(self.prev.span);
                 ExprKind::Call { callee, args }
             } else {
-                assoc_method
+                path
             }
         } else {
             ExprKind::Variable(name)
