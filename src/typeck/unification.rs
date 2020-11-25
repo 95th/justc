@@ -324,12 +324,12 @@ impl<'a> Unifier<'a> {
                     Ty::Infer(_) => {
                         return self
                             .handler
-                            .mk_err(method_name.span, "Type cannot be inferred. Please add type annotations");
+                            .mk_err(callee.span, "Type cannot be inferred. Please add type annotations");
                     }
                     ty => {
                         return self.handler.mk_err(
                             method_name.span,
-                            &format!("Type error: Expected struct, Actual: `{}`", ty,),
+                            &format!("Method or Field `{}` not found on type `{}`", method_name.symbol, ty),
                         )
                     }
                 }

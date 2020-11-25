@@ -1,3 +1,1 @@
-fn foo(f: (fn(), fn() -> (int))) -> int {
-    f.1()
-}
+let x = |x| x.a();
