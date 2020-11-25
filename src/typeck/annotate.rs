@@ -23,7 +23,7 @@ struct Annotate<'a> {
     env: &'a mut TyContext,
     bindings: &'a mut SymbolTable<TypeVar>,
     functions: &'a mut SymbolTable<TypeVar>,
-    structs: &'a mut SymbolTable<TypeVar>,
+    types: &'a mut SymbolTable<TypeVar>,
     handler: &'a Handler,
     has_enclosing_fn: bool,
     has_enclosing_loop: bool,
@@ -35,14 +35,14 @@ impl<'a> Annotate<'a> {
         env: &'a mut TyContext,
         bindings: &'a mut SymbolTable<TypeVar>,
         functions: &'a mut SymbolTable<TypeVar>,
-        structs: &'a mut SymbolTable<TypeVar>,
+        types: &'a mut SymbolTable<TypeVar>,
         handler: &'a Handler,
     ) -> Self {
         Self {
             env,
             bindings,
             functions,
-            structs,
+            types,
             handler,
             has_enclosing_fn: false,
             has_enclosing_loop: false,
@@ -51,13 +51,17 @@ impl<'a> Annotate<'a> {
     }
 
     fn annotate_ast(&mut self, ast: &ast::Ast) -> Result<hir::Ast> {
+        self.declare_structs(&ast.structs);
+        self.declare_enums(&ast.enums);
         let structs = self.annotate_structs(&ast.structs)?;
+        let enums = self.annotate_enums(&ast.enums)?;
         self.annotate_fn_headers(&ast.functions);
         let impls = self.annotate_impls(&ast.impls)?;
         let functions = self.annotate_fns(&ast.functions)?;
         let stmts = self.annotate_stmts(&ast.stmts)?;
         Ok(hir::Ast {
             structs,
+            enums,
             impls,
             functions,
             stmts,
@@ -186,7 +190,7 @@ impl<'a> Annotate<'a> {
                         self.enclosing_self_ty.unwrap(),
                     )
                 } else {
-                    match self.structs.get(name.symbol).copied() {
+                    match self.types.get(name.symbol).copied() {
                         Some(ty) => hir::ExprKind::Struct(name.clone(), self.annotate_fields(fields)?, ty),
                         None if *tuple => {
                             if self.functions.is_defined(name.symbol) || self.bindings.is_defined(name.symbol) {
@@ -306,6 +310,7 @@ impl<'a> Annotate<'a> {
                         },
                         true,
                     )],
+                    enums: vec![],
                     structs: vec![],
                     impls: vec![],
                     functions: vec![],
@@ -336,16 +341,20 @@ impl<'a> Annotate<'a> {
 
     fn annotate_block(&mut self, block: &ast::Block) -> Result<hir::Block> {
         self.enter_block_scope(|this| {
+            this.declare_structs(&block.structs);
+            this.declare_enums(&block.enums);
             let structs = this.annotate_structs(&block.structs)?;
+            let enums = this.annotate_enums(&block.enums)?;
             this.annotate_fn_headers(&block.functions);
             let impls = this.annotate_impls(&block.impls)?;
             let functions = this.annotate_fns(&block.functions)?;
             let stmts = this.annotate_stmts(&block.stmts)?;
             Ok(hir::Block {
-                stmts,
+                structs,
+                enums,
                 impls,
                 functions,
-                structs,
+                stmts,
                 ty: this.env.new_type_var(),
                 span: block.span,
             })
@@ -434,7 +443,7 @@ impl<'a> Annotate<'a> {
     }
 
     fn annotate_impl(&mut self, i: &ast::Impl) -> Result<hir::Impl> {
-        let ty = match self.structs.get(i.name.symbol) {
+        let ty = match self.types.get(i.name.symbol) {
             Some(ty) => *ty,
             None => {
                 return self.handler.mk_err(i.name.span, "Not found in this scope");
@@ -444,16 +453,54 @@ impl<'a> Annotate<'a> {
         Ok(hir::Impl { ty, functions })
     }
 
-    fn annotate_structs(&mut self, structs: &[ast::Struct]) -> Result<Vec<hir::Struct>> {
-        for s in structs {
-            self.structs.insert(s.name.symbol, self.env.new_type_var());
+    fn declare_enums(&mut self, enums: &[ast::Enum]) {
+        for e in enums {
+            self.types.insert(e.name.symbol, self.env.new_type_var());
         }
+    }
 
+    fn annotate_enums(&mut self, enums: &[ast::Enum]) -> Result<Vec<hir::Enum>> {
+        enums.iter().map(|e| self.annotate_enum(e)).collect()
+    }
+
+    fn annotate_enum(&mut self, e: &ast::Enum) -> Result<hir::Enum> {
+        let ty = *self.types.get(e.name.symbol).unwrap();
+        let variants = self.enter_self_scope(ty, |this| this.annotate_enum_variants(&e.variants))?;
+        Ok(hir::Enum {
+            name: e.name.clone(),
+            variants,
+            ty,
+        })
+    }
+
+    fn annotate_enum_variants(&mut self, variants: &[ast::EnumVariant]) -> Result<Vec<hir::EnumVariant>> {
+        variants.iter().map(|v| self.annotate_enum_variant(v)).collect()
+    }
+
+    fn annotate_enum_variant(&mut self, variant: &ast::EnumVariant) -> Result<hir::EnumVariant> {
+        let kind = match &variant.kind {
+            ast::EnumVariantKind::Empty => hir::EnumVariantKind::Empty,
+            ast::EnumVariantKind::Struct(fields) => hir::EnumVariantKind::Struct(self.annotate_struct_fields(fields)?),
+            ast::EnumVariantKind::Tuple(fields) => hir::EnumVariantKind::Tuple(self.annotate_struct_fields(fields)?),
+        };
+        Ok(hir::EnumVariant {
+            name: variant.name.clone(),
+            kind,
+        })
+    }
+
+    fn declare_structs(&mut self, structs: &[ast::Struct]) {
+        for s in structs {
+            self.types.insert(s.name.symbol, self.env.new_type_var());
+        }
+    }
+
+    fn annotate_structs(&mut self, structs: &[ast::Struct]) -> Result<Vec<hir::Struct>> {
         structs.iter().map(|s| self.annotate_struct(s)).collect()
     }
 
     fn annotate_struct(&mut self, s: &ast::Struct) -> Result<hir::Struct> {
-        let ty = *self.structs.get(s.name.symbol).unwrap();
+        let ty = *self.types.get(s.name.symbol).unwrap();
         let fields = self.enter_self_scope(ty, |this| this.annotate_struct_fields(&s.fields))?;
         Ok(hir::Struct {
             name: s.name.clone(),
@@ -492,7 +539,7 @@ impl<'a> Annotate<'a> {
                 "str" => self.env.str(),
                 "float" => self.env.float(),
                 _ => {
-                    if let Some(ty) = self.structs.get(token.symbol) {
+                    if let Some(ty) = self.types.get(token.symbol) {
                         *ty
                     } else {
                         return self.handler.mk_err(token.span, "Unknown type");
@@ -511,14 +558,14 @@ impl<'a> Annotate<'a> {
             env,
             functions,
             bindings,
-            structs,
+            types,
             handler,
             has_enclosing_fn,
             has_enclosing_loop,
             enclosing_self_ty,
         } = self;
 
-        structs.enter_scope(|structs| {
+        types.enter_scope(|structs| {
             functions.enter_scope(|functions| {
                 bindings.enter_scope(|bindings| {
                     let mut this = Annotate::new(env, bindings, functions, structs, handler);

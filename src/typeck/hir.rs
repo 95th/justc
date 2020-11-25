@@ -87,6 +87,7 @@ pub struct Field {
 #[derive(Debug, Clone)]
 pub struct Block {
     pub structs: Vec<Struct>,
+    pub enums: Vec<Enum>,
     pub impls: Vec<Impl>,
     pub functions: Vec<Function>,
     pub stmts: Vec<Stmt>,
@@ -123,8 +124,29 @@ pub struct StructField {
 }
 
 #[derive(Debug, Clone)]
+pub struct Enum {
+    pub name: Token,
+    pub variants: Vec<EnumVariant>,
+    pub ty: TypeVar,
+}
+
+#[derive(Debug, Clone)]
+pub struct EnumVariant {
+    pub name: Token,
+    pub kind: EnumVariantKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum EnumVariantKind {
+    Empty,
+    Struct(Vec<StructField>),
+    Tuple(Vec<StructField>),
+}
+
+#[derive(Debug, Clone)]
 pub struct Ast {
     pub structs: Vec<Struct>,
+    pub enums: Vec<Enum>,
     pub functions: Vec<Function>,
     pub impls: Vec<Impl>,
     pub stmts: Vec<Stmt>,
