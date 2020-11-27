@@ -4,4 +4,4 @@ enum Foo {
     C(int, float),
 }
 
-let a = Foo::A::B;
+let a = Foo::B { a: 1, b: 10 };

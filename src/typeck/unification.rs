@@ -7,7 +7,7 @@ use crate::{
 };
 
 use super::{
-    hir::{Ast, Block, Expr, ExprKind, Function, Impl, Stmt, Struct},
+    hir::*,
     ty::{Ty, TyContext, TypeVar},
 };
 

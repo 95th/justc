@@ -226,9 +226,26 @@ pub enum Ty {
     Tuple(Rc<Vec<TypeVar>>),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 pub struct StructFields {
     fields: Vec<(Symbol, TypeVar)>,
+}
+
+impl fmt::Debug for StructFields {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("{ ")?;
+        let mut first = true;
+        for (name, ty) in self.iter() {
+            if first {
+                first = false;
+            } else {
+                f.write_str(", ")?;
+            }
+            write!(f, "{}: {:?}", name, ty)?;
+        }
+        f.write_str(" }")?;
+        Ok(())
+    }
 }
 
 impl StructFields {
@@ -335,32 +352,25 @@ impl fmt::Debug for Ty {
                 write!(f, " -> {:?}", ret)?;
             }
             Ty::Struct(id, name, fields) => {
-                write!(f, "struct {}{} {{ ", name, id.0)?;
-                let mut first = true;
-                for (name, ty) in fields.iter() {
-                    if first {
-                        first = false;
-                    } else {
-                        f.write_str(", ")?;
-                    }
-                    write!(f, "{}: {:?}", name, ty)?;
-                }
-                write!(f, " }}")?;
+                write!(f, "struct {}{} {:?}", name, id.0, fields)?;
             }
-            Ty::Tuple(tys) => {
-                f.write_str("(")?;
-                let mut first = true;
-                for t in tys.iter() {
-                    if first {
-                        first = false;
-                    } else {
-                        f.write_str(", ")?;
-                    }
-                    write!(f, "{:?}", t)?;
-                }
-                f.write_str(")")?;
-            }
+            Ty::Tuple(tys) => fmt_tys(f, &tys[..])?,
         }
         Ok(())
     }
+}
+
+fn fmt_tys(f: &mut fmt::Formatter<'_>, tys: &[TypeVar]) -> fmt::Result {
+    f.write_str("(")?;
+    let mut first = true;
+    for t in tys.iter() {
+        if first {
+            first = false;
+        } else {
+            f.write_str(", ")?;
+        }
+        write!(f, "{:?}", t)?;
+    }
+    f.write_str(")")?;
+    Ok(())
 }
