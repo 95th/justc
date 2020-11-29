@@ -120,14 +120,14 @@ pub enum ExprKind {
         callee: Box<Expr>,
         args: Vec<Expr>,
     },
-    Struct(Token, Vec<Field>, /* tuple: */ bool),
+    Struct(Path, Vec<Field>, /* tuple: */ bool),
     Field(Box<Expr>, Token),
     MethodCall {
         callee: Box<Expr>,
         name: Token,
         args: Vec<Expr>,
     },
-    Path(Vec<Token>),
+    Path(Path),
     Assign {
         lhs: Box<Expr>,
         rhs: Box<Expr>,
@@ -145,6 +145,23 @@ pub enum ExprKind {
         cond: Box<Expr>,
         body: Block,
     },
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Path {
+    pub segments: Vec<Token>,
+}
+
+impl From<Vec<Token>> for Path {
+    fn from(segments: Vec<Token>) -> Self {
+        Self { segments }
+    }
+}
+
+impl From<Token> for Path {
+    fn from(token: Token) -> Self {
+        Self { segments: vec![token] }
+    }
 }
 
 #[derive(Debug, PartialEq)]

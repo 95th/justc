@@ -24,7 +24,7 @@ bitflags::bitflags! {
 }
 
 impl Parser {
-    pub fn new(src: Rc<String>, handler: &Rc<Handler>) -> Self {
+    pub fn new(src: Rc<str>, handler: &Rc<Handler>) -> Self {
         let mut lexer = Lexer::new(src, handler);
         let curr = lexer.next_token();
         Self {
@@ -831,7 +831,7 @@ impl Parser {
                     .mk_err(span, "struct literal not allowed here. Use parentheses around it");
             }
 
-            ExprKind::Struct(name, fields, false)
+            ExprKind::Struct(name.into(), fields, false)
         } else if self.eat(OpenParen) {
             let mut fields = vec![];
             while !self.check(CloseParen) && !self.eof() {
@@ -848,7 +848,7 @@ impl Parser {
             }
             self.consume(CloseParen, "Expected ')'")?;
             span = span.to(self.prev.span);
-            ExprKind::Struct(name, fields, true)
+            ExprKind::Struct(name.into(), fields, true)
         } else if self.check(ColonColon) {
             let mut path_segments = vec![name];
             while self.eat(ColonColon) {
@@ -856,13 +856,10 @@ impl Parser {
                 path_segments.push(segment);
             }
             span = span.to(self.prev.span);
-            let path = ExprKind::Path(path_segments);
+            let path = ExprKind::Path(path_segments.into());
 
             if self.eat(OpenParen) {
-                let callee = Box::new(Expr {
-                    kind: path,
-                    span,
-                });
+                let callee = Box::new(Expr { kind: path, span });
                 let args = self.finish_call()?;
                 span = span.to(self.prev.span);
                 ExprKind::Call { callee, args }
@@ -1161,7 +1158,7 @@ mod tests {
     use crate::lex::Span;
 
     fn parse(src: &str) -> Vec<Stmt> {
-        let src = Rc::new(String::from(src));
+        let src: Rc<str> = Rc::from(src);
         let handler = Rc::new(Handler::new(&src));
         let mut parser = Parser::new(src, &handler);
         parser.parse().unwrap().stmts

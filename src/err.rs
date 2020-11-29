@@ -5,12 +5,12 @@ pub type Result<T> = std::result::Result<T, ()>;
 
 #[derive(Debug)]
 pub struct Handler {
-    src: Rc<String>,
+    src: Rc<str>,
     had_errors: Cell<bool>,
 }
 
 impl Handler {
-    pub fn new(src: &Rc<String>) -> Self {
+    pub fn new(src: &Rc<str>) -> Self {
         Self {
             src: src.clone(),
             had_errors: Cell::new(false),

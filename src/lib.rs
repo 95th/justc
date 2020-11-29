@@ -23,7 +23,7 @@ impl Compiler {
     }
 
     pub fn run(&mut self, src: String) -> Result<()> {
-        let src = Rc::new(src);
+        let src = Rc::from(src);
         let handler = Rc::new(Handler::new(&src));
         let ast = Parser::new(src, &handler).parse()?;
         Typeck::new(&handler).typeck(&ast)?;

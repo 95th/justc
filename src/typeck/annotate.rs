@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use crate::{
     err::{Handler, Result},
     lex::Token,
@@ -183,6 +181,10 @@ impl<'a> Annotate<'a> {
                 }
             }
             ast::ExprKind::Struct(name, fields, tuple) => {
+                let name = match &name.segments[..] {
+                    [name] => name,
+                    _ => panic!("Expected single segment in path"),
+                };
                 if name.is_self_ty() {
                     hir::ExprKind::Struct(
                         name.clone(),
@@ -232,8 +234,8 @@ impl<'a> Annotate<'a> {
                     args,
                 }
             }
-            ast::ExprKind::Path(segments) => {
-                if let [first, second] = &segments[..] {
+            ast::ExprKind::Path(path) => {
+                if let [first, second] = &path.segments[..] {
                     let tvar = match self.types.get(first.symbol) {
                         Some(x) => *x,
                         None => return self.handler.mk_err(first.span, "Unknown type"),
@@ -433,12 +435,12 @@ impl<'a> Annotate<'a> {
             ast::TyKind::Fn(params, ret) => {
                 let params = params.iter().map(|p| self.ast_ty_to_ty(p)).collect::<Result<_>>()?;
                 let ret = self.ast_ty_to_ty(ret)?;
-                self.env.alloc_ty(Ty::Fn(Rc::new(params), ret))
+                self.env.alloc_ty(Ty::Fn(params, ret))
             }
             ast::TyKind::Ident(t) => self.token_to_ty(&t)?,
             ast::TyKind::Tuple(types) => {
                 let types = types.iter().map(|t| self.ast_ty_to_ty(t)).collect::<Result<_>>()?;
-                self.env.alloc_ty(Ty::Tuple(Rc::new(types)))
+                self.env.alloc_ty(Ty::Tuple(types))
             }
             ast::TyKind::Infer => self.env.new_type_var(),
             ast::TyKind::Unit => self.env.unit(),

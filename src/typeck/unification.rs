@@ -82,7 +82,7 @@ impl<'a> Unifier<'a> {
                 for e in exprs {
                     self.unify_expr(e)?;
                 }
-                let tuple_ty = Ty::Tuple(Rc::new(exprs.iter().map(|e| e.ty).collect()));
+                let tuple_ty = Ty::Tuple(exprs.iter().map(|e| e.ty).collect());
                 let ty = self.env.alloc_ty(tuple_ty);
                 self.env.unify(expr.ty, ty, expr.span)?;
             }
@@ -127,7 +127,7 @@ impl<'a> Unifier<'a> {
             ExprKind::Closure { params, ret, body } => self.enter_fn_scope(*ret, |this| {
                 this.env.unify(*ret, body.ty, body.span)?;
                 let params = params.iter().map(|p| p.param_ty).collect();
-                let ty = this.env.alloc_ty(Ty::Fn(Rc::new(params), *ret));
+                let ty = this.env.alloc_ty(Ty::Fn(params, *ret));
                 this.env.unify(expr.ty, ty, expr.span)?;
                 this.unify_expr(body)?;
                 Ok(())
@@ -450,7 +450,7 @@ impl<'a> Unifier<'a> {
         }
 
         let params = function.params.iter().map(|p| p.param_ty).collect();
-        self.env.unify_value(function.ty, Ty::Fn(Rc::new(params), function.ret));
+        self.env.unify_value(function.ty, Ty::Fn(params, function.ret));
 
         Ok(())
     }

@@ -124,7 +124,7 @@ impl TyContext {
     }
 
     pub fn resolve_ty(&mut self, var: TypeVar) -> Ty {
-        self.table.probe_value(var).known().unwrap_or_else(|| Ty::Infer(var))
+        self.table.probe_value(var).known().unwrap_or(Ty::Infer(var))
     }
 
     pub fn unify_value(&mut self, var: TypeVar, ty: Ty) {
@@ -217,13 +217,13 @@ pub enum Ty {
     Int,
     Float,
     Str,
-    Fn(/* params: */ Rc<Vec<TypeVar>>, /* return_ty: */ TypeVar),
+    Fn(/* params: */ Rc<[TypeVar]>, /* return_ty: */ TypeVar),
     Struct(
         /* id: */ TypeVar,
         /* name: */ Symbol,
         /* fields: */ Rc<StructFields>,
     ),
-    Tuple(Rc<Vec<TypeVar>>),
+    Tuple(Rc<[TypeVar]>),
 }
 
 #[derive(PartialEq)]

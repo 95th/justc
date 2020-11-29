@@ -7,7 +7,7 @@ use crate::{
 use std::{collections::HashMap, rc::Rc};
 
 pub struct Lexer {
-    src: Rc<String>,
+    src: Rc<str>,
     start_pos: usize,
     pos: usize,
     keywords: HashMap<Symbol, TokenKind>,
@@ -15,7 +15,7 @@ pub struct Lexer {
 }
 
 impl Lexer {
-    pub fn new(src: Rc<String>, handler: &Rc<Handler>) -> Self {
+    pub fn new(src: Rc<str>, handler: &Rc<Handler>) -> Self {
         Self {
             src,
             start_pos: 0,
@@ -254,7 +254,7 @@ impl Lexer {
         }
 
         let symbol = self.mk_symbol();
-        let kind = self.keywords.get(&symbol).copied().unwrap_or_else(|| Ident);
+        let kind = self.keywords.get(&symbol).copied().unwrap_or(Ident);
         self.add_token(kind)
     }
 
