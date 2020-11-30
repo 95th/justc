@@ -202,7 +202,7 @@ impl Parser {
         if !declared_items.insert(name.symbol) {
             return self
                 .handler
-                .mk_err(name.span, "Struct or Enum with same name already defined in this scope");
+                .mk_err(name.span, "An item with same name already defined in this scope");
         }
 
         self.consume(OpenBrace, "Expected '{'")?;
@@ -254,7 +254,7 @@ impl Parser {
         if !declared_items.insert(name.symbol) {
             return self
                 .handler
-                .mk_err(name.span, "Struct or Enum with same name already defined in this scope");
+                .mk_err(name.span, "An item with same name already defined in this scope");
         }
 
         let is_tuple = self.check(OpenParen);
