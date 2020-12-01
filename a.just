@@ -1,4 +1,4 @@
-struct X(int, int);
-
-let a = X;
-a(1, 2);
+fn x() {
+    if true { 10 } else { 20 }
+    10;
+}

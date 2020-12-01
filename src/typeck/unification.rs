@@ -46,8 +46,11 @@ impl<'a> Unifier<'a> {
 
     fn unify_stmt(&mut self, stmt: &Stmt) -> Result<()> {
         match stmt {
-            Stmt::Expr(expr, ..) => {
+            Stmt::Expr(expr, semicolon) => {
                 self.unify_expr(expr)?;
+                if !*semicolon {
+                    self.env.unify(self.env.unit(), expr.ty, expr.span)?;
+                }
             }
             Stmt::Let { ty, init, .. } => {
                 if let Some(init) = init {

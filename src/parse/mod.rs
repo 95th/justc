@@ -349,13 +349,24 @@ impl Parser {
             return Ok(Stmt::Expr(expr, true));
         }
 
-        if !self.check(Dot) && !self.check(CloseBrace) && !self.check_op() {
+        if self.require_semi(&expr) {
             return self
                 .handler
                 .mk_err(self.curr.span, "Expected one of `.`, `;`, `}` or an operator");
         }
 
         Ok(Stmt::Expr(expr, false))
+    }
+
+    fn require_semi(&self, expr: &Expr) -> bool {
+        if self.check(Dot) || self.check(CloseBrace) || self.check_op() {
+            return false;
+        }
+
+        match expr.kind {
+            ExprKind::If { .. } => false,
+            _ => true,
+        }
     }
 
     fn expr(&mut self) -> Result<Expr> {
