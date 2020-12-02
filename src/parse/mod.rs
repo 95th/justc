@@ -359,14 +359,11 @@ impl Parser {
     }
 
     fn require_semi(&self, expr: &Expr) -> bool {
-        if self.check(Dot) || self.check(CloseBrace) || self.check_op() {
+        if self.check(Dot) || self.check(CloseBrace) || self.check_op() || matches!(expr.kind, ExprKind::If { .. }) {
             return false;
         }
 
-        match expr.kind {
-            ExprKind::If { .. } => false,
-            _ => true,
-        }
+        true
     }
 
     fn expr(&mut self) -> Result<Expr> {
