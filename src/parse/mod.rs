@@ -1163,39 +1163,38 @@ impl Parser {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lex::Span;
 
-    fn parse(src: &str) -> Vec<Stmt> {
+    fn parse_expr(src: &str) -> Expr {
         let src: Rc<str> = Rc::from(src);
         let handler = Rc::new(Handler::new(&src));
         let mut parser = Parser::new(src, &handler);
-        parser.parse().unwrap().stmts
+        parser.expr().unwrap()
     }
 
     macro_rules! expr {
-        ($kind:expr, ($lo:expr, $hi:expr)) => {
+        ($kind:expr, $span:expr) => {
             Expr {
                 kind: $kind,
-                span: Span::new($lo, $hi),
+                span: $span.into(),
             }
         };
     }
 
     macro_rules! litint {
-        ($val:literal, ($lo:expr, $hi:expr)) => {
-            expr!(ExprKind::Literal(Lit::Integer($val), Span::DUMMY), ($lo, $hi))
+        ($val:literal, $span:expr) => {
+            expr!(ExprKind::Literal(Lit::Integer($val), $span.into()), $span)
         };
     }
 
     macro_rules! binop {
-        ($op:ident, $lhs:expr, $rhs:expr, ($lo:expr, $hi:expr)) => {
+        ($op:ident @ $op_span:expr, $lhs:expr, $rhs:expr, $span:expr) => {
             expr!(
                 ExprKind::Binary {
-                    op: Spanned::new(BinOp::$op, Span::DUMMY),
+                    op: Spanned::new(BinOp::$op, $op_span.into()),
                     lhs: Box::new($lhs),
                     rhs: Box::new($rhs),
                 },
-                ($lo, $hi)
+                $span
             )
         };
     }
@@ -1203,32 +1202,26 @@ mod tests {
     #[test]
     fn add() {
         assert_eq!(
-            parse("1 + 1"),
-            vec![Stmt::Expr(
-                binop!(Add, litint!(1, (0, 1)), litint!(1, (4, 5)), (0, 5)),
-                false
-            )]
+            parse_expr("1 + 1"),
+            binop!(Add @ 2..3, litint!(1, 0..1), litint!(1, 4.. 5), 0.. 5),
         );
     }
 
     #[test]
     fn combine() {
         assert_eq!(
-            parse("1 * 1 - 1 / 1 + 1"),
-            vec![Stmt::Expr(
+            parse_expr("1 * 1 - 1 / 1 + 1"),
+            binop!(
+                Add @ 14..15,
                 binop!(
-                    Add,
-                    binop!(
-                        Sub,
-                        binop!(Mul, litint!(1, (0, 1)), litint!(1, (4, 5)), (0, 5)),
-                        binop!(Div, litint!(1, (8, 9)), litint!(1, (12, 13)), (8, 13)),
-                        (0, 13)
-                    ),
-                    litint!(1, (16, 17)),
-                    (0, 17)
+                    Sub @ 6..7,
+                    binop!(Mul @ 2..3, litint!(1, 0..1), litint!(1, 4..5), 0..5),
+                    binop!(Div @ 10..11, litint!(1, 8..9), litint!(1, 12..13), 8..13),
+                    0..13
                 ),
-                false
-            )]
+                litint!(1, 16..17),
+                0..17
+            ),
         );
     }
 }

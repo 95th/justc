@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, ops::Range};
 
 #[derive(Default, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Span {
@@ -32,6 +32,12 @@ impl Span {
             lo: self.lo.min(other.lo),
             hi: self.hi.max(other.hi),
         }
+    }
+}
+
+impl From<Range<usize>> for Span {
+    fn from(r: Range<usize>) -> Self {
+        Self::new(r.start, r.end)
     }
 }
 
