@@ -1162,6 +1162,8 @@ impl Parser {
 
 #[cfg(test)]
 mod tests {
+    use crate::lex::Span;
+
     use super::*;
 
     fn parse_expr(src: &str) -> Expr {
@@ -1186,6 +1188,12 @@ mod tests {
         };
     }
 
+    macro_rules! litbool {
+        ($val:literal, $span:expr) => {
+            expr!(ExprKind::Literal(Lit::Bool($val), $span.into()), $span)
+        };
+    }
+
     macro_rules! binop {
         ($op:ident @ $op_span:expr, $lhs:expr, $rhs:expr, $span:expr) => {
             expr!(
@@ -1196,6 +1204,19 @@ mod tests {
                 },
                 $span
             )
+        };
+    }
+
+    macro_rules! block {
+        ($stmts:expr, $span:expr) => {
+            Block {
+                stmts: $stmts,
+                span: $span.into(),
+                functions: vec![],
+                structs: vec![],
+                enums: vec![],
+                impls: vec![],
+            }
         };
     }
 
@@ -1222,6 +1243,45 @@ mod tests {
                 litint!(1, 16..17),
                 0..17
             ),
+        );
+    }
+
+    #[test]
+    fn if_expr() {
+        assert_eq!(
+            parse_expr("if true { 10 }"),
+            Expr {
+                kind: ExprKind::If {
+                    cond: Box::new(litbool!(true, 3..7)),
+                    then_clause: block! {
+                        vec![Stmt::Expr(litint!(10, 10..12), false)], 8..14
+                    },
+                    else_clause: None,
+                },
+                span: Span::new(0, 14),
+            }
+        );
+    }
+
+    #[test]
+    fn if_else_expr() {
+        assert_eq!(
+            parse_expr("if true { 10 } else { 20 }"),
+            Expr {
+                kind: ExprKind::If {
+                    cond: Box::new(litbool!(true, 3..7)),
+                    then_clause: block! {
+                        vec![Stmt::Expr(litint!(10, 10..12), false)], 8..14
+                    },
+                    else_clause: Some(Box::new(Expr {
+                        kind: ExprKind::Block(block! {
+                            vec![Stmt::Expr(litint!(20, 22..24), false)], 20..26
+                        }),
+                        span: Span::new(20, 26),
+                    })),
+                },
+                span: Span::new(0, 26),
+            }
         );
     }
 }
