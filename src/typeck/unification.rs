@@ -37,8 +37,13 @@ impl<'a> Unifier<'a> {
         }
     }
 
-    fn unify_stmts(&mut self, ast: &[Stmt]) -> Result<()> {
-        for stmt in ast {
+    fn unify_stmts(&mut self, stmts: &[Stmt]) -> Result<()> {
+        for (i, stmt) in stmts.iter().enumerate() {
+            if i + 1 != stmts.len() {
+                if let Stmt::Expr(e, false) = stmt {
+                    self.tyctx.unify(self.tyctx.unit(), e.ty, e.span)?;
+                }
+            }
             self.unify_stmt(stmt)?;
         }
         Ok(())
@@ -46,11 +51,8 @@ impl<'a> Unifier<'a> {
 
     fn unify_stmt(&mut self, stmt: &Stmt) -> Result<()> {
         match *stmt {
-            Stmt::Expr(ref expr, semicolon) => {
+            Stmt::Expr(ref expr, _) => {
                 self.unify_expr(expr)?;
-                if !semicolon {
-                    self.tyctx.unify(self.tyctx.unit(), expr.ty, expr.span)?;
-                }
             }
             Stmt::Let { ty, ref init, .. } => {
                 if let Some(init) = init {
@@ -385,10 +387,7 @@ impl<'a> Unifier<'a> {
             _ => self.tyctx.unify(block.ty, self.tyctx.unit(), block.span)?,
         }
 
-        for stmt in &block.stmts {
-            self.unify_stmt(stmt)?;
-        }
-
+        self.unify_stmts(&block.stmts)?;
         Ok(())
     }
 
