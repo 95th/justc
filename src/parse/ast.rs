@@ -229,6 +229,7 @@ pub struct Function {
 pub struct Struct {
     pub name: Token,
     pub fields: Vec<StructField>,
+    pub is_tuple: bool,
 }
 
 #[derive(Debug, PartialEq)]

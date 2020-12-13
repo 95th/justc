@@ -262,7 +262,7 @@ impl Parser {
         if is_tuple {
             self.consume(SemiColon, "Expected ';'")?;
         }
-        Ok(ast::Struct { name, fields })
+        Ok(ast::Struct { name, fields, is_tuple })
     }
 
     fn struct_fields(

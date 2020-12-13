@@ -514,6 +514,10 @@ impl<'a> Annotate<'a> {
     fn annotate_struct(&mut self, s: &ast::Struct) -> Result<hir::Struct> {
         let ty = *self.types.get(s.name.symbol).unwrap();
         let fields = self.enter_self_scope(ty, |this| this.annotate_struct_fields(&s.fields))?;
+        if s.is_tuple {
+            let ctor_ty = self.env.alloc_ty(Ty::Fn(fields.iter().map(|f| f.ty).collect(), ty));
+            self.functions.insert(s.name.symbol, ctor_ty);
+        }
         Ok(hir::Struct {
             name: s.name.clone(),
             fields,
