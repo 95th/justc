@@ -137,6 +137,30 @@ impl TyContext {
     }
 
     fn unify_inner(&mut self, expected: TypeVar, actual: TypeVar, span: Span) -> Result<()> {
+        if self.unify_inner_no_raise(expected, actual).is_ok() {
+            return Ok(());
+        }
+
+        let a = self.resolve_ty(expected);
+        let b = self.resolve_ty(actual);
+
+        match (a, b) {
+            (Ty::Infer(_), _) | (_, Ty::Infer(_)) => unreachable!(),
+            (Ty::Struct(_, name, _), Ty::Struct(_, name2, _)) => {
+                return self.handler.mk_err(
+                    span,
+                    &format!("Type mismatch: Expected type `{}`, Actual: `{}`", name, name2),
+                );
+            }
+            (a, b) => self
+                .handler
+                .mk_err(span, &format!("Expected type `{}`, Actual: `{}`", a, b))?,
+        }
+
+        Ok(())
+    }
+
+    fn unify_inner_no_raise(&mut self, expected: TypeVar, actual: TypeVar) -> Result<()> {
         if expected == actual || self.table.unioned(expected, actual) {
             return Ok(());
         }
@@ -155,26 +179,21 @@ impl TyContext {
             (Ty::Infer(v), other) | (other, Ty::Infer(v)) => self.table.union_value(v, TypeVarValue::Known(other)),
             (Ty::Fn(params, ret), Ty::Fn(params2, ret2)) => {
                 if params.len() != params2.len() {
-                    return self
-                        .handler
-                        .mk_err(span, "Type mismatch: Incorrect number of parameters");
+                    return Err(());
                 }
                 for (p1, p2) in params.iter().zip(params2.iter()) {
-                    self.unify_inner(*p1, *p2, span)?;
+                    self.unify_inner_no_raise(*p1, *p2)?;
                 }
-                self.unify_inner(ret, ret2, span)?;
+                self.unify_inner_no_raise(ret, ret2)?;
             }
-            (Ty::Struct(id, name, fields), Ty::Struct(id2, name2, fields2)) => {
+            (Ty::Struct(id, _, fields), Ty::Struct(id2, _, fields2)) => {
                 if id != id2 {
-                    return self.handler.mk_err(
-                        span,
-                        &format!("Type mismatch: Expected type `{}`, Actual: `{}`", name, name2),
-                    );
+                    return Err(());
                 }
                 for (f1, t1) in fields.iter() {
                     for (f2, t2) in fields2.iter() {
                         if f1 == f2 {
-                            self.unify_inner(t1, t2, span)?;
+                            self.unify_inner_no_raise(t1, t2)?;
                             break;
                         }
                     }
@@ -182,17 +201,10 @@ impl TyContext {
             }
             (Ty::Tuple(tys), Ty::Tuple(tys2)) => {
                 if tys.len() != tys2.len() {
-                    return self.handler.mk_err(
-                        span,
-                        &format!(
-                            "Tuple size mismatch: Expected `{}`, Actual: `{}`",
-                            tys.len(),
-                            tys2.len()
-                        ),
-                    );
+                    return Err(());
                 }
                 for (a, b) in tys.iter().zip(tys2.iter()) {
-                    self.unify_inner(*a, *b, span)?;
+                    self.unify_inner_no_raise(*a, *b)?;
                 }
             }
             (Ty::Unit, Ty::Unit)
@@ -200,9 +212,7 @@ impl TyContext {
             | (Ty::Int, Ty::Int)
             | (Ty::Float, Ty::Float)
             | (Ty::Str, Ty::Str) => {}
-            (a, b) => self
-                .handler
-                .mk_err(span, &format!("Expected type `{}`, Actual: `{}`", a, b))?,
+            _ => return Err(()),
         }
 
         Ok(())
