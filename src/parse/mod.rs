@@ -3,7 +3,7 @@ pub mod ast;
 use self::ast::{Ast, BinOp, Block, Expr, ExprKind, Field, Function, Lit, Param, Stmt, Ty, TyKind, UnOp};
 use crate::{
     err::{Handler, Result},
-    lex::{Lexer, LiteralKind, Spanned, Token, TokenKind, TokenKind::*},
+    lex::{Lexer, LiteralKind, Span, Spanned, Token, TokenKind, TokenKind::*},
     symbol::Symbol,
 };
 use std::{collections::HashSet, rc::Rc};
@@ -614,22 +614,45 @@ impl Parser {
                     };
                 }
             } else if self.eat(Dot) {
-                let name = if self.eat(Ident) || self.eat(Literal { kind: LiteralKind::Int }) {
-                    self.prev.clone()
-                } else {
-                    return self.handler.mk_err(self.curr.span, "Expected field or method name");
-                };
-                let span = expr.span.to(name.span);
-                expr = Expr {
-                    kind: ExprKind::Field(Box::new(expr), name),
-                    span,
-                };
+                expr = self.parse_dot_suffix_expr(expr)?;
             } else {
                 break;
             }
         }
 
         Ok(expr)
+    }
+
+    fn parse_dot_suffix_expr(&mut self, mut expr: Expr) -> Result<Expr> {
+        match self.curr.kind {
+            Ident | Literal { kind: LiteralKind::Int } => {
+                self.advance();
+                let name = self.prev.clone();
+                let span = expr.span.to(name.span);
+                Ok(Expr {
+                    kind: ExprKind::Field(Box::new(expr), name),
+                    span,
+                })
+            }
+            Literal {
+                kind: LiteralKind::Float,
+            } => {
+                let mut lo = self.curr.span.lo();
+                for s in self.curr.symbol.to_string().split('.') {
+                    let token_span = Span::new(lo, lo + s.len());
+                    lo += 1 + s.len();
+                    let token = Token::new(Literal { kind: LiteralKind::Int }, Symbol::intern(s), token_span);
+                    let span = expr.span.to(token.span);
+                    expr = Expr {
+                        kind: ExprKind::Field(Box::new(expr), token),
+                        span,
+                    }
+                }
+                self.advance();
+                Ok(expr)
+            }
+            _ => return self.handler.mk_err(self.curr.span, "Expected field or method name"),
+        }
     }
 
     fn finish_call(&mut self) -> Result<Vec<Expr>> {

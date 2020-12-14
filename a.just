@@ -1,4 +1,5 @@
-struct X(int);
-let a = X;
-let b = a(1);
-let c = b.0 + 1;
+struct X(Y);
+struct Y(int);
+
+let x = X(Y(19));
+x.0.0;
