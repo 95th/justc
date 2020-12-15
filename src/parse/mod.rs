@@ -765,7 +765,7 @@ impl Parser {
         if self.eat(Return) {
             let mut span = self.prev.span;
             let mut expr = None;
-            if !self.check(SemiColon) {
+            if !self.check(Comma) && !self.check(SemiColon) && !self.check(CloseBrace) {
                 expr = Some(Box::new(self.expr()?));
                 span = span.to(self.prev.span);
             }

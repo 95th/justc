@@ -37,19 +37,24 @@ impl<'a> Unifier<'a> {
         }
     }
 
-    fn unify_stmts(&mut self, stmts: &[Stmt]) -> Result<()> {
-        for (i, stmt) in stmts.iter().enumerate() {
-            if i + 1 != stmts.len() {
-                if let Stmt::Expr(e, false) = stmt {
-                    self.tyctx.unify(self.tyctx.unit(), e.ty, e.span)?;
-                }
-            }
-            self.unify_stmt(stmt)?;
+    fn unify_stmts(&mut self, mut stmts: &[Stmt]) -> Result<()> {
+        while let [stmt, rest @ ..] = stmts {
+            self.unify_stmt(stmt, rest.is_empty())?;
+            stmts = rest;
         }
         Ok(())
     }
 
-    fn unify_stmt(&mut self, stmt: &Stmt) -> Result<()> {
+    fn unify_stmt(&mut self, stmt: &Stmt, is_last: bool) -> Result<()> {
+        if !is_last {
+            match *stmt {
+                Stmt::Expr(ref e, semi) if !semi || e.is_flow_control() => {
+                    self.tyctx.unify(self.tyctx.unit(), e.ty, e.span)?;
+                }
+                _ => {}
+            }
+        }
+
         match *stmt {
             Stmt::Expr(ref expr, _) => {
                 self.unify_expr(expr, expr.ty)?;
@@ -376,10 +381,8 @@ impl<'a> Unifier<'a> {
         self.unify_fn_bodies(&block.functions)?;
 
         match block.stmts.last() {
-            Some(Stmt::Expr(expr, false)) => {
-                if !expr.is_flow_control() {
-                    self.tyctx.unify(block.ty, expr.ty, expr.span)?;
-                }
+            Some(Stmt::Expr(e, semi)) if !*semi || e.is_flow_control() => {
+                self.tyctx.unify(block.ty, e.ty, e.span)?;
             }
             _ => self.tyctx.unify(block.ty, self.tyctx.unit(), block.span)?,
         }

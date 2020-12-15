@@ -1,7 +1,17 @@
-let a: (((int, int), str), float) = (((1, 1), "hello"), 2.0);
+fn t() {
+	let a: int = if true { 1 } else { return; };
+    return;
+    if true { true } else { false };
+}
 
-let f: fn(int, float) -> str = |a: int, b: float| ("hello", 1).0;
 
-fn f2(x: (int, float)) {}
+fn t2() -> int {
+	let a: int = if true { 1 } else { return 1; };
+    return 1;
+    if true { () } else {  }
+    1
+}
 
-f2((1, 2));
+let a: int = loop {
+    break 10;
+};
