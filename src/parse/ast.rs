@@ -197,6 +197,7 @@ pub enum TyKind {
     Fn(Vec<Ty>, Box<Ty>),
     Ident(Token),
     Tuple(Vec<Ty>),
+    Array(Box<Ty>),
     Infer,
     Unit,
     SelfTy,

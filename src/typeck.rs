@@ -278,6 +278,7 @@ impl Typeck {
                 }
                 Ok(())
             }
+            Ty::Array(t) => self.typeck_no_var(t, span),
         }
     }
 }

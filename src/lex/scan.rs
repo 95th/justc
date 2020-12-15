@@ -73,6 +73,8 @@ impl Lexer {
             b')' => self.add_token(CloseParen),
             b'{' => self.add_token(OpenBrace),
             b'}' => self.add_token(CloseBrace),
+            b'[' => self.add_token(OpenSquare),
+            b']' => self.add_token(CloseSquare),
             b',' => self.add_token(Comma),
             b'.' => {
                 if self.eat(b'.') {

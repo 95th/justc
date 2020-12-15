@@ -234,6 +234,7 @@ pub enum Ty {
         /* fields: */ Rc<StructFields>,
     ),
     Tuple(Rc<[TypeVar]>),
+    Array(TypeVar),
 }
 
 #[derive(PartialEq)]
@@ -333,6 +334,7 @@ impl fmt::Display for Ty {
             Ty::Fn(..) => f.write_str("Function")?,
             Ty::Struct(_, name, _) => write!(f, "{}", name)?,
             Ty::Tuple(..) => f.write_str("Tuple")?,
+            Ty::Array(t) => write!(f, "[{:?}]", t)?,
         }
         Ok(())
     }
@@ -365,6 +367,7 @@ impl fmt::Debug for Ty {
                 write!(f, "struct {}{} {:?}", name, id.0, fields)?;
             }
             Ty::Tuple(tys) => fmt_tys(f, &tys[..])?,
+            Ty::Array(t) => write!(f, "[{:?}]", t)?,
         }
         Ok(())
     }

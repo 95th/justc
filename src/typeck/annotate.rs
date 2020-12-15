@@ -445,6 +445,10 @@ impl<'a> Annotate<'a> {
             ast::TyKind::Infer => self.env.new_type_var(),
             ast::TyKind::Unit => self.env.unit(),
             ast::TyKind::SelfTy => self.enclosing_self_ty.unwrap(),
+            ast::TyKind::Array(ty) => {
+                let ty = self.ast_ty_to_ty(ty)?;
+                self.env.alloc_ty(Ty::Array(ty))
+            }
         };
 
         Ok(ty)

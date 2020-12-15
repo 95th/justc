@@ -1073,6 +1073,15 @@ impl Parser {
             };
 
             return Ok(Ty { kind, span });
+        } else if self.eat(OpenSquare) {
+            let lo = self.prev.span;
+            let ty = self.parse_ty()?;
+            self.consume(CloseSquare, "Expected ']'")?;
+            let span = lo.to(self.prev.span);
+            return Ok(Ty {
+                kind: TyKind::Array(Box::new(ty)),
+                span,
+            });
         }
 
         self.consume(Ident, "Expected Type name")?;

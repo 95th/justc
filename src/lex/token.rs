@@ -37,6 +37,8 @@ pub enum TokenKind {
     CloseParen,
     OpenBrace,
     CloseBrace,
+    OpenSquare,
+    CloseSquare,
     Comma,
     Dot,
     Minus,
