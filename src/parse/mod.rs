@@ -747,6 +747,24 @@ impl Parser {
             let lo = self.prev.span;
 
             let mut values = vec![];
+
+            if !self.check(CloseSquare) {
+                let expr = self.expr()?;
+
+                if self.eat(SemiColon) {
+                    let times = self.expr()?;
+                    self.consume(CloseSquare, "Expected ']'")?;
+                    let span = lo.to(self.prev.span);
+                    return Ok(Expr {
+                        kind: ExprKind::ArrayRepeat(Box::new(expr), Box::new(times)),
+                        span,
+                    });
+                }
+
+                values.push(expr);
+                self.eat(Comma);
+            }
+
             while !self.check(CloseSquare) && !self.eof() {
                 let expr = self.expr()?;
                 values.push(expr);

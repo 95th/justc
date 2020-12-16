@@ -153,6 +153,7 @@ pub enum ExprKind {
         body: Block,
     },
     Array(Vec<Expr>),
+    ArrayRepeat(Box<Expr>, Box<Expr>),
     ArrayAccess(Box<Expr>, Box<Expr>),
 }
 

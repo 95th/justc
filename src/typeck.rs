@@ -158,7 +158,10 @@ impl Typeck {
                     self.typeck_expr(v)?;
                 }
             }
-
+            ExprKind::ArrayRepeat(e, times) => {
+                self.typeck_expr(e)?;
+                self.typeck_expr(times)?;
+            }
             ExprKind::ArrayAccess(receiver, index) => {
                 self.typeck_expr(receiver)?;
                 self.typeck_expr(index)?;

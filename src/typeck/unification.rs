@@ -391,6 +391,27 @@ impl<'a> Unifier<'a> {
                     self.unify_expr(v, t)?;
                 }
             }
+            ExprKind::ArrayRepeat(e, times) => {
+                let resolved = self.tyctx.resolve_ty(expected);
+
+                let t = match resolved {
+                    Ty::Array(t) => t,
+                    Ty::Infer(v) => {
+                        let t = self.tyctx.new_type_var();
+                        self.tyctx.unify_value(v, Ty::Array(t));
+                        t
+                    }
+                    _ => {
+                        return self.handler.mk_err(
+                            expr.span,
+                            &format!("Type error: Expected `{}`, Actual: Array", resolved),
+                        );
+                    }
+                };
+
+                self.unify_expr(e, t)?;
+                self.unify_expr(times, self.tyctx.int())?;
+            }
             ExprKind::ArrayAccess(receiver, index) => {
                 self.unify_expr(receiver, receiver.ty)?;
                 let receiver_ty = self.tyctx.resolve_ty(receiver.ty);
