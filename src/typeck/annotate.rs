@@ -249,6 +249,9 @@ impl<'a> Annotate<'a> {
                 }
             }
             ast::ExprKind::Assign { lhs, rhs } => {
+                if !lhs.is_assignable() {
+                    return self.handler.mk_err(expr.span, "Cannot assign to this expression");
+                }
                 let lhs = self.annotate_expr(lhs)?;
                 let rhs = self.annotate_expr(rhs)?;
                 hir::ExprKind::Assign {
@@ -257,6 +260,9 @@ impl<'a> Annotate<'a> {
                 }
             }
             ast::ExprKind::OpAssign { lhs, rhs, op } => {
+                if !lhs.is_assignable() {
+                    return self.handler.mk_err(expr.span, "Cannot assign to this expression");
+                }
                 let lhs = self.annotate_expr(lhs)?;
                 let rhs = self.annotate_expr(rhs)?;
                 let rhs = hir::Expr {

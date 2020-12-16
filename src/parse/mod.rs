@@ -370,10 +370,6 @@ impl Parser {
         let mut expr = self.logic_or()?;
 
         if self.eat(Eq) {
-            if !expr.is_assignable() {
-                return self.handler.mk_err(expr.span, "Cannot assign to this expression");
-            }
-
             let val = self.logic_or()?;
             let span = expr.span.to(self.prev.span);
             expr = Expr {
@@ -384,10 +380,6 @@ impl Parser {
                 span,
             };
         } else if self.eat(PlusEq) || self.eat(MinusEq) || self.eat(StarEq) || self.eat(SlashEq) {
-            if !expr.is_assignable() {
-                return self.handler.mk_err(expr.span, "Cannot assign to this expression");
-            }
-
             let op = match self.prev.kind {
                 PlusEq => BinOp::Add,
                 MinusEq => BinOp::Sub,
