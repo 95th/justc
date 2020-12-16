@@ -1,2 +1,4 @@
-let n = 20;
-let a = [1; 2];
+struct Foo<T>(T);
+
+let a = Foo(10);
+let b = Foo(1.0);

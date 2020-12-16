@@ -1,6 +1,6 @@
 pub mod ast;
 
-use self::ast::{Ast, BinOp, Block, Expr, ExprKind, Field, Function, Lit, Param, Stmt, Ty, TyKind, UnOp};
+use self::ast::*;
 use crate::{
     err::{Handler, Result},
     lex::{Lexer, LiteralKind, Span, Spanned, Token, TokenKind, TokenKind::*},

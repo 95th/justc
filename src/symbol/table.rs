@@ -16,6 +16,10 @@ impl<T> Default for SymbolTable<T> {
     }
 }
 
+pub struct UndoLog {
+    undo_len: usize,
+}
+
 impl<T> SymbolTable<T> {
     pub fn new() -> Self {
         Self::default()
@@ -34,18 +38,14 @@ impl<T> SymbolTable<T> {
         self.map.contains_key(&key)
     }
 
-    pub fn enter_scope<F, R>(&mut self, f: F) -> R
-    where
-        F: FnOnce(&mut Self) -> R,
-    {
-        let initial_len = self.changes.len();
-        let result = f(self);
-        self.unwind(initial_len);
-        result
+    pub fn snapshot(&self) -> UndoLog {
+        UndoLog {
+            undo_len: self.changes.len(),
+        }
     }
 
-    fn unwind(&mut self, upto: usize) {
-        while self.changes.len() > upto {
+    pub fn rollback(&mut self, savepoint: UndoLog) {
+        while self.changes.len() > savepoint.undo_len {
             let (k, old) = self.changes.pop().unwrap();
             match old {
                 Some(v) => self.map.insert(k, v),

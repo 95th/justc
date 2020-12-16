@@ -11,17 +11,14 @@ use super::{
 };
 
 pub fn annotate(ast: &ast::Ast, env: &mut TyContext, handler: &Handler) -> Result<hir::Ast> {
-    let bindings = &mut SymbolTable::new();
-    let functions = &mut SymbolTable::new();
-    let structs = &mut SymbolTable::new();
-    Annotate::new(env, bindings, functions, structs, handler).annotate_ast(ast)
+    Annotate::new(env, handler).annotate_ast(ast)
 }
 
 struct Annotate<'a> {
     env: &'a mut TyContext,
-    bindings: &'a mut SymbolTable<TypeVar>,
-    functions: &'a mut SymbolTable<TypeVar>,
-    types: &'a mut SymbolTable<TypeVar>,
+    bindings: SymbolTable<TypeVar>,
+    functions: SymbolTable<TypeVar>,
+    types: SymbolTable<TypeVar>,
     handler: &'a Handler,
     has_enclosing_fn: bool,
     has_enclosing_loop: bool,
@@ -29,18 +26,12 @@ struct Annotate<'a> {
 }
 
 impl<'a> Annotate<'a> {
-    fn new(
-        env: &'a mut TyContext,
-        bindings: &'a mut SymbolTable<TypeVar>,
-        functions: &'a mut SymbolTable<TypeVar>,
-        types: &'a mut SymbolTable<TypeVar>,
-        handler: &'a Handler,
-    ) -> Self {
+    fn new(env: &'a mut TyContext, handler: &'a Handler) -> Self {
         Self {
             env,
-            bindings,
-            functions,
-            types,
+            bindings: SymbolTable::new(),
+            functions: SymbolTable::new(),
+            types: SymbolTable::new(),
             handler,
             has_enclosing_fn: false,
             has_enclosing_loop: false,
@@ -592,35 +583,24 @@ impl<'a> Annotate<'a> {
 
     fn enter_block_scope<F, R>(&mut self, f: F) -> R
     where
-        F: FnOnce(&mut Annotate<'_>) -> R,
+        F: FnOnce(&mut Self) -> R,
     {
-        let Annotate {
-            env,
-            functions,
-            bindings,
-            types,
-            handler,
-            has_enclosing_fn,
-            has_enclosing_loop,
-            enclosing_self_ty,
-        } = self;
+        let types_log = self.types.snapshot();
+        let functions_log = self.functions.snapshot();
+        let bindings_log = self.bindings.snapshot();
 
-        types.enter_scope(|structs| {
-            functions.enter_scope(|functions| {
-                bindings.enter_scope(|bindings| {
-                    let mut this = Annotate::new(env, bindings, functions, structs, handler);
-                    this.has_enclosing_fn = *has_enclosing_fn;
-                    this.has_enclosing_loop = *has_enclosing_loop;
-                    this.enclosing_self_ty = *enclosing_self_ty;
-                    f(&mut this)
-                })
-            })
-        })
+        let result = f(self);
+
+        self.bindings.rollback(bindings_log);
+        self.functions.rollback(functions_log);
+        self.types.rollback(types_log);
+
+        result
     }
 
     fn enter_loop_scope<F, R>(&mut self, f: F) -> R
     where
-        F: FnOnce(&mut Annotate<'_>) -> R,
+        F: FnOnce(&mut Self) -> R,
     {
         let has_enclosing_loop = self.has_enclosing_loop;
         self.has_enclosing_loop = true;
@@ -631,12 +611,12 @@ impl<'a> Annotate<'a> {
 
     fn enter_fn_scope<F, R>(&mut self, f: F) -> R
     where
-        F: FnOnce(&mut Annotate<'_>) -> R,
+        F: FnOnce(&mut Self) -> R,
     {
         let has_enclosing_fn = self.has_enclosing_fn;
         let has_enclosing_loop = self.has_enclosing_loop;
 
-        let bindings = std::mem::take(self.bindings);
+        let bindings = std::mem::take(&mut self.bindings);
         self.has_enclosing_fn = true;
         self.has_enclosing_loop = false;
 
@@ -644,7 +624,7 @@ impl<'a> Annotate<'a> {
 
         self.has_enclosing_loop = has_enclosing_loop;
         self.has_enclosing_fn = has_enclosing_fn;
-        *self.bindings = bindings;
+        self.bindings = bindings;
 
         result
     }
