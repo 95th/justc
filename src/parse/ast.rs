@@ -80,7 +80,7 @@ pub struct Expr {
 impl Expr {
     pub fn is_assignable(&self) -> bool {
         match &self.kind {
-            ExprKind::Field(..) => true,
+            ExprKind::Field(..) | ExprKind::ArrayAccess(..) => true,
             ExprKind::Tuple(exprs) => match &exprs[..] {
                 [e] => e.is_assignable(),
                 _ => false,
