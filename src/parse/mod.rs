@@ -762,14 +762,9 @@ impl Parser {
                 }
 
                 values.push(expr);
-                self.eat(Comma);
-            }
-
-            while !self.check(CloseSquare) && !self.eof() {
-                let expr = self.expr()?;
-                values.push(expr);
-                if !self.eat(Comma) {
-                    break;
+                while self.eat(Comma) && !self.check(CloseSquare) && !self.eof() {
+                    let expr = self.expr()?;
+                    values.push(expr);
                 }
             }
 
