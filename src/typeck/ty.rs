@@ -207,6 +207,9 @@ impl TyContext {
                     self.unify_inner_no_raise(*a, *b)?;
                 }
             }
+            (Ty::Array(t1), Ty::Array(t2)) => {
+                self.unify_inner_no_raise(t1, t2)?;
+            }
             (Ty::Unit, Ty::Unit)
             | (Ty::Bool, Ty::Bool)
             | (Ty::Int, Ty::Int)

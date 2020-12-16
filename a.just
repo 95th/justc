@@ -1,1 +1,4 @@
-let a = [1, 2, 3];
+let a = [];
+foo(a);
+
+fn foo(a: [int]) {}
