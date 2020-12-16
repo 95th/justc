@@ -173,3 +173,20 @@ fn wrong_loop_return_type() {
     "#,
     );
 }
+
+#[test]
+fn array_creation() {
+    run_ok(
+        r#"
+        let a: [int] = [];
+        let a = [1];
+        let a = [1,];
+        let a = [1, 2];
+        let a = [1, 2, ];
+        let a = [1; 2];
+        let a = [1; a[0]];
+        let a = [true; 2];
+        let a = [(1, 2); 2];
+    "#,
+    );
+}
