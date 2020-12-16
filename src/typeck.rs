@@ -153,6 +153,11 @@ impl Typeck {
             }
             ExprKind::Continue => {}
             ExprKind::Loop(body) => self.typeck_block(body)?,
+            ExprKind::Array(values) => {
+                for v in values {
+                    self.typeck_expr(v)?;
+                }
+            }
         }
         Ok(())
     }

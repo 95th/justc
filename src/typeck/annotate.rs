@@ -347,6 +347,10 @@ impl<'a> Annotate<'a> {
                 let body = self.enter_loop_scope(|this| this.annotate_block(body))?;
                 hir::ExprKind::Loop(body)
             }
+            ast::ExprKind::Array(values) => {
+                let values = values.iter().map(|e| self.annotate_expr(e)).collect::<Result<_>>()?;
+                hir::ExprKind::Array(values)
+            }
         };
         Ok(hir::Expr { kind, span, ty })
     }

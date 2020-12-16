@@ -743,6 +743,26 @@ impl Parser {
             });
         }
 
+        if self.eat(OpenSquare) {
+            let lo = self.prev.span;
+
+            let mut values = vec![];
+            while !self.check(CloseSquare) && !self.eof() {
+                let expr = self.expr()?;
+                values.push(expr);
+                if !self.eat(Comma) {
+                    break;
+                }
+            }
+
+            self.consume(CloseSquare, "Expected ']'")?;
+            let span = lo.to(self.prev.span);
+            return Ok(Expr {
+                kind: ExprKind::Array(values),
+                span,
+            });
+        }
+
         if self.eat(OpenBrace) {
             let lo = self.prev.span;
             let block = self.block()?;

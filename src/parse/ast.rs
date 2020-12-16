@@ -145,6 +145,7 @@ pub enum ExprKind {
         cond: Box<Expr>,
         body: Block,
     },
+    Array(Vec<Expr>),
 }
 
 #[derive(Debug, PartialEq)]

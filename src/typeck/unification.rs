@@ -370,6 +370,27 @@ impl<'a> Unifier<'a> {
                 self.tyctx.unify(self.tyctx.unit(), body.ty, body.span)?;
                 self.enter_loop_scope(expected, |this| this.unify_block(body))?;
             }
+            ExprKind::Array(values) => {
+                let resolved = self.tyctx.resolve_ty(expected);
+
+                let t = match resolved {
+                    Ty::Array(t) => t,
+                    Ty::Infer(v) => {
+                        let t = self.tyctx.new_type_var();
+                        self.tyctx.unify_value(v, Ty::Array(t));
+                        t
+                    }
+                    _ => {
+                        return self.handler.mk_err(
+                            expr.span,
+                            &format!("Type error: Expected `{}`, Actual: Array", resolved),
+                        );
+                    }
+                };
+                for v in values {
+                    self.unify_expr(v, t)?;
+                }
+            }
         }
         Ok(())
     }
