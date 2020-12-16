@@ -359,7 +359,7 @@ impl Parser {
     }
 
     fn require_semi(&self, expr: &Expr) -> bool {
-        if self.check(Dot) || self.check(CloseBrace) || self.check_op() || matches!(expr.kind, ExprKind::If { .. }) {
+        if self.check(Dot) || self.check(CloseBrace) || self.check_op() || expr.is_block_like() {
             return false;
         }
 

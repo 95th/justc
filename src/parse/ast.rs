@@ -89,6 +89,13 @@ impl Expr {
             _ => false,
         }
     }
+
+    pub fn is_block_like(&self) -> bool {
+        match &self.kind {
+            ExprKind::Block(..) | ExprKind::If { .. } | ExprKind::While { .. } | ExprKind::Loop(..) => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
