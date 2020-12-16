@@ -77,6 +77,7 @@ pub enum ExprKind {
     Continue,
     Loop(Block),
     Array(Vec<Expr>),
+    ArrayAccess(Box<Expr>, Box<Expr>),
 }
 
 #[derive(Debug, Clone)]

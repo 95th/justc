@@ -351,6 +351,11 @@ impl<'a> Annotate<'a> {
                 let values = values.iter().map(|e| self.annotate_expr(e)).collect::<Result<_>>()?;
                 hir::ExprKind::Array(values)
             }
+            ast::ExprKind::ArrayAccess(receiver, index) => {
+                let receiver = Box::new(self.annotate_expr(receiver)?);
+                let index = Box::new(self.annotate_expr(index)?);
+                hir::ExprKind::ArrayAccess(receiver, index)
+            }
         };
         Ok(hir::Expr { kind, span, ty })
     }

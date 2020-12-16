@@ -1,4 +1,5 @@
-let a = [];
-foo(a);
+fn foo(n: int) -> int {
+    n
+}
 
-fn foo(a: [int]) {}
+foo(10)[2];

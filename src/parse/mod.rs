@@ -615,6 +615,14 @@ impl Parser {
                 }
             } else if self.eat(Dot) {
                 expr = self.parse_dot_suffix_expr(expr)?;
+            } else if self.eat(OpenSquare) {
+                let index = self.expr()?;
+                self.consume(CloseSquare, "Expected ']'")?;
+                let span = expr.span.to(self.prev.span);
+                expr = Expr {
+                    kind: ExprKind::ArrayAccess(Box::new(expr), Box::new(index)),
+                    span,
+                };
             } else {
                 break;
             }

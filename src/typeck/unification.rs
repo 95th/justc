@@ -391,6 +391,27 @@ impl<'a> Unifier<'a> {
                     self.unify_expr(v, t)?;
                 }
             }
+            ExprKind::ArrayAccess(receiver, index) => {
+                self.unify_expr(receiver, receiver.ty)?;
+                let receiver_ty = self.tyctx.resolve_ty(receiver.ty);
+
+                let t = match receiver_ty {
+                    Ty::Array(t) => t,
+                    Ty::Infer(_) => {
+                        return self
+                            .handler
+                            .mk_err(receiver.span, "Type cannot be inferred. Please add type annotations");
+                    }
+                    _ => {
+                        return self.handler.mk_err(
+                            receiver.span,
+                            &format!("Type error: Expected Array, Actual: `{}`", receiver_ty),
+                        );
+                    }
+                };
+                self.unify_expr(index, self.tyctx.int())?;
+                self.tyctx.unify(expected, t, expr.span)?;
+            }
         }
         Ok(())
     }
