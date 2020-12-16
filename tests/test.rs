@@ -6,6 +6,12 @@ fn run_ok(src: &str) {
     c.run(src).unwrap();
 }
 
+fn run_err(src: &str) {
+    let src = String::from(src);
+    let mut c = Compiler::new();
+    c.run(src).unwrap_err();
+}
+
 #[test]
 fn binary() {
     run_ok(
@@ -120,6 +126,50 @@ fn closure_expr_and_call() {
         r#"
         let f = || (1, 2.0);
         let a: (int, float) = f();
+    "#,
+    );
+}
+
+#[test]
+fn wrong_type_simple() {
+    run_err(
+        r#"
+        let a: int = 1.0;
+    "#,
+    );
+}
+
+#[test]
+fn wrong_type_partial() {
+    run_err(
+        r#"
+        let a: (int, int) = (1, 2.0);
+    "#,
+    );
+}
+
+#[test]
+fn wrong_type_same_name() {
+    run_err(
+        r#"
+        struct X { a: int }
+        fn foo() -> X {
+            struct X { a: int }
+            X { a: 1 }
+        }
+    "#,
+    );
+}
+
+#[test]
+fn wrong_loop_return_type() {
+    run_err(
+        r#"
+        fn foo() {
+            loop {
+                break 10;
+            }
+        }
     "#,
     );
 }
