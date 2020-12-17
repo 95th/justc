@@ -15,7 +15,7 @@ pub fn annotate(ast: &ast::Ast, env: &mut TyContext, handler: &Handler) -> Resul
 }
 
 struct Annotate<'a> {
-    env: &'a mut TyContext,
+    tyctx: &'a mut TyContext,
     bindings: SymbolTable<TypeVar>,
     functions: SymbolTable<TypeVar>,
     types: SymbolTable<TypeVar>,
@@ -28,7 +28,7 @@ struct Annotate<'a> {
 impl<'a> Annotate<'a> {
     fn new(env: &'a mut TyContext, handler: &'a Handler) -> Self {
         Self {
-            env,
+            tyctx: env,
             bindings: SymbolTable::new(),
             functions: SymbolTable::new(),
             types: SymbolTable::new(),
@@ -83,7 +83,7 @@ impl<'a> Annotate<'a> {
     }
 
     fn annotate_expr(&mut self, expr: &ast::Expr) -> Result<hir::Expr> {
-        let ty = self.env.new_type_var();
+        let ty = self.tyctx.new_type_var();
         let (kind, span) = (&expr.kind, expr.span);
         let kind = match kind {
             ast::ExprKind::Binary { op, lhs, rhs } => {
@@ -96,7 +96,7 @@ impl<'a> Annotate<'a> {
                 }
             }
             ast::ExprKind::Tuple(exprs) => match &exprs[..] {
-                [] => hir::ExprKind::Literal(ast::Lit::Unit, self.env.unit(), expr.span),
+                [] => hir::ExprKind::Literal(ast::Lit::Unit, self.tyctx.unit(), expr.span),
                 [e] => return self.annotate_expr(&e),
                 exprs => {
                     let exprs = exprs.iter().map(|e| self.annotate_expr(e)).collect::<Result<_>>()?;
@@ -105,12 +105,12 @@ impl<'a> Annotate<'a> {
             },
             ast::ExprKind::Literal(lit, span) => {
                 let ty = match lit {
-                    ast::Lit::Unit => self.env.unit(),
-                    ast::Lit::Str(_) => self.env.str(),
-                    ast::Lit::Integer(_) => self.env.int(),
-                    ast::Lit::Float(_) => self.env.float(),
-                    ast::Lit::Bool(_) => self.env.bool(),
-                    ast::Lit::Err => self.env.new_type_var(),
+                    ast::Lit::Unit => self.tyctx.unit(),
+                    ast::Lit::Str(_) => self.tyctx.str(),
+                    ast::Lit::Integer(_) => self.tyctx.int(),
+                    ast::Lit::Float(_) => self.tyctx.float(),
+                    ast::Lit::Bool(_) => self.tyctx.bool(),
+                    ast::Lit::Err => self.tyctx.new_type_var(),
                 };
                 hir::ExprKind::Literal(lit.clone(), ty, *span)
             }
@@ -263,7 +263,7 @@ impl<'a> Annotate<'a> {
                         rhs: Box::new(rhs),
                         op: *op,
                     },
-                    ty: self.env.new_type_var(),
+                    ty: self.tyctx.new_type_var(),
                 };
                 hir::ExprKind::Assign {
                     lhs: Box::new(lhs),
@@ -315,7 +315,7 @@ impl<'a> Annotate<'a> {
                         hir::Expr {
                             kind: hir::ExprKind::Break(None),
                             span,
-                            ty: self.env.unit(),
+                            ty: self.tyctx.unit(),
                         },
                         true,
                     )],
@@ -324,7 +324,7 @@ impl<'a> Annotate<'a> {
                     impls: vec![],
                     functions: vec![],
                     span,
-                    ty: self.env.unit(),
+                    ty: self.tyctx.unit(),
                 };
                 let if_expr = hir::Expr {
                     kind: hir::ExprKind::If {
@@ -333,7 +333,7 @@ impl<'a> Annotate<'a> {
                         else_clause: None,
                     },
                     span,
-                    ty: self.env.unit(),
+                    ty: self.tyctx.unit(),
                 };
                 let mut stmts = vec![hir::Stmt::Expr(if_expr, false)];
                 stmts.append(&mut body.stmts);
@@ -378,7 +378,7 @@ impl<'a> Annotate<'a> {
                 impls,
                 functions,
                 stmts,
-                ty: this.env.new_type_var(),
+                ty: this.tyctx.new_type_var(),
                 span: block.span,
             })
         })
@@ -386,14 +386,14 @@ impl<'a> Annotate<'a> {
 
     fn annotate_fn_headers(&mut self, functions: &[ast::Function]) {
         for func in functions {
-            self.functions.insert(func.name.symbol, self.env.new_type_var());
+            self.functions.insert(func.name.symbol, self.tyctx.new_type_var());
         }
     }
 
     fn annotate_methods(&mut self, functions: &[ast::Function]) -> Result<Vec<hir::Function>> {
         let mut out = vec![];
         for func in functions {
-            let ty = self.env.new_type_var();
+            let ty = self.tyctx.new_type_var();
             let func = self.annotate_fn(func, ty)?;
             out.push(func);
         }
@@ -446,19 +446,19 @@ impl<'a> Annotate<'a> {
             ast::TyKind::Fn(params, ret) => {
                 let params = params.iter().map(|p| self.ast_ty_to_ty(p)).collect::<Result<_>>()?;
                 let ret = self.ast_ty_to_ty(ret)?;
-                self.env.alloc_ty(Ty::Fn(params, ret))
+                self.tyctx.alloc_ty(Ty::Fn(params, ret))
             }
             ast::TyKind::Ident(t) => self.token_to_ty(&t)?,
             ast::TyKind::Tuple(types) => {
                 let types = types.iter().map(|t| self.ast_ty_to_ty(t)).collect::<Result<_>>()?;
-                self.env.alloc_ty(Ty::Tuple(types))
+                self.tyctx.alloc_ty(Ty::Tuple(types))
             }
-            ast::TyKind::Infer => self.env.new_type_var(),
-            ast::TyKind::Unit => self.env.unit(),
+            ast::TyKind::Infer => self.tyctx.new_type_var(),
+            ast::TyKind::Unit => self.tyctx.unit(),
             ast::TyKind::SelfTy => self.enclosing_self_ty.unwrap(),
             ast::TyKind::Array(ty) => {
                 let ty = self.ast_ty_to_ty(ty)?;
-                self.env.alloc_ty(Ty::Array(ty))
+                self.tyctx.alloc_ty(Ty::Array(ty))
             }
         };
 
@@ -482,7 +482,7 @@ impl<'a> Annotate<'a> {
 
     fn declare_enums(&mut self, enums: &[ast::Enum]) {
         for e in enums {
-            self.types.insert(e.name.symbol, self.env.new_type_var());
+            self.types.insert(e.name.symbol, self.tyctx.new_type_var());
         }
     }
 
@@ -518,7 +518,7 @@ impl<'a> Annotate<'a> {
 
     fn declare_structs(&mut self, structs: &[ast::Struct]) {
         for s in structs {
-            self.types.insert(s.name.symbol, self.env.new_type_var());
+            self.types.insert(s.name.symbol, self.tyctx.new_type_var());
         }
     }
 
@@ -533,7 +533,7 @@ impl<'a> Annotate<'a> {
         let ty = *self.types.get(s.name.symbol).unwrap();
         let mut generics = vec![];
         for g in &s.generics {
-            let ty = self.env.new_type_var();
+            let ty = self.tyctx.new_type_var();
             self.types.insert(g.name.symbol, ty);
             generics.push(hir::GenericParam {
                 name: g.name.clone(),
@@ -542,7 +542,7 @@ impl<'a> Annotate<'a> {
         }
         let fields = self.enter_self_scope(ty, |this| this.annotate_struct_fields(&s.fields))?;
         if s.is_tuple {
-            let ctor_ty = self.env.alloc_ty(Ty::Fn(fields.iter().map(|f| f.ty).collect(), ty));
+            let ctor_ty = self.tyctx.alloc_ty(Ty::Fn(fields.iter().map(|f| f.ty).collect(), ty));
             self.functions.insert(s.name.symbol, ctor_ty);
         }
         Ok(hir::Struct {
@@ -578,10 +578,10 @@ impl<'a> Annotate<'a> {
     fn token_to_ty(&mut self, token: &Token) -> Result<TypeVar> {
         token.symbol.as_str_with(|s| {
             let ty = match s {
-                "bool" => self.env.bool(),
-                "int" => self.env.int(),
-                "str" => self.env.str(),
-                "float" => self.env.float(),
+                "bool" => self.tyctx.bool(),
+                "int" => self.tyctx.int(),
+                "str" => self.tyctx.str(),
+                "float" => self.tyctx.float(),
                 _ => {
                     if let Some(ty) = self.types.get(token.symbol) {
                         *ty
