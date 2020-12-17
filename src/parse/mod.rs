@@ -257,12 +257,33 @@ impl Parser {
                 .mk_err(name.span, "An item with same name already defined in this scope");
         }
 
+        let mut generics = Vec::<GenericParam>::new();
+
+        if self.eat(Lt) {
+            while !self.check(Gt) && !self.eof() {
+                let name = self.consume(Ident, "Expected generic parameter")?;
+                if generics.iter().any(|g| g.name.symbol == name.symbol) {
+                    return self.handler.mk_err(name.span, "Duplicate generic parameter name");
+                }
+                generics.push(GenericParam { name });
+                if !self.eat(Comma) {
+                    break;
+                }
+            }
+            self.consume(Gt, "Expected '>'")?;
+        }
+
         let is_tuple = self.check(OpenParen);
         let fields = self.struct_fields(&name, Some(declared_fns))?;
         if is_tuple {
             self.consume(SemiColon, "Expected ';'")?;
         }
-        Ok(ast::Struct { name, fields, is_tuple })
+        Ok(ast::Struct {
+            name,
+            generics,
+            fields,
+            is_tuple,
+        })
     }
 
     fn struct_fields(

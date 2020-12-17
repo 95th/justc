@@ -523,11 +523,23 @@ impl<'a> Annotate<'a> {
     }
 
     fn annotate_structs(&mut self, structs: &[ast::Struct]) -> Result<Vec<hir::Struct>> {
-        structs.iter().map(|s| self.annotate_struct(s)).collect()
+        structs
+            .iter()
+            .map(|s| self.enter_block_scope(|this| this.annotate_struct(s)))
+            .collect()
     }
 
     fn annotate_struct(&mut self, s: &ast::Struct) -> Result<hir::Struct> {
         let ty = *self.types.get(s.name.symbol).unwrap();
+        let mut generics = vec![];
+        for g in &s.generics {
+            let ty = self.env.new_type_var();
+            self.types.insert(g.name.symbol, ty);
+            generics.push(hir::GenericParam {
+                name: g.name.clone(),
+                ty,
+            });
+        }
         let fields = self.enter_self_scope(ty, |this| this.annotate_struct_fields(&s.fields))?;
         if s.is_tuple {
             let ctor_ty = self.env.alloc_ty(Ty::Fn(fields.iter().map(|f| f.ty).collect(), ty));
@@ -535,6 +547,7 @@ impl<'a> Annotate<'a> {
         }
         Ok(hir::Struct {
             name: s.name.clone(),
+            generics,
             fields,
             ty,
         })

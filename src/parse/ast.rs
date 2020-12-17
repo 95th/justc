@@ -239,8 +239,14 @@ pub struct Function {
 #[derive(Debug, PartialEq)]
 pub struct Struct {
     pub name: Token,
+    pub generics: Vec<GenericParam>,
     pub fields: Vec<StructField>,
     pub is_tuple: bool,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct GenericParam {
+    pub name: Token,
 }
 
 #[derive(Debug, PartialEq)]
