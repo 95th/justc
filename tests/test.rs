@@ -190,3 +190,16 @@ fn array_creation() {
     "#,
     );
 }
+
+#[test]
+fn generic_struct() {
+    run_ok(
+        r#"
+        struct S<T>(T);
+        let a = S(1);
+        let b = S(true);
+        a.0 == 1;
+        b.0 == true;
+    "#,
+    );
+}
