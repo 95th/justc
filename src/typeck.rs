@@ -35,6 +35,7 @@ impl Typeck {
         log::debug!("{:#?}", &ast);
 
         self::unification::unify(&ast, &mut self.env, &self.handler)?;
+        log::info!("hey there");
 
         self.typeck_structs(&ast.structs)?;
         self.typeck_impls(&ast.impls)?;
