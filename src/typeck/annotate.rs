@@ -1,5 +1,5 @@
 use crate::{
-    err::{Handler, Result},
+    err::{ErrHandler, Result},
     lex::Token,
     parse::ast,
     symbol::SymbolTable,
@@ -10,7 +10,7 @@ use super::{
     ty::{Ty, TyContext, TypeVar},
 };
 
-pub fn annotate(ast: &ast::Ast, env: &mut TyContext, handler: &Handler) -> Result<hir::Ast> {
+pub fn annotate(ast: &ast::Ast, env: &mut TyContext, handler: &ErrHandler) -> Result<hir::Ast> {
     Annotate::new(env, handler).annotate_ast(ast)
 }
 
@@ -19,14 +19,14 @@ struct Annotate<'a> {
     bindings: SymbolTable<TypeVar>,
     functions: SymbolTable<TypeVar>,
     types: SymbolTable<TypeVar>,
-    handler: &'a Handler,
+    handler: &'a ErrHandler,
     has_enclosing_fn: bool,
     has_enclosing_loop: bool,
     enclosing_self_ty: Option<TypeVar>,
 }
 
 impl<'a> Annotate<'a> {
-    fn new(env: &'a mut TyContext, handler: &'a Handler) -> Self {
+    fn new(env: &'a mut TyContext, handler: &'a ErrHandler) -> Self {
         Self {
             tyctx: env,
             bindings: SymbolTable::new(),

@@ -1,5 +1,5 @@
 use crate::{
-    err::{Handler, Result},
+    err::{ErrHandler, Result},
     lex::Span,
     symbol::Symbol,
 };
@@ -54,7 +54,7 @@ pub struct CommonTypes {
 #[derive(Debug)]
 pub struct TyContext {
     table: InPlaceUnificationTable<TypeVar>,
-    pub handler: Rc<Handler>,
+    pub handler: Rc<ErrHandler>,
     var_stack: Vec<TypeVar>,
     methods: HashMap<TypeVar, HashMap<Symbol, TypeVar>>,
     common: CommonTypes,
@@ -62,7 +62,7 @@ pub struct TyContext {
 }
 
 impl TyContext {
-    pub fn new(handler: &Rc<Handler>) -> Self {
+    pub fn new(handler: &Rc<ErrHandler>) -> Self {
         let mut table = InPlaceUnificationTable::new();
         let common = CommonTypes {
             bool: table.new_key(TypeVarValue::Known(Ty::Bool)),

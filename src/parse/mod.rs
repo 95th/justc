@@ -2,7 +2,7 @@ pub mod ast;
 
 use self::ast::*;
 use crate::{
-    err::{Handler, Result},
+    err::{ErrHandler, Result},
     lex::{Lexer, LiteralKind, Span, Spanned, Token, TokenKind, TokenKind::*},
     symbol::Symbol,
 };
@@ -10,7 +10,7 @@ use std::{collections::HashSet, rc::Rc};
 
 pub struct Parser {
     lexer: Lexer,
-    handler: Rc<Handler>,
+    handler: Rc<ErrHandler>,
     curr: Token,
     prev: Token,
     restrictions: Restrictions,
@@ -24,7 +24,7 @@ bitflags::bitflags! {
 }
 
 impl Parser {
-    pub fn new(src: Rc<str>, handler: &Rc<Handler>) -> Self {
+    pub fn new(src: Rc<str>, handler: &Rc<ErrHandler>) -> Self {
         let mut lexer = Lexer::new(src, handler);
         let curr = lexer.next_token();
         Self {
@@ -1254,7 +1254,7 @@ mod tests {
 
     fn parse_expr(src: &str) -> Expr {
         let src: Rc<str> = Rc::from(src);
-        let handler = Rc::new(Handler::new(&src));
+        let handler = Rc::new(ErrHandler::new(&src));
         let mut parser = Parser::new(src, &handler);
         parser.expr().unwrap()
     }

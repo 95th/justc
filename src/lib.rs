@@ -1,7 +1,7 @@
 use crate::typeck::Typeck;
 
 use self::{
-    err::{Handler, Result},
+    err::{ErrHandler, Result},
     parse::Parser,
 };
 use std::rc::Rc;
@@ -24,7 +24,7 @@ impl Compiler {
 
     pub fn run(&mut self, src: String) -> Result<()> {
         let src = Rc::from(src);
-        let handler = Rc::new(Handler::new(&src));
+        let handler = Rc::new(ErrHandler::new(&src));
         let ast = Parser::new(src, &handler).parse()?;
         Typeck::new(&handler).typeck(&ast)?;
         Ok(())

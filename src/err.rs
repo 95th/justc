@@ -4,12 +4,12 @@ use std::{cell::Cell, rc::Rc};
 pub type Result<T> = std::result::Result<T, ()>;
 
 #[derive(Debug)]
-pub struct Handler {
+pub struct ErrHandler {
     src: Rc<str>,
     had_errors: Cell<bool>,
 }
 
-impl Handler {
+impl ErrHandler {
     pub fn new(src: &Rc<str>) -> Self {
         Self {
             src: src.clone(),

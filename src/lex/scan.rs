@@ -1,6 +1,6 @@
 use super::token::LiteralKind;
 use crate::{
-    err::Handler,
+    err::ErrHandler,
     lex::{Span, Token, TokenKind, TokenKind::*},
     symbol::Symbol,
 };
@@ -11,11 +11,11 @@ pub struct Lexer {
     start_pos: usize,
     pos: usize,
     keywords: HashMap<Symbol, TokenKind>,
-    handler: Rc<Handler>,
+    handler: Rc<ErrHandler>,
 }
 
 impl Lexer {
-    pub fn new(src: Rc<str>, handler: &Rc<Handler>) -> Self {
+    pub fn new(src: Rc<str>, handler: &Rc<ErrHandler>) -> Self {
         Self {
             src,
             start_pos: 0,

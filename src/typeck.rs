@@ -5,7 +5,7 @@ use self::{
     ty::{Ty, TyContext, TypeVar},
 };
 use crate::{
-    err::{Handler, Result},
+    err::{ErrHandler, Result},
     lex::Span,
     parse::ast,
 };
@@ -17,12 +17,12 @@ mod unification;
 
 pub struct Typeck {
     env: TyContext,
-    handler: Rc<Handler>,
+    handler: Rc<ErrHandler>,
     resolved_types: HashMap<TypeVar, Ty>,
 }
 
 impl Typeck {
-    pub fn new(handler: &Rc<Handler>) -> Self {
+    pub fn new(handler: &Rc<ErrHandler>) -> Self {
         Self {
             env: TyContext::new(handler),
             handler: handler.clone(),

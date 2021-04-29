@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use crate::{
-    err::{Handler, Result},
+    err::{ErrHandler, Result},
     lex::Span,
     parse::ast::{BinOp, UnOp},
 };
@@ -15,10 +15,10 @@ struct Unifier<'a> {
     enclosing_fn_ret_ty: Option<TypeVar>,
     enclosing_loop_ty: Option<TypeVar>,
     tyctx: &'a mut TyContext,
-    handler: &'a Handler,
+    handler: &'a ErrHandler,
 }
 
-pub fn unify(ast: &Ast, env: &mut TyContext, handler: &Handler) -> Result<()> {
+pub fn unify(ast: &Ast, env: &mut TyContext, handler: &ErrHandler) -> Result<()> {
     let mut unifier = Unifier::new(env, handler);
     unifier.unify_structs(&ast.structs)?;
     unifier.unify_fn_headers(&ast.functions)?;
@@ -28,7 +28,7 @@ pub fn unify(ast: &Ast, env: &mut TyContext, handler: &Handler) -> Result<()> {
 }
 
 impl<'a> Unifier<'a> {
-    fn new(tyctx: &'a mut TyContext, handler: &'a Handler) -> Self {
+    fn new(tyctx: &'a mut TyContext, handler: &'a ErrHandler) -> Self {
         Self {
             enclosing_fn_ret_ty: None,
             enclosing_loop_ty: None,
