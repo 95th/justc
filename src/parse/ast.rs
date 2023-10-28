@@ -205,21 +205,12 @@ pub struct Ty {
 #[derive(Debug, Clone, PartialEq)]
 pub enum TyKind {
     Fn(Vec<Ty>, Box<Ty>),
-    Ident(Token, Vec<GenericArg>),
+    Ident(Token, GenericArgs),
     Tuple(Vec<Ty>),
     Array(Box<Ty>),
     Infer,
     Unit,
     SelfTy,
-}
-
-impl From<TyKind> for Ty {
-    fn from(kind: TyKind) -> Self {
-        Self {
-            kind,
-            span: Span::DUMMY,
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -239,7 +230,7 @@ pub struct Function {
 #[derive(Debug, PartialEq)]
 pub struct Struct {
     pub name: Token,
-    pub generics: Vec<GenericParam>,
+    pub generics: GenericParams,
     pub fields: Vec<StructField>,
     pub is_tuple: bool,
 }
@@ -250,8 +241,20 @@ pub struct GenericParam {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub struct GenericParams {
+    pub params: Vec<GenericParam>,
+    pub span: Span,
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct GenericArg {
     pub ty: Ty,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct GenericArgs {
+    pub args: Vec<GenericArg>,
+    pub span: Span,
 }
 
 #[derive(Debug, PartialEq)]

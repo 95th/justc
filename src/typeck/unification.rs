@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use crate::{
     err::{ErrHandler, Result},
     lex::Span,
@@ -20,7 +18,6 @@ struct Unifier<'a> {
 
 pub fn unify(ast: &Ast, env: &mut TyContext, handler: &ErrHandler) -> Result<()> {
     let mut unifier = Unifier::new(env, handler);
-    unifier.unify_structs(&ast.structs)?;
     unifier.unify_fn_headers(&ast.functions)?;
     unifier.unify_impls(&ast.impls)?;
     unifier.unify_fn_bodies(&ast.functions)?;
@@ -55,13 +52,13 @@ impl<'a> Unifier<'a> {
             }
         }
 
-        match *stmt {
-            Stmt::Expr(ref expr, _) => {
+        match stmt {
+            Stmt::Expr(expr, _) => {
                 self.unify_expr(expr, expr.ty)?;
             }
-            Stmt::Let { ty, ref init, .. } => {
+            Stmt::Let { ty, init, .. } => {
                 if let Some(init) = init {
-                    self.unify_expr(init, ty)?;
+                    self.unify_expr(init, *ty)?;
                 }
             }
         }
@@ -164,53 +161,55 @@ impl<'a> Unifier<'a> {
                 self.unify_fn_call(expr, None, args, &ty, callee.span)?;
             }
             ExprKind::Struct(name, fields, ty_var) => {
-                let ty_var = self.tyctx.instantiate_ty(*ty_var, &[]);
-                let ty = self.tyctx.resolve_ty(ty_var);
-                match ty {
-                    Ty::Struct(_, _, fields2, _) => {
-                        for f in fields {
-                            match fields2.get(f.name.symbol) {
-                                Some(t) => {
-                                    self.unify_expr(&f.expr, t)?;
-                                }
-                                None => {
-                                    return self
-                                        .handler
-                                        .mk_err(f.name.span, &format!("`{}` does not have this field", name.symbol));
-                                }
-                            }
-                        }
-
-                        if fields.len() != fields2.len() {
-                            let mut extra = vec![];
-                            for f2 in fields2.keys() {
-                                if !fields.iter().any(|f| f.name.symbol == f2) {
-                                    extra.push(f2.to_string());
-                                }
-                            }
-                            return self
-                                .handler
-                                .mk_err(name.span, &format!("missing fields: {}", extra.join(", ")));
-                        }
-                        self.tyctx.unify(expected, ty_var, expr.span)?;
-                    }
-                    Ty::Infer(id) => {
-                        log::warn!("Type not found for {:?}", id);
-                        return self.handler.mk_err(name.span, "Type not found in this scope");
+                match self.tyctx.resolve_ty(*ty_var) {
+                    Ty::Struct(..) => {}
+                    Ty::Infer(_) => {
+                        return self
+                            .handler
+                            .mk_err(expr.span, "Type cannot be inferred. Please add type annotations");
                     }
                     ty => {
                         return self
                             .handler
-                            .mk_err(name.span, &format!("Expected Struct, found on type `{}`", ty));
+                            .mk_err(expr.span, &format!("Type error: Expected struct, Actual: `{}`", ty,))
                     }
                 }
+                let ty_var = self.tyctx.instantiate_generic_ty(*ty_var);
+                if let Some(struct_fields) = self.tyctx.get_fields(ty_var) {
+                    for f in fields {
+                        if let Some(t) = struct_fields.get(f.name.symbol) {
+                            self.unify_expr(&f.expr, t)?;
+                        } else {
+                            return self
+                                .handler
+                                .mk_err(f.name.span, &format!("`{}` does not have this field", name.symbol));
+                        }
+                    }
+
+                    if fields.len() != struct_fields.len() {
+                        let mut missing = vec![];
+                        for field_name in struct_fields.keys() {
+                            if !fields.iter().any(|f| f.name.symbol == field_name) {
+                                missing.push(field_name.to_string());
+                            }
+                        }
+                        return self
+                            .handler
+                            .mk_err(name.span, &format!("missing fields: {}", missing.join(", ")));
+                    }
+                } else {
+                    return self
+                        .handler
+                        .mk_err(name.span, &format!("`{}` has no fields", name.symbol));
+                }
+                self.tyctx.unify(expected, ty_var, expr.span)?;
             }
             ExprKind::Field(e, field_name) => {
                 self.unify_expr(e, e.ty)?;
                 let ty = self.tyctx.resolve_ty(e.ty);
                 match &ty {
-                    Ty::Struct(_, name, fields, _generics) => {
-                        if let Some(f) = fields.get(field_name.symbol) {
+                    Ty::Struct(struct_ty, name, _generics) => {
+                        if let Some(f) = self.tyctx.get_field(*struct_ty, field_name.symbol) {
                             self.tyctx.unify(expected, f, field_name.span)?;
                         } else {
                             return self.handler.mk_err(
@@ -290,12 +289,12 @@ impl<'a> Unifier<'a> {
                 self.unify_expr(callee, callee.ty)?;
                 let ty = self.tyctx.resolve_ty(callee.ty);
                 match ty {
-                    Ty::Struct(id, name, fields, _generics) => match self.tyctx.get_method(id, method_name.symbol) {
+                    Ty::Struct(id, name, _generics) => match self.tyctx.get_method(id, method_name.symbol) {
                         Some(ty) => {
                             let method_ty = self.tyctx.resolve_ty(ty);
                             self.unify_fn_call(expr, Some(callee), args, &method_ty, method_name.span)?;
                         }
-                        None => match fields.get(method_name.symbol) {
+                        None => match self.tyctx.get_field(id, method_name.symbol) {
                             Some(ty) => {
                                 let method_ty = self.tyctx.resolve_ty(ty);
                                 self.unify_fn_call(expr, None, args, &method_ty, method_name.span)?;
@@ -438,7 +437,6 @@ impl<'a> Unifier<'a> {
     }
 
     fn unify_block(&mut self, block: &Block) -> Result<()> {
-        self.unify_structs(&block.structs)?;
         self.unify_fn_headers(&block.functions)?;
         self.unify_impls(&block.impls)?;
         self.unify_fn_bodies(&block.functions)?;
@@ -451,21 +449,6 @@ impl<'a> Unifier<'a> {
         }
 
         self.unify_stmts(&block.stmts)?;
-        Ok(())
-    }
-
-    fn unify_structs(&mut self, structs: &[Struct]) -> Result<()> {
-        for s in structs {
-            self.unify_struct(s)?;
-        }
-        Ok(())
-    }
-
-    fn unify_struct(&mut self, s: &Struct) -> Result<()> {
-        let fields = s.fields.iter().map(|f| (f.name.symbol, f.ty)).collect();
-        let generics = s.generics.iter().map(|g| g.ty).collect();
-        self.tyctx
-            .unify_value(s.ty, Ty::Struct(s.ty, s.name.symbol, Rc::new(fields), generics));
         Ok(())
     }
 

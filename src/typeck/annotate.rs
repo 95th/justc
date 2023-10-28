@@ -1,7 +1,9 @@
+use std::collections::HashMap;
+
 use crate::{
     err::{ErrHandler, Result},
     lex::Token,
-    parse::ast::{self, GenericArg, GenericParam},
+    parse::ast::{self, GenericArgs, GenericParams},
     symbol::SymbolTable,
 };
 
@@ -70,7 +72,7 @@ impl<'a> Annotate<'a> {
                     None => None,
                 };
 
-                let let_ty = self.ast_ty_to_ty(ty)?;
+                let let_ty = self.ast_ty_to_ty(dbg!(ty))?;
                 self.bindings.insert(name.symbol, let_ty);
 
                 Ok(hir::Stmt::Let {
@@ -177,14 +179,15 @@ impl<'a> Annotate<'a> {
                     _ => panic!("Expected single segment in path"),
                 };
                 if name.is_self_ty() {
-                    hir::ExprKind::Struct(
-                        name.clone(),
-                        self.annotate_fields(fields)?,
-                        self.enclosing_self_ty.unwrap(),
-                    )
+                    let ty = self.tyctx.instantiate_generic_ty(self.enclosing_self_ty.unwrap());
+                    hir::ExprKind::Struct(name.clone(), self.annotate_fields(fields)?, ty)
                 } else {
+                    dbg!(name.symbol);
                     match self.types.get(name.symbol).copied() {
-                        Some(ty) => hir::ExprKind::Struct(name.clone(), self.annotate_fields(fields)?, ty),
+                        Some(ty) => {
+                            let ty = self.tyctx.instantiate_generic_ty(ty);
+                            hir::ExprKind::Struct(name.clone(), self.annotate_fields(fields)?, ty)
+                        }
                         None if *tuple => {
                             if self.functions.is_defined(name.symbol) || self.bindings.is_defined(name.symbol) {
                                 let callee = ast::Expr {
@@ -448,7 +451,7 @@ impl<'a> Annotate<'a> {
                 let ret = self.ast_ty_to_ty(ret)?;
                 self.tyctx.alloc_ty(Ty::Fn(params, ret))
             }
-            ast::TyKind::Ident(t, generics) => self.token_to_ty(t, generics)?,
+            ast::TyKind::Ident(t, generic_args) => self.token_to_ty(t, generic_args)?,
             ast::TyKind::Tuple(types) => {
                 let types = types.iter().map(|t| self.ast_ty_to_ty(t)).collect::<Result<_>>()?;
                 self.tyctx.alloc_ty(Ty::Tuple(types))
@@ -518,7 +521,11 @@ impl<'a> Annotate<'a> {
 
     fn declare_structs(&mut self, structs: &[ast::Struct]) {
         for s in structs {
-            self.types.insert(s.name.symbol, self.tyctx.new_type_var());
+            let generics = self.annotate_generic_params(&s.generics);
+            let generic_tys = generics.iter().map(|g| g.ty).collect();
+            let ty = self.tyctx.new_type_var();
+            self.tyctx.unify_value(ty, Ty::Struct(ty, s.name.symbol, generic_tys));
+            self.types.insert(s.name.symbol, ty);
         }
     }
 
@@ -529,9 +536,9 @@ impl<'a> Annotate<'a> {
             .collect()
     }
 
-    fn annotate_generic_params(&mut self, generics: &[GenericParam]) -> Vec<hir::GenericParam> {
+    fn annotate_generic_params(&mut self, generic_params: &GenericParams) -> Vec<hir::GenericParam> {
         let mut hir_generics = vec![];
-        for g in generics {
+        for g in generic_params.params.iter() {
             let ty = self.tyctx.new_generic(g.name.symbol);
             self.types.insert(g.name.symbol, ty);
             hir_generics.push(hir::GenericParam {
@@ -550,6 +557,8 @@ impl<'a> Annotate<'a> {
             let ctor_ty = self.tyctx.alloc_ty(Ty::Fn(fields.iter().map(|f| f.ty).collect(), ty));
             self.functions.insert(s.name.symbol, ctor_ty);
         }
+        let field_tys = fields.iter().map(|f| (f.name.symbol, f.ty)).collect();
+        self.tyctx.add_fields(ty, field_tys);
         Ok(hir::Struct {
             name: s.name.clone(),
             generics,
@@ -580,9 +589,9 @@ impl<'a> Annotate<'a> {
         })
     }
 
-    fn token_to_ty(&mut self, token: &Token, generics: &[GenericArg]) -> Result<TypeVar> {
+    fn token_to_ty(&mut self, token: &Token, generic_args: &GenericArgs) -> Result<TypeVar> {
         let mut generic_tys = Vec::new();
-        for g in generics {
+        for g in generic_args.args.iter() {
             let ty = self.ast_ty_to_ty(&g.ty)?;
             generic_tys.push(ty);
         }
@@ -602,7 +611,20 @@ impl<'a> Annotate<'a> {
 
         match self.types.get(token.symbol) {
             Some(ty) => {
-                let ty = self.tyctx.instantiate_ty(*ty, &generic_tys);
+                let generic_params = self.tyctx.generic_params(*ty);
+                if generic_params.len() != generic_args.args.len() {
+                    let message = format!(
+                        "Expected {} generic arguments, found {}",
+                        generic_params.len(),
+                        generic_args.args.len()
+                    );
+                    return self.handler.mk_err(generic_args.span, &message);
+                }
+                let mut subst = HashMap::new();
+                for (param, arg) in generic_params.iter().zip(generic_tys.iter()) {
+                    subst.insert(*param, *arg);
+                }
+                let ty = self.tyctx.subst_ty(*ty, &subst);
                 Ok(ty)
             }
             None => self.handler.mk_err(token.span, "Unknown type"),

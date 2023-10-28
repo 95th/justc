@@ -161,7 +161,10 @@ impl Parser {
         let ret = if self.eat(Arrow) {
             self.parse_ty()?
         } else {
-            TyKind::Unit.into()
+            Ty {
+                kind: TyKind::Unit,
+                span: name.span,
+            }
         };
 
         self.consume(OpenBrace, "Expected '{'")?;
@@ -271,37 +274,51 @@ impl Parser {
         })
     }
 
-    fn generic_params(&mut self) -> Result<Vec<GenericParam>> {
-        let mut generics = Vec::<GenericParam>::new();
-        if self.eat(Lt) {
-            while !self.check(Gt) && !self.eof() {
-                let name = self.consume(Ident, "Expected generic parameter")?;
-                if generics.iter().any(|g| g.name.symbol == name.symbol) {
-                    return self.handler.mk_err(name.span, "Duplicate generic parameter name");
-                }
-                generics.push(GenericParam { name });
-                if !self.eat(Comma) {
-                    break;
-                }
-            }
-            self.consume(Gt, "Expected '>'")?;
+    fn generic_params(&mut self) -> Result<GenericParams> {
+        if !self.eat(Lt) {
+            return Ok(GenericParams {
+                params: Vec::new(),
+                span: Span::DUMMY,
+            });
         }
-        Ok(generics)
+
+        let mut params = Vec::<GenericParam>::new();
+        let lo = self.curr.span;
+        while !self.check(Gt) && !self.eof() {
+            let name = self.consume(Ident, "Expected generic parameter")?;
+            if params.iter().any(|g| g.name.symbol == name.symbol) {
+                return self.handler.mk_err(name.span, "Duplicate generic parameter name");
+            }
+            params.push(GenericParam { name });
+            if !self.eat(Comma) {
+                break;
+            }
+        }
+        let span = lo.to(self.prev.span);
+        self.consume(Gt, "Expected '>'")?;
+        Ok(GenericParams { params, span })
     }
 
-    fn generic_args(&mut self) -> Result<Vec<GenericArg>> {
-        let mut generics = Vec::<GenericArg>::new();
-        if self.eat(Lt) {
-            while !self.check(Gt) && !self.eof() {
-                let ty = self.parse_ty()?;
-                generics.push(GenericArg { ty });
-                if !self.eat(Comma) {
-                    break;
-                }
-            }
-            self.consume(Gt, "Expected '>'")?;
+    fn generic_args(&mut self) -> Result<GenericArgs> {
+        if !self.eat(Lt) {
+            return Ok(GenericArgs {
+                args: Vec::new(),
+                span: Span::DUMMY,
+            });
         }
-        Ok(generics)
+
+        let lo = self.curr.span;
+        let mut args = Vec::<GenericArg>::new();
+        while !self.check(Gt) && !self.eof() {
+            let ty = self.parse_ty()?;
+            args.push(GenericArg { ty });
+            if !self.eat(Comma) {
+                break;
+            }
+        }
+        let span = lo.to(self.prev.span);
+        self.consume(Gt, "Expected '>'")?;
+        Ok(GenericArgs { args, span })
     }
 
     fn struct_fields(
@@ -369,7 +386,10 @@ impl Parser {
         let ty = if self.eat(Colon) {
             self.parse_ty()?
         } else {
-            TyKind::Infer.into()
+            Ty {
+                kind: TyKind::Infer,
+                span: name.span,
+            }
         };
 
         let mut init = None;
@@ -992,7 +1012,11 @@ impl Parser {
             only_block_allowed = true;
             self.parse_ty()?
         } else {
-            TyKind::Infer.into()
+            let span = lo.to(self.prev.span);
+            Ty {
+                kind: TyKind::Infer,
+                span,
+            }
         };
 
         let body = if only_block_allowed {
@@ -1086,7 +1110,10 @@ impl Parser {
         let ty = if self.eat(Colon) {
             self.parse_ty()?
         } else if infer_ty {
-            TyKind::Infer.into()
+            Ty {
+                kind: TyKind::Infer,
+                span: name.span,
+            }
         } else {
             return self.handler.mk_err(self.curr.span, "Expected parameter type");
         };
@@ -1114,7 +1141,11 @@ impl Parser {
             let ret = if self.eat(Arrow) {
                 self.parse_ty()?
             } else {
-                TyKind::Unit.into()
+                let span = lo.to(self.prev.span);
+                Ty {
+                    kind: TyKind::Unit,
+                    span,
+                }
             };
 
             let span = lo.to(self.prev.span);
@@ -1176,8 +1207,9 @@ impl Parser {
         let kind = if symbol == Symbol::intern("_") {
             TyKind::Infer
         } else {
+            let ident = self.prev.clone();
             let generic_args = self.generic_args()?;
-            TyKind::Ident(self.prev.clone(), generic_args)
+            TyKind::Ident(ident, generic_args)
         };
 
         Ok(Ty {

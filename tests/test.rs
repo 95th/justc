@@ -203,3 +203,24 @@ fn generic_struct() {
     "#,
     );
 }
+
+#[test]
+fn generic_args() {
+    run_ok(
+        r#"
+        struct Foo<T>(Bar<T>);
+        struct Bar<T>(T);
+    "#,
+    );
+}
+
+#[test]
+fn generic_arg_infer() {
+    run_ok(
+        r#"
+        struct Foo<T>(T);
+        let f: Foo<_> = Foo(20);
+        f.0 == 20;
+    "#,
+    )
+}
