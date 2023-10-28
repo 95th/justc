@@ -56,7 +56,7 @@ pub struct CommonTypes {
 pub struct TyContext {
     table: InPlaceUnificationTable<TypeVar>,
     pub handler: Rc<ErrHandler>,
-    fields: HashMap<TypeVar, Rc<StructFields>>,
+    fields: HashMap<TypeVar, StructFields>,
     methods: HashMap<TypeVar, HashMap<Symbol, TypeVar>>,
     common: CommonTypes,
     done: HashSet<TypeVar>,
@@ -151,7 +151,7 @@ impl TyContext {
                         .iter()
                         .map(|(name, ty)| (name, self.subst_ty(ty, subst)))
                         .collect();
-                    self.fields.insert(ty, Rc::new(fields));
+                    self.fields.insert(ty, fields);
                 }
                 ty
             }
@@ -171,12 +171,12 @@ impl TyContext {
         self.fields.get(&struct_id).and_then(|fields| fields.get(name))
     }
 
-    pub fn get_fields(&self, struct_id: TypeVar) -> Option<Rc<StructFields>> {
+    pub fn get_fields(&self, struct_id: TypeVar) -> Option<StructFields> {
         self.fields.get(&struct_id).cloned()
     }
 
     pub fn add_fields(&mut self, struct_id: TypeVar, fields: StructFields) {
-        let existing = self.fields.insert(struct_id, Rc::new(fields));
+        let existing = self.fields.insert(struct_id, fields);
         debug_assert!(existing.is_none());
     }
 
@@ -329,9 +329,9 @@ pub enum Ty {
     Array(TypeVar),
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 pub struct StructFields {
-    fields: Vec<(Symbol, TypeVar)>,
+    fields: Rc<[(Symbol, TypeVar)]>,
 }
 
 impl fmt::Debug for StructFields {
