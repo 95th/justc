@@ -7,6 +7,7 @@ use ena::unify::{InPlaceUnificationTable, NoError, UnifyKey, UnifyValue};
 use std::{
     collections::{HashMap, HashSet},
     fmt,
+    fmt::Write,
     iter::FromIterator,
     rc::Rc,
 };
@@ -55,7 +56,6 @@ pub struct CommonTypes {
 pub struct TyContext {
     table: InPlaceUnificationTable<TypeVar>,
     pub handler: Rc<ErrHandler>,
-    var_stack: Vec<TypeVar>,
     methods: HashMap<TypeVar, HashMap<Symbol, TypeVar>>,
     common: CommonTypes,
     done: HashSet<TypeVar>,
@@ -74,7 +74,6 @@ impl TyContext {
         Self {
             table,
             handler: handler.clone(),
-            var_stack: Vec::new(),
             methods: HashMap::new(),
             common,
             done: HashSet::new(),
@@ -105,8 +104,47 @@ impl TyContext {
         self.table.new_key(TypeVarValue::Unknown)
     }
 
+    pub fn new_generic(&mut self, name: Symbol) -> TypeVar {
+        self.table.new_key(TypeVarValue::Known(Ty::Generic(name)))
+    }
+
     pub fn alloc_ty(&mut self, ty: Ty) -> TypeVar {
         self.table.new_key(TypeVarValue::Known(ty))
+    }
+
+    pub fn instantiate_ty(&mut self, ty_var: TypeVar, generics: &[TypeVar]) -> TypeVar {
+        let ty = self.resolve_ty(ty_var);
+        match ty {
+            Ty::Generic(_) => {
+                if generics.iter().any(|&g| self.table.unioned(ty_var, g)) {
+                    self.new_type_var()
+                } else {
+                    ty_var
+                }
+            }
+            Ty::Fn(params, ret) => {
+                let params = params.iter().map(|&ty| self.instantiate_ty(ty, generics)).collect();
+                let ret = self.instantiate_ty(ret, generics);
+                self.alloc_ty(Ty::Fn(params, ret))
+            }
+            Ty::Struct(id, name, fields, generics) => {
+                let ty_params = generics.iter().map(|&ty| self.instantiate_ty(ty, &generics)).collect();
+                let fields = fields
+                    .iter()
+                    .map(|(name, ty)| (name, self.instantiate_ty(ty, &generics)))
+                    .collect();
+                self.alloc_ty(Ty::Struct(id, name, Rc::new(fields), ty_params))
+            }
+            Ty::Tuple(tys) => {
+                let tys = tys.iter().map(|&ty| self.instantiate_ty(ty, generics)).collect();
+                self.alloc_ty(Ty::Tuple(tys))
+            }
+            Ty::Array(ty) => {
+                let ty = self.instantiate_ty(ty, generics);
+                self.alloc_ty(Ty::Array(ty))
+            }
+            Ty::Bool | Ty::Int | Ty::Float | Ty::Str | Ty::Unit | Ty::Infer(_) => ty_var,
+        }
     }
 
     pub fn get_method(&self, struct_id: TypeVar, name: Symbol) -> Option<TypeVar> {
@@ -146,11 +184,28 @@ impl TyContext {
 
         match (a, b) {
             (Ty::Infer(_), _) | (_, Ty::Infer(_)) => unreachable!(),
-            (Ty::Struct(_, name, _), Ty::Struct(_, name2, _)) => {
-                return self.handler.mk_err(
-                    span,
-                    &format!("Type mismatch: Expected type `{}`, Actual: `{}`", name, name2),
-                );
+            (Ty::Struct(_, name, _, generics), Ty::Struct(_, name2, _, generics2)) => {
+                fn write_generics(generics: &[TypeVar], buf: &mut String, mut f: impl FnMut(TypeVar) -> Ty) {
+                    if generics.is_empty() {
+                        return;
+                    }
+                    buf.push('<');
+                    for (i, &g) in generics.iter().enumerate() {
+                        if i > 0 {
+                            buf.push_str(", ");
+                        }
+                        let t = f(g);
+                        write!(buf, "{}", t).unwrap();
+                    }
+                    buf.push('>');
+                }
+
+                let mut buf = format!("Type mismatch: Expected type `{}", name);
+                write_generics(&generics, &mut buf, |g| self.resolve_ty(g));
+                write!(&mut buf, "`, Actual: `{}", name2).unwrap();
+                write_generics(&generics2, &mut buf, |g| self.resolve_ty(g));
+                buf.push('`');
+                return self.handler.mk_err(span, &buf);
             }
             (a, b) => self
                 .handler
@@ -186,7 +241,7 @@ impl TyContext {
                 }
                 self.unify_inner_no_raise(ret, ret2)?;
             }
-            (Ty::Struct(id, _, fields), Ty::Struct(id2, _, fields2)) => {
+            (Ty::Struct(id, _, fields, generics), Ty::Struct(id2, _, fields2, generics2)) => {
                 if id != id2 {
                     return Err(());
                 }
@@ -197,6 +252,14 @@ impl TyContext {
                             break;
                         }
                     }
+                }
+
+                if generics.len() != generics2.len() {
+                    return Err(());
+                }
+
+                for (g1, g2) in generics.iter().zip(generics2.iter()) {
+                    self.unify_inner_no_raise(*g1, *g2)?;
                 }
             }
             (Ty::Tuple(tys), Ty::Tuple(tys2)) => {
@@ -225,6 +288,7 @@ impl TyContext {
 #[derive(Clone, PartialEq)]
 pub enum Ty {
     Infer(TypeVar),
+    Generic(Symbol),
     Unit,
     Bool,
     Int,
@@ -235,6 +299,7 @@ pub enum Ty {
         /* id: */ TypeVar,
         /* name: */ Symbol,
         /* fields: */ Rc<StructFields>,
+        /* generics: */ Rc<[TypeVar]>,
     ),
     Tuple(Rc<[TypeVar]>),
     Array(TypeVar),
@@ -329,13 +394,14 @@ impl fmt::Display for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Ty::Infer(..) => f.write_str("{unknown}")?,
+            Ty::Generic(name) => write!(f, "{}", name)?,
             Ty::Unit => f.write_str("()")?,
             Ty::Bool => f.write_str("bool")?,
             Ty::Int => f.write_str("int")?,
             Ty::Float => f.write_str("float")?,
             Ty::Str => f.write_str("str")?,
             Ty::Fn(..) => f.write_str("Function")?,
-            Ty::Struct(_, name, _) => write!(f, "{}", name)?,
+            Ty::Struct(_, name, _, _) => write!(f, "{}", name)?,
             Ty::Tuple(..) => f.write_str("Tuple")?,
             Ty::Array(t) => write!(f, "[{:?}]", t)?,
         }
@@ -346,7 +412,8 @@ impl fmt::Display for Ty {
 impl fmt::Debug for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Ty::Infer(id) => write!(f, "{:?}", id)?,
+            Ty::Infer(id) => write!(f, "{id:?}")?,
+            Ty::Generic(name) => write!(f, "{name}")?,
             Ty::Unit => f.write_str("()")?,
             Ty::Bool => f.write_str("bool")?,
             Ty::Int => f.write_str("int")?,
@@ -361,13 +428,13 @@ impl fmt::Debug for Ty {
                     } else {
                         f.write_str(", ")?;
                     }
-                    write!(f, "{:?}", p)?;
+                    write!(f, "{p:?}")?;
                 }
                 f.write_str(")")?;
-                write!(f, " -> {:?}", ret)?;
+                write!(f, " -> {ret:?}")?;
             }
-            Ty::Struct(id, name, fields) => {
-                write!(f, "struct {}{} {:?}", name, id.0, fields)?;
+            Ty::Struct(id, name, fields, _) => {
+                write!(f, "struct {name}({id:?}) {fields:?}")?;
             }
             Ty::Tuple(tys) => fmt_tys(f, &tys[..])?,
             Ty::Array(t) => write!(f, "[{:?}]", t)?,

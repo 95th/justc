@@ -533,7 +533,7 @@ impl<'a> Annotate<'a> {
         let ty = *self.types.get(s.name.symbol).unwrap();
         let mut generics = vec![];
         for g in &s.generics {
-            let ty = self.tyctx.new_type_var();
+            let ty = self.tyctx.new_generic(g.name.symbol);
             self.types.insert(g.name.symbol, ty);
             generics.push(hir::GenericParam {
                 name: g.name.clone(),

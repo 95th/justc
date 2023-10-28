@@ -273,6 +273,7 @@ impl Typeck {
             Ty::Infer(_) => self
                 .handler
                 .mk_err(span, "Type cannot be inferred. Please add type annotations"),
+            Ty::Generic(..) => Ok(()),
             Ty::Unit | Ty::Bool | Ty::Int | Ty::Float | Ty::Str => Ok(()),
             Ty::Fn(args, ret) => {
                 for arg in args.iter() {
@@ -280,7 +281,7 @@ impl Typeck {
                 }
                 self.typeck_no_var(ret, span)
             }
-            Ty::Struct(.., fields) => {
+            Ty::Struct(.., fields, _) => {
                 for f in fields.values() {
                     self.typeck_no_var(f, span)?;
                 }

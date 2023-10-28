@@ -164,9 +164,10 @@ impl<'a> Unifier<'a> {
                 self.unify_fn_call(expr, None, args, &ty, callee.span)?;
             }
             ExprKind::Struct(name, fields, ty_var) => {
-                let ty = self.tyctx.resolve_ty(*ty_var);
+                let ty_var = self.tyctx.instantiate_ty(*ty_var, &[]);
+                let ty = self.tyctx.resolve_ty(ty_var);
                 match ty {
-                    Ty::Struct(_, _, fields2) => {
+                    Ty::Struct(_, _, fields2, _) => {
                         for f in fields {
                             match fields2.get(f.name.symbol) {
                                 Some(t) => {
@@ -191,8 +192,7 @@ impl<'a> Unifier<'a> {
                                 .handler
                                 .mk_err(name.span, &format!("missing fields: {}", extra.join(", ")));
                         }
-
-                        self.tyctx.unify(expected, *ty_var, expr.span)?;
+                        self.tyctx.unify(expected, ty_var, expr.span)?;
                     }
                     Ty::Infer(id) => {
                         log::warn!("Type not found for {:?}", id);
@@ -209,7 +209,7 @@ impl<'a> Unifier<'a> {
                 self.unify_expr(e, e.ty)?;
                 let ty = self.tyctx.resolve_ty(e.ty);
                 match &ty {
-                    Ty::Struct(_, name, fields) => {
+                    Ty::Struct(_, name, fields, _generics) => {
                         if let Some(f) = fields.get(field_name.symbol) {
                             self.tyctx.unify(expected, f, field_name.span)?;
                         } else {
@@ -290,7 +290,7 @@ impl<'a> Unifier<'a> {
                 self.unify_expr(callee, callee.ty)?;
                 let ty = self.tyctx.resolve_ty(callee.ty);
                 match ty {
-                    Ty::Struct(id, name, fields) => match self.tyctx.get_method(id, method_name.symbol) {
+                    Ty::Struct(id, name, fields, _generics) => match self.tyctx.get_method(id, method_name.symbol) {
                         Some(ty) => {
                             let method_ty = self.tyctx.resolve_ty(ty);
                             self.unify_fn_call(expr, Some(callee), args, &method_ty, method_name.span)?;
@@ -463,8 +463,9 @@ impl<'a> Unifier<'a> {
 
     fn unify_struct(&mut self, s: &Struct) -> Result<()> {
         let fields = s.fields.iter().map(|f| (f.name.symbol, f.ty)).collect();
+        let generics = s.generics.iter().map(|g| g.ty).collect();
         self.tyctx
-            .unify_value(s.ty, Ty::Struct(s.ty, s.name.symbol, Rc::new(fields)));
+            .unify_value(s.ty, Ty::Struct(s.ty, s.name.symbol, Rc::new(fields), generics));
         Ok(())
     }
 
