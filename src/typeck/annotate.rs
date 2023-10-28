@@ -1,7 +1,7 @@
 use crate::{
     err::{ErrHandler, Result},
     lex::Token,
-    parse::ast,
+    parse::ast::{self, GenericArg, GenericParam},
     symbol::SymbolTable,
 };
 
@@ -448,7 +448,7 @@ impl<'a> Annotate<'a> {
                 let ret = self.ast_ty_to_ty(ret)?;
                 self.tyctx.alloc_ty(Ty::Fn(params, ret))
             }
-            ast::TyKind::Ident(t) => self.token_to_ty(&t)?,
+            ast::TyKind::Ident(t, generics) => self.token_to_ty(t, generics)?,
             ast::TyKind::Tuple(types) => {
                 let types = types.iter().map(|t| self.ast_ty_to_ty(t)).collect::<Result<_>>()?;
                 self.tyctx.alloc_ty(Ty::Tuple(types))
@@ -529,17 +529,22 @@ impl<'a> Annotate<'a> {
             .collect()
     }
 
-    fn annotate_struct(&mut self, s: &ast::Struct) -> Result<hir::Struct> {
-        let ty = *self.types.get(s.name.symbol).unwrap();
-        let mut generics = vec![];
-        for g in &s.generics {
+    fn annotate_generic_params(&mut self, generics: &[GenericParam]) -> Vec<hir::GenericParam> {
+        let mut hir_generics = vec![];
+        for g in generics {
             let ty = self.tyctx.new_generic(g.name.symbol);
             self.types.insert(g.name.symbol, ty);
-            generics.push(hir::GenericParam {
+            hir_generics.push(hir::GenericParam {
                 name: g.name.clone(),
                 ty,
             });
         }
+        hir_generics
+    }
+
+    fn annotate_struct(&mut self, s: &ast::Struct) -> Result<hir::Struct> {
+        let ty = *self.types.get(s.name.symbol).unwrap();
+        let generics = self.annotate_generic_params(&s.generics);
         let fields = self.enter_self_scope(ty, |this| this.annotate_struct_fields(&s.fields))?;
         if s.is_tuple {
             let ctor_ty = self.tyctx.alloc_ty(Ty::Fn(fields.iter().map(|f| f.ty).collect(), ty));
@@ -575,23 +580,33 @@ impl<'a> Annotate<'a> {
         })
     }
 
-    fn token_to_ty(&mut self, token: &Token) -> Result<TypeVar> {
-        token.symbol.as_str_with(|s| {
-            let ty = match s {
+    fn token_to_ty(&mut self, token: &Token, generics: &[GenericArg]) -> Result<TypeVar> {
+        let mut generic_tys = Vec::new();
+        for g in generics {
+            let ty = self.ast_ty_to_ty(&g.ty)?;
+            generic_tys.push(ty);
+        }
+        let ty = token.symbol.as_str_with(|s| {
+            Some(match s {
                 "bool" => self.tyctx.bool(),
                 "int" => self.tyctx.int(),
                 "str" => self.tyctx.str(),
                 "float" => self.tyctx.float(),
-                _ => {
-                    if let Some(ty) = self.types.get(token.symbol) {
-                        *ty
-                    } else {
-                        return self.handler.mk_err(token.span, "Unknown type");
-                    }
-                }
-            };
-            Ok(ty)
-        })
+                _ => return None,
+            })
+        });
+
+        if let Some(ty) = ty {
+            return Ok(ty);
+        }
+
+        match self.types.get(token.symbol) {
+            Some(ty) => {
+                let ty = self.tyctx.instantiate_ty(*ty, &generic_tys);
+                Ok(ty)
+            }
+            None => self.handler.mk_err(token.span, "Unknown type"),
+        }
     }
 
     fn enter_block_scope<F, R>(&mut self, f: F) -> R

@@ -257,8 +257,22 @@ impl Parser {
                 .mk_err(name.span, "An item with same name already defined in this scope");
         }
 
-        let mut generics = Vec::<GenericParam>::new();
+        let generics = self.generic_params()?;
+        let is_tuple = self.check(OpenParen);
+        let fields = self.struct_fields(&name, Some(declared_fns))?;
+        if is_tuple {
+            self.consume(SemiColon, "Expected ';'")?;
+        }
+        Ok(ast::Struct {
+            name,
+            generics,
+            fields,
+            is_tuple,
+        })
+    }
 
+    fn generic_params(&mut self) -> Result<Vec<GenericParam>> {
+        let mut generics = Vec::<GenericParam>::new();
         if self.eat(Lt) {
             while !self.check(Gt) && !self.eof() {
                 let name = self.consume(Ident, "Expected generic parameter")?;
@@ -272,18 +286,22 @@ impl Parser {
             }
             self.consume(Gt, "Expected '>'")?;
         }
+        Ok(generics)
+    }
 
-        let is_tuple = self.check(OpenParen);
-        let fields = self.struct_fields(&name, Some(declared_fns))?;
-        if is_tuple {
-            self.consume(SemiColon, "Expected ';'")?;
+    fn generic_args(&mut self) -> Result<Vec<GenericArg>> {
+        let mut generics = Vec::<GenericArg>::new();
+        if self.eat(Lt) {
+            while !self.check(Gt) && !self.eof() {
+                let ty = self.parse_ty()?;
+                generics.push(GenericArg { ty });
+                if !self.eat(Comma) {
+                    break;
+                }
+            }
+            self.consume(Gt, "Expected '>'")?;
         }
-        Ok(ast::Struct {
-            name,
-            generics,
-            fields,
-            is_tuple,
-        })
+        Ok(generics)
     }
 
     fn struct_fields(
@@ -1142,7 +1160,7 @@ impl Parser {
         self.token_to_ty()
     }
 
-    fn token_to_ty(&self) -> Result<Ty> {
+    fn token_to_ty(&mut self) -> Result<Ty> {
         if self.prev.is_self_ty() {
             if !self.restrictions.contains(Restrictions::ALLOW_SELF) {
                 return self.handler.mk_err(self.prev.span, "`Self` not allowed here");
@@ -1155,10 +1173,12 @@ impl Parser {
 
         let symbol = self.prev.symbol;
 
-        let kind = symbol.as_str_with(|s| match s {
-            "_" => TyKind::Infer,
-            _ => TyKind::Ident(self.prev.clone()),
-        });
+        let kind = if symbol == Symbol::intern("_") {
+            TyKind::Infer
+        } else {
+            let generic_args = self.generic_args()?;
+            TyKind::Ident(self.prev.clone(), generic_args)
+        };
 
         Ok(Ty {
             span: self.prev.span,

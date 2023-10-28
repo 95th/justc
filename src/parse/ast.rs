@@ -205,7 +205,7 @@ pub struct Ty {
 #[derive(Debug, Clone, PartialEq)]
 pub enum TyKind {
     Fn(Vec<Ty>, Box<Ty>),
-    Ident(Token),
+    Ident(Token, Vec<GenericArg>),
     Tuple(Vec<Ty>),
     Array(Box<Ty>),
     Infer,
@@ -244,9 +244,14 @@ pub struct Struct {
     pub is_tuple: bool,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct GenericParam {
     pub name: Token,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct GenericArg {
+    pub ty: Ty,
 }
 
 #[derive(Debug, PartialEq)]
