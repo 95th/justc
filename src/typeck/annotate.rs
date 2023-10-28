@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
 use crate::{
     err::{ErrHandler, Result},
@@ -72,7 +72,7 @@ impl<'a> Annotate<'a> {
                     None => None,
                 };
 
-                let let_ty = self.ast_ty_to_ty(dbg!(ty))?;
+                let let_ty = self.ast_ty_to_ty(ty)?;
                 self.bindings.insert(name.symbol, let_ty);
 
                 Ok(hir::Stmt::Let {
@@ -182,7 +182,6 @@ impl<'a> Annotate<'a> {
                     let ty = self.tyctx.instantiate_generic_ty(self.enclosing_self_ty.unwrap());
                     hir::ExprKind::Struct(name.clone(), self.annotate_fields(fields)?, ty)
                 } else {
-                    dbg!(name.symbol);
                     match self.types.get(name.symbol).copied() {
                         Some(ty) => {
                             let ty = self.tyctx.instantiate_generic_ty(ty);
@@ -522,9 +521,8 @@ impl<'a> Annotate<'a> {
     fn declare_structs(&mut self, structs: &[ast::Struct]) {
         for s in structs {
             let generics = self.annotate_generic_params(&s.generics);
-            let generic_tys = generics.iter().map(|g| g.ty).collect();
             let ty = self.tyctx.new_type_var();
-            self.tyctx.unify_value(ty, Ty::Struct(ty, s.name.symbol, generic_tys));
+            self.tyctx.unify_value(ty, Ty::Struct(ty, s.name.symbol, generics));
             self.types.insert(s.name.symbol, ty);
         }
     }
@@ -536,22 +534,18 @@ impl<'a> Annotate<'a> {
             .collect()
     }
 
-    fn annotate_generic_params(&mut self, generic_params: &GenericParams) -> Vec<hir::GenericParam> {
-        let mut hir_generics = vec![];
+    fn annotate_generic_params(&mut self, generic_params: &GenericParams) -> Rc<[TypeVar]> {
+        let mut generic_tys = vec![];
         for g in generic_params.params.iter() {
             let ty = self.tyctx.new_generic(g.name.symbol);
             self.types.insert(g.name.symbol, ty);
-            hir_generics.push(hir::GenericParam {
-                name: g.name.clone(),
-                ty,
-            });
+            generic_tys.push(ty);
         }
-        hir_generics
+        generic_tys.into()
     }
 
     fn annotate_struct(&mut self, s: &ast::Struct) -> Result<hir::Struct> {
         let ty = *self.types.get(s.name.symbol).unwrap();
-        let generics = self.annotate_generic_params(&s.generics);
         let fields = self.enter_self_scope(ty, |this| this.annotate_struct_fields(&s.fields))?;
         if s.is_tuple {
             let ctor_ty = self.tyctx.alloc_ty(Ty::Fn(fields.iter().map(|f| f.ty).collect(), ty));
@@ -561,7 +555,6 @@ impl<'a> Annotate<'a> {
         self.tyctx.add_fields(ty, field_tys);
         Ok(hir::Struct {
             name: s.name.clone(),
-            generics,
             fields,
             ty,
         })

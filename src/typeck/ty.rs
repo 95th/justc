@@ -128,8 +128,10 @@ impl TyContext {
         }
 
         let mut subst = HashMap::new();
-        for g in generic_params.iter() {
-            subst.insert(*g, self.new_type_var());
+        for &g in generic_params.iter() {
+            if let Ty::Generic(_) = self.resolve_ty(g) {
+                subst.insert(g, self.new_type_var());
+            }
         }
 
         self.subst_ty(ty_var, &subst)
@@ -144,16 +146,19 @@ impl TyContext {
                 self.alloc_ty(Ty::Fn(params, ret))
             }
             Ty::Struct(id, name, generics) => {
+                dbg!(&generics);
                 let generics = generics.iter().map(|&ty| self.subst_ty(ty, subst)).collect();
-                let ty = self.alloc_ty(Ty::Struct(id, name, generics));
-                if let Some(fields) = self.fields.get(&id).cloned() {
+                dbg!(&generics);
+                let new_ty = self.alloc_ty(Ty::Struct(id, name, generics));
+                if let Some(fields) = self.fields.get(&ty).cloned() {
                     let fields = fields
                         .iter()
                         .map(|(name, ty)| (name, self.subst_ty(ty, subst)))
                         .collect();
-                    self.fields.insert(ty, fields);
+                    dbg!(subst);
+                    self.add_fields(new_ty, fields);
                 }
-                ty
+                new_ty
             }
             Ty::Tuple(tys) => {
                 let tys = tys.iter().map(|&ty| self.subst_ty(ty, subst)).collect();
@@ -176,7 +181,7 @@ impl TyContext {
     }
 
     pub fn add_fields(&mut self, struct_id: TypeVar, fields: StructFields) {
-        let existing = self.fields.insert(struct_id, fields);
+        let existing = self.fields.insert(dbg!(struct_id), dbg!(fields));
         debug_assert!(existing.is_none());
     }
 

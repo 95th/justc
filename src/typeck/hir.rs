@@ -116,14 +116,7 @@ pub struct Function {
 #[derive(Debug, Clone)]
 pub struct Struct {
     pub name: Token,
-    pub generics: Vec<GenericParam>,
     pub fields: Vec<StructField>,
-    pub ty: TypeVar,
-}
-
-#[derive(Debug, Clone)]
-pub struct GenericParam {
-    pub name: Token,
     pub ty: TypeVar,
 }
 

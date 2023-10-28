@@ -161,8 +161,8 @@ impl<'a> Unifier<'a> {
                 self.unify_fn_call(expr, None, args, &ty, callee.span)?;
             }
             ExprKind::Struct(name, fields, ty_var) => {
-                match self.tyctx.resolve_ty(*ty_var) {
-                    Ty::Struct(..) => {}
+                let id = match self.tyctx.resolve_ty(*ty_var) {
+                    Ty::Struct(id, ..) => id,
                     Ty::Infer(_) => {
                         return self
                             .handler
@@ -173,9 +173,10 @@ impl<'a> Unifier<'a> {
                             .handler
                             .mk_err(expr.span, &format!("Type error: Expected struct, Actual: `{}`", ty,))
                     }
-                }
-                let ty_var = self.tyctx.instantiate_generic_ty(*ty_var);
-                if let Some(struct_fields) = self.tyctx.get_fields(ty_var) {
+                };
+                dbg!(id, self.tyctx.get_fields(id));
+                dbg!(ty_var, self.tyctx.get_fields(*ty_var));
+                if let Some(struct_fields) = self.tyctx.get_fields(*ty_var) {
                     for f in fields {
                         if let Some(t) = struct_fields.get(f.name.symbol) {
                             self.unify_expr(&f.expr, t)?;
@@ -202,7 +203,7 @@ impl<'a> Unifier<'a> {
                         .handler
                         .mk_err(name.span, &format!("`{}` has no fields", name.symbol));
                 }
-                self.tyctx.unify(expected, ty_var, expr.span)?;
+                self.tyctx.unify(expected, *ty_var, expr.span)?;
             }
             ExprKind::Field(e, field_name) => {
                 self.unify_expr(e, e.ty)?;
