@@ -254,8 +254,13 @@ fn generic_function() {
             a
         }
 
+        fn bar<U>(a: U) -> U {
+            foo(a)
+        }
+
         let a = foo(10);
         let b = foo(1.1);
+        let c = bar(true);
     "#,
     )
 }
