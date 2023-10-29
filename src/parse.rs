@@ -181,8 +181,9 @@ impl Parser {
     }
 
     fn impl_item(&mut self) -> Result<ast::Impl> {
+        let generics = self.generic_params()?;
+        let ty = self.parse_ty()?;
         self.with_restrictions(Restrictions::ALLOW_SELF, |this| {
-            let name = this.consume(Ident, "Expected type name")?;
             this.consume(OpenBrace, "Expected '{'")?;
 
             let mut functions = vec![];
@@ -194,7 +195,11 @@ impl Parser {
             }
 
             this.consume(CloseBrace, "Expected '}'")?;
-            Ok(ast::Impl { name, functions })
+            Ok(ast::Impl {
+                ty,
+                generics,
+                methods: functions,
+            })
         })
     }
 
@@ -1155,7 +1160,7 @@ impl Parser {
                 kind: TyKind::Fn(params, Box::new(ret)),
                 span,
             });
-        } else if self.eat(SelfTy) {
+        } else if self.restrictions.contains(Restrictions::ALLOW_SELF) && self.eat(SelfTy) {
             return self.token_to_ty();
         } else if self.eat(OpenParen) {
             let lo = self.prev.span;

@@ -264,3 +264,20 @@ fn generic_function() {
     "#,
     )
 }
+
+#[test]
+fn generic_method() {
+    run_ok(
+        r#"
+        struct Foo<T>(T);
+        impl<U> Foo<U> {
+            fn foo(self) -> U {
+                self.0
+            }
+        }
+
+        let a = Foo(10);
+        a.foo();
+    "#,
+    )
+}

@@ -260,8 +260,9 @@ pub struct GenericArgs {
 
 #[derive(Debug, PartialEq)]
 pub struct Impl {
-    pub name: Token,
-    pub functions: Vec<Function>,
+    pub ty: Ty,
+    pub generics: GenericParams,
+    pub methods: Vec<Function>,
 }
 
 #[derive(Debug, PartialEq)]

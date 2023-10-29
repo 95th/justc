@@ -4,7 +4,7 @@ use crate::{
     err::{ErrHandler, Result},
     lex::Token,
     parse::ast::{self, GenericArgs, GenericParams},
-    symbol::SymbolTable,
+    symbol::{Symbol, SymbolTable},
 };
 
 use super::{
@@ -21,6 +21,7 @@ struct Annotate<'a> {
     bindings: SymbolTable<TypeVar>,
     functions: SymbolTable<TypeVar>,
     types: SymbolTable<TypeVar>,
+    methods: HashMap<TypeVar, HashMap<Symbol, TypeVar>>,
     handler: &'a ErrHandler,
     has_enclosing_fn: bool,
     has_enclosing_loop: bool,
@@ -34,6 +35,7 @@ impl<'a> Annotate<'a> {
             bindings: SymbolTable::new(),
             functions: SymbolTable::new(),
             types: SymbolTable::new(),
+            methods: HashMap::new(),
             handler,
             has_enclosing_fn: false,
             has_enclosing_loop: false,
@@ -394,9 +396,9 @@ impl<'a> Annotate<'a> {
 
     fn annotate_fn_headers(&mut self, functions: &[ast::Function]) -> Result<()> {
         for func in functions {
-            for (idx, p) in func.params.iter().enumerate() {
-                if p.name.is_self_param() && idx != 0 {
-                    return self.handler.mk_err(p.name.span, "`self` must be the first parameter");
+            for p in func.params.iter() {
+                if p.name.is_self_param() {
+                    return self.handler.mk_err(p.name.span, "`self` param is not allowed here");
                 }
             }
 
@@ -409,11 +411,30 @@ impl<'a> Annotate<'a> {
         Ok(())
     }
 
-    fn annotate_methods(&mut self, functions: &[ast::Function]) -> Result<Vec<hir::Function>> {
+    fn annotate_method_headers(&mut self, i: &ast::Impl, ty: TypeVar) -> Result<()> {
+        self.enter_self_scope(ty, |this| {
+            for func in i.methods.iter() {
+                for (idx, p) in func.params.iter().enumerate() {
+                    if p.name.is_self_param() && idx != 0 {
+                        return this.handler.mk_err(p.name.span, "`self` must be the first parameter");
+                    }
+                }
+
+                let generics = this.annotate_generic_params(&func.generics);
+                let params = this.annotate_param_tys(&func.params)?;
+                let ret = this.ast_ty_to_ty(&func.ret)?;
+                let fn_ty = this.tyctx.alloc_ty(Ty::Fn(params, ret, generics));
+                this.methods.entry(ty).or_default().insert(func.name.symbol, fn_ty);
+            }
+            Ok(())
+        })
+    }
+
+    fn annotate_methods(&mut self, ty: TypeVar, methods: &[ast::Function]) -> Result<Vec<hir::Function>> {
         let mut out = vec![];
-        for func in functions {
-            let ty = self.tyctx.new_type_var();
-            let func = self.annotate_fn(func, ty)?;
+        for method in methods {
+            let ty = *self.methods.get(&ty).unwrap().get(&method.name.symbol).unwrap();
+            let func = self.annotate_fn(method, ty)?;
             out.push(func);
         }
         Ok(out)
@@ -492,18 +513,33 @@ impl<'a> Annotate<'a> {
     }
 
     fn annotate_impls(&mut self, impls: &[ast::Impl]) -> Result<Vec<hir::Impl>> {
-        impls.iter().map(|i| self.annotate_impl(i)).collect()
+        let mut impl_with_tys = Vec::new();
+        for i in impls {
+            let ty = self.enter_block_scope(|this| {
+                for g in i.generics.params.iter() {
+                    let ty = this.tyctx.new_generic(g.name.symbol);
+                    this.types.insert(g.name.symbol, ty);
+                }
+                let impl_ty = this.ast_ty_to_ty(&i.ty)?;
+                this.annotate_method_headers(i, impl_ty)?;
+                Ok(impl_ty)
+            })?;
+            impl_with_tys.push((i, ty));
+        }
+
+        let mut hir_impls = Vec::new();
+        for (i, ty) in impl_with_tys {
+            let hir_impl = self.annotate_impl(i, ty)?;
+            hir_impls.push(hir_impl);
+        }
+        Ok(hir_impls)
     }
 
-    fn annotate_impl(&mut self, i: &ast::Impl) -> Result<hir::Impl> {
-        let ty = match self.types.get(i.name.symbol) {
-            Some(ty) => *ty,
-            None => {
-                return self.handler.mk_err(i.name.span, "Not found in this scope");
-            }
-        };
-        let functions = self.enter_self_scope(ty, |this| this.annotate_methods(&i.functions))?;
-        Ok(hir::Impl { ty, functions })
+    fn annotate_impl(&mut self, i: &ast::Impl, ty: TypeVar) -> Result<hir::Impl> {
+        self.enter_self_scope(ty, |this| {
+            let functions = this.annotate_methods(ty, &i.methods)?;
+            Ok(hir::Impl { ty, functions })
+        })
     }
 
     fn declare_enums(&mut self, enums: &[ast::Enum]) {

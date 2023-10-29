@@ -174,7 +174,6 @@ impl TyContext {
     }
 
     pub fn get_field(&mut self, struct_id: TypeVar, name: Symbol) -> Option<TypeVar> {
-        log::info!("t10 unioned t15 = {}", self.table.unioned(TypeVar(10), TypeVar(15)));
         log::trace!("get_field({:?}, {:?})", struct_id, name);
         // self.fields.get(&struct_id).and_then(|fields| fields.get(name))
         for (&id, fields) in self.fields.iter() {
