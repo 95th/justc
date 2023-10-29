@@ -246,7 +246,6 @@ fn generic_arg_infer() {
     )
 }
 
-
 #[test]
 fn generic_function() {
     run_ok(
@@ -254,6 +253,9 @@ fn generic_function() {
         fn foo<T>(a: T) -> T {
             a
         }
+
+        let a = foo(10);
+        let b = foo(1.1);
     "#,
     )
 }

@@ -222,6 +222,7 @@ pub struct Param {
 #[derive(Debug, PartialEq)]
 pub struct Function {
     pub name: Token,
+    pub generics: GenericParams,
     pub params: Vec<Param>,
     pub body: Block,
     pub ret: Ty,

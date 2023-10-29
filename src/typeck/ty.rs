@@ -116,7 +116,8 @@ impl TyContext {
 
     pub fn generic_params(&mut self, ty: TypeVar) -> Rc<[TypeVar]> {
         match self.resolve_ty(ty) {
-            Ty::Struct(.., generic_params) => generic_params,
+            Ty::Struct(.., x) => x,
+            Ty::Fn(.., x) => x,
             _ => Rc::from([]),
         }
     }
@@ -142,10 +143,11 @@ impl TyContext {
     pub fn subst_ty(&mut self, ty: TypeVar, subst: &HashMap<TypeVar, TypeVar>) -> TypeVar {
         match self.resolve_ty(ty) {
             Ty::Generic(_) => subst.get(&ty).copied().unwrap_or(ty),
-            Ty::Fn(params, ret) => {
+            Ty::Fn(params, ret, generics) => {
+                let generics = generics.iter().map(|&ty| self.subst_ty(ty, subst)).collect();
                 let params = params.iter().map(|&ty| self.subst_ty(ty, subst)).collect();
                 let ret = self.subst_ty(ret, subst);
-                self.alloc_ty(Ty::Fn(params, ret))
+                self.alloc_ty(Ty::Fn(params, ret, generics))
             }
             Ty::Struct(id, name, generics) => {
                 let generics = generics.iter().map(|&ty| self.subst_ty(ty, subst)).collect();
@@ -278,7 +280,7 @@ impl TyContext {
         match (a, b) {
             (Ty::Infer(a), Ty::Infer(b)) => self.table.union(a, b),
             (Ty::Infer(_), _) | (_, Ty::Infer(_)) => self.table.union(expected, actual),
-            (Ty::Fn(params, ret), Ty::Fn(params2, ret2)) => {
+            (Ty::Fn(params, ret, generics), Ty::Fn(params2, ret2, generics2)) => {
                 if params.len() != params2.len() {
                     return Err(());
                 }
@@ -286,6 +288,12 @@ impl TyContext {
                     self.unify_inner_no_raise(*p1, *p2)?;
                 }
                 self.unify_inner_no_raise(ret, ret2)?;
+                if generics.len() != generics2.len() {
+                    return Err(());
+                }
+                for (g1, g2) in generics.iter().zip(generics2.iter()) {
+                    self.unify_inner_no_raise(*g1, *g2)?;
+                }
             }
             (Ty::Struct(id, _, generics), Ty::Struct(id2, _, generics2)) => {
                 if id != id2 {
@@ -332,7 +340,11 @@ pub enum Ty {
     Int,
     Float,
     Str,
-    Fn(/* params: */ Rc<[TypeVar]>, /* return_ty: */ TypeVar),
+    Fn(
+        /* params: */ Rc<[TypeVar]>,
+        /* return_ty: */ TypeVar,
+        /* generics: */ Rc<[TypeVar]>,
+    ),
     Struct(
         /* id: */ TypeVar,
         /* name: */ Symbol,
@@ -464,8 +476,8 @@ impl fmt::Debug for Ty {
             Ty::Int => f.write_str("int")?,
             Ty::Float => f.write_str("float")?,
             Ty::Str => f.write_str("str")?,
-            Ty::Fn(params, ret) => {
-                f.write_str("fn(")?;
+            Ty::Fn(params, ret, generics) => {
+                write!(f, "fn<{generics:?}>(")?;
                 for (i, p) in params.iter().enumerate() {
                     if i > 0 {
                         f.write_str(", ")?;

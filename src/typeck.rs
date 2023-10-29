@@ -241,7 +241,7 @@ impl Typeck {
                         .mk_err(span, &format!("Type mismatch: Expected: `{}`, Actual: `{}`", a, b));
                 }
             }
-            (Ty::Fn(args, ret), Ty::Fn(arg2, ret2)) => {
+            (Ty::Fn(args, ret, _), Ty::Fn(arg2, ret2, _)) => {
                 for (&a, &b) in args.iter().zip(arg2.iter()) {
                     self.typeck_eq(a, b, span)?;
                 }
@@ -275,7 +275,7 @@ impl Typeck {
                 .mk_err(span, "Type cannot be inferred. Please add type annotations"),
             Ty::Generic(..) => Ok(()),
             Ty::Unit | Ty::Bool | Ty::Int | Ty::Float | Ty::Str => Ok(()),
-            Ty::Fn(args, ret) => {
+            Ty::Fn(args, ret, _) => {
                 for arg in args.iter() {
                     self.typeck_no_var(*arg, span)?;
                 }

@@ -154,6 +154,7 @@ impl Parser {
                 .mk_err(name.span, "Function with same name already defined in this scope");
         }
 
+        let generics = self.generic_params()?;
         self.consume(OpenParen, "Expected '('")?;
         let params = self.params(CloseParen, false)?;
         self.consume(CloseParen, "Expected ')'")?;
@@ -172,6 +173,7 @@ impl Parser {
 
         Ok(Function {
             name,
+            generics,
             params,
             ret,
             body,

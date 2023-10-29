@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crate::{
     err::{ErrHandler, Result},
     lex::Span,
@@ -18,7 +20,6 @@ struct Unifier<'a> {
 
 pub fn unify(ast: &Ast, env: &mut TyContext, handler: &ErrHandler) -> Result<()> {
     let mut unifier = Unifier::new(env, handler);
-    unifier.unify_fn_headers(&ast.functions)?;
     unifier.unify_impls(&ast.impls)?;
     unifier.unify_fn_bodies(&ast.functions)?;
     unifier.unify_stmts(&ast.stmts)
@@ -150,7 +151,7 @@ impl<'a> Unifier<'a> {
             }
             ExprKind::Closure { params, ret, body } => self.enter_fn_scope(*ret, |this| {
                 let params = params.iter().map(|p| p.param_ty).collect();
-                let ty = this.tyctx.alloc_ty(Ty::Fn(params, *ret));
+                let ty = this.tyctx.alloc_ty(Ty::Fn(params, *ret, Rc::from([])));
                 this.tyctx.unify(expected, ty, expr.span)?;
                 this.unify_expr(body, *ret)?;
                 Ok(())
@@ -438,7 +439,6 @@ impl<'a> Unifier<'a> {
     }
 
     fn unify_block(&mut self, block: &Block) -> Result<()> {
-        self.unify_fn_headers(&block.functions)?;
         self.unify_impls(&block.impls)?;
         self.unify_fn_bodies(&block.functions)?;
 
@@ -473,15 +473,7 @@ impl<'a> Unifier<'a> {
     }
 
     fn unify_fns(&mut self, items: &[Function]) -> Result<()> {
-        self.unify_fn_headers(items)?;
         self.unify_fn_bodies(items)?;
-        Ok(())
-    }
-
-    fn unify_fn_headers(&mut self, items: &[Function]) -> Result<()> {
-        for item in items {
-            self.unify_fn_header(item)?;
-        }
         Ok(())
     }
 
@@ -489,19 +481,6 @@ impl<'a> Unifier<'a> {
         for item in items {
             self.enter_fn_scope(item.ret, |this| this.unify_fn_body(item))?;
         }
-        Ok(())
-    }
-
-    fn unify_fn_header(&mut self, function: &Function) -> Result<()> {
-        for (idx, p) in function.params.iter().enumerate() {
-            if p.name.is_self_param() && idx != 0 {
-                return self.handler.mk_err(p.name.span, "`self` must be the first parameter");
-            }
-        }
-
-        let params = function.params.iter().map(|p| p.param_ty).collect();
-        self.tyctx.unify_value(function.ty, Ty::Fn(params, function.ret));
-
         Ok(())
     }
 
@@ -520,7 +499,7 @@ impl<'a> Unifier<'a> {
         span: Span,
     ) -> Result<()> {
         match fn_ty {
-            Ty::Fn(params, ret) => {
+            Ty::Fn(params, ret, _) => {
                 let arg_mismatch = |expected: usize, actual: usize| {
                     self.handler.mk_err(
                         expr.span,

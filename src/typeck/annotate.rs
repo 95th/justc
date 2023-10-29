@@ -46,7 +46,7 @@ impl<'a> Annotate<'a> {
         self.declare_enums(&ast.enums);
         let structs = self.annotate_structs(&ast.structs)?;
         let enums = self.annotate_enums(&ast.enums)?;
-        self.annotate_fn_headers(&ast.functions);
+        self.annotate_fn_headers(&ast.functions)?;
         let impls = self.annotate_impls(&ast.impls)?;
         let functions = self.annotate_fns(&ast.functions)?;
         let stmts = self.annotate_stmts(&ast.stmts)?;
@@ -123,8 +123,13 @@ impl<'a> Annotate<'a> {
                     expr: Box::new(expr),
                 }
             }
-            ast::ExprKind::Variable(t) => match self.bindings.get(t.symbol).or_else(|| self.functions.get(t.symbol)) {
-                Some(ty) => hir::ExprKind::Variable(t.clone(), *ty),
+            ast::ExprKind::Variable(t) => match self.bindings.get(t.symbol).cloned().or_else(|| {
+                self.functions
+                    .get(t.symbol)
+                    .cloned()
+                    .map(|t| self.tyctx.instantiate_generic_ty(t))
+            }) {
+                Some(ty) => hir::ExprKind::Variable(t.clone(), ty),
                 None => {
                     log::debug!("Variable `{}` not found", t.symbol);
                     log::trace!("Bindings: {:?}", self.bindings);
@@ -154,7 +159,8 @@ impl<'a> Annotate<'a> {
                 }
             }
             ast::ExprKind::Closure { params, ret, body } => self.enter_block_scope(|this| {
-                let params = this.annotate_params(params)?;
+                let param_tys = this.annotate_param_tys(params)?;
+                let params = this.annotate_params(params, &param_tys);
                 let ret = this.ast_ty_to_ty(ret)?;
                 this.has_enclosing_fn = true;
                 let body = this.annotate_expr(body)?;
@@ -370,7 +376,7 @@ impl<'a> Annotate<'a> {
             this.declare_enums(&block.enums);
             let structs = this.annotate_structs(&block.structs)?;
             let enums = this.annotate_enums(&block.enums)?;
-            this.annotate_fn_headers(&block.functions);
+            this.annotate_fn_headers(&block.functions)?;
             let impls = this.annotate_impls(&block.impls)?;
             let functions = this.annotate_fns(&block.functions)?;
             let stmts = this.annotate_stmts(&block.stmts)?;
@@ -386,10 +392,21 @@ impl<'a> Annotate<'a> {
         })
     }
 
-    fn annotate_fn_headers(&mut self, functions: &[ast::Function]) {
+    fn annotate_fn_headers(&mut self, functions: &[ast::Function]) -> Result<()> {
         for func in functions {
-            self.functions.insert(func.name.symbol, self.tyctx.new_type_var());
+            for (idx, p) in func.params.iter().enumerate() {
+                if p.name.is_self_param() && idx != 0 {
+                    return self.handler.mk_err(p.name.span, "`self` must be the first parameter");
+                }
+            }
+
+            let generics = self.annotate_generic_params(&func.generics);
+            let params = self.annotate_param_tys(&func.params)?;
+            let ret = self.ast_ty_to_ty(&func.ret)?;
+            let fn_ty = self.tyctx.alloc_ty(Ty::Fn(params, ret, generics));
+            self.functions.insert(func.name.symbol, fn_ty);
         }
+        Ok(())
     }
 
     fn annotate_methods(&mut self, functions: &[ast::Function]) -> Result<Vec<hir::Function>> {
@@ -414,8 +431,13 @@ impl<'a> Annotate<'a> {
 
     fn annotate_fn(&mut self, func: &ast::Function, ty: TypeVar) -> Result<hir::Function> {
         self.enter_fn_scope(|this| {
-            let params = this.annotate_params(&func.params)?;
-            let ret = this.ast_ty_to_ty(&func.ret)?;
+            let Ty::Fn(param_tys, ret, _) = this.tyctx.resolve_ty(ty) else {
+                panic!("Expected function type");
+            };
+            if param_tys.len() != func.params.len() {
+                panic!("function params length mismatch");
+            }
+            let params = this.annotate_params(&func.params, &param_tys);
             this.has_enclosing_fn = true;
             let body = this.annotate_block(&func.body)?;
             this.has_enclosing_fn = false;
@@ -429,18 +451,20 @@ impl<'a> Annotate<'a> {
         })
     }
 
-    fn annotate_params(&mut self, params: &[ast::Param]) -> Result<Vec<hir::Param>> {
-        params
-            .iter()
-            .map(|p| {
-                let param_ty = self.ast_ty_to_ty(&p.ty)?;
-                self.bindings.insert(p.name.symbol, param_ty);
-                Ok(hir::Param {
-                    name: p.name.clone(),
-                    param_ty,
-                })
+    fn annotate_param_tys(&mut self, params: &[ast::Param]) -> Result<Rc<[TypeVar]>> {
+        params.iter().map(|p| self.ast_ty_to_ty(&p.ty)).collect()
+    }
+
+    fn annotate_params(&mut self, params: &[ast::Param], param_tys: &[TypeVar]) -> Vec<hir::Param> {
+        let mut hir_params = Vec::new();
+        for (p, ty) in params.iter().zip(param_tys.iter()) {
+            self.bindings.insert(p.name.symbol, *ty);
+            hir_params.push(hir::Param {
+                name: p.name.clone(),
+                param_ty: *ty,
             })
-            .collect()
+        }
+        hir_params
     }
 
     fn ast_ty_to_ty(&mut self, ast_ty: &ast::Ty) -> Result<TypeVar> {
@@ -448,7 +472,7 @@ impl<'a> Annotate<'a> {
             ast::TyKind::Fn(params, ret) => {
                 let params = params.iter().map(|p| self.ast_ty_to_ty(p)).collect::<Result<_>>()?;
                 let ret = self.ast_ty_to_ty(ret)?;
-                self.tyctx.alloc_ty(Ty::Fn(params, ret))
+                self.tyctx.alloc_ty(Ty::Fn(params, ret, Rc::from([])))
             }
             ast::TyKind::Ident(t, generic_args) => self.token_to_ty(t, generic_args)?,
             ast::TyKind::Tuple(types) => {
@@ -548,7 +572,12 @@ impl<'a> Annotate<'a> {
         let ty = *self.types.get(s.name.symbol).unwrap();
         let fields = self.enter_self_scope(ty, |this| this.annotate_struct_fields(&s.fields))?;
         if s.is_tuple {
-            let ctor_ty = self.tyctx.alloc_ty(Ty::Fn(fields.iter().map(|f| f.ty).collect(), ty));
+            let Ty::Struct(_, _, generics) = self.tyctx.resolve_ty(ty) else {
+                panic!("Expected struct type");
+            };
+            let ctor_ty = self
+                .tyctx
+                .alloc_ty(Ty::Fn(fields.iter().map(|f| f.ty).collect(), ty, generics));
             self.functions.insert(s.name.symbol, ctor_ty);
         }
         let field_tys = fields.iter().map(|f| (f.name.symbol, f.ty)).collect();
