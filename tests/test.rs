@@ -1,12 +1,22 @@
 use justc::Compiler;
 
+use std::sync::Once;
+
+/// Setup function that is only run once, even if called multiple times.
+fn setup() {
+    static INIT: Once = Once::new();
+    INIT.call_once(|| env_logger::init());
+}
+
 fn run_ok(src: &str) {
+    setup();
     let src = String::from(src);
     let mut c = Compiler::new();
     c.run(src).unwrap();
 }
 
 fn run_err(src: &str) {
+    setup();
     let src = String::from(src);
     let mut c = Compiler::new();
     c.run(src).unwrap_err();
@@ -192,7 +202,18 @@ fn array_creation() {
 }
 
 #[test]
-fn generic_struct() {
+fn generic_struct_single_use() {
+    run_ok(
+        r#"
+        struct S<T>(T);
+        let a = S(1);
+        a.0 == 1;
+    "#,
+    );
+}
+
+#[test]
+fn generic_struct_multi_use() {
     run_ok(
         r#"
         struct S<T>(T);

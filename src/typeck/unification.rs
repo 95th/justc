@@ -161,8 +161,8 @@ impl<'a> Unifier<'a> {
                 self.unify_fn_call(expr, None, args, &ty, callee.span)?;
             }
             ExprKind::Struct(name, fields, ty_var) => {
-                let id = match self.tyctx.resolve_ty(*ty_var) {
-                    Ty::Struct(id, ..) => id,
+                match self.tyctx.resolve_ty(*ty_var) {
+                    Ty::Struct(..) => {}
                     Ty::Infer(_) => {
                         return self
                             .handler
@@ -174,8 +174,7 @@ impl<'a> Unifier<'a> {
                             .mk_err(expr.span, &format!("Type error: Expected struct, Actual: `{}`", ty,))
                     }
                 };
-                dbg!(id, self.tyctx.get_fields(id));
-                dbg!(ty_var, self.tyctx.get_fields(*ty_var));
+                log::debug!("struct literal: {ty_var:?}");
                 if let Some(struct_fields) = self.tyctx.get_fields(*ty_var) {
                     for f in fields {
                         if let Some(t) = struct_fields.get(f.name.symbol) {
@@ -208,9 +207,10 @@ impl<'a> Unifier<'a> {
             ExprKind::Field(e, field_name) => {
                 self.unify_expr(e, e.ty)?;
                 let ty = self.tyctx.resolve_ty(e.ty);
+                log::debug!("Field access of {:?} = {:?}", e.ty, ty);
                 match &ty {
-                    Ty::Struct(struct_ty, name, _generics) => {
-                        if let Some(f) = self.tyctx.get_field(*struct_ty, field_name.symbol) {
+                    Ty::Struct(_, name, _) => {
+                        if let Some(f) = self.tyctx.get_field(e.ty, field_name.symbol) {
                             self.tyctx.unify(expected, f, field_name.span)?;
                         } else {
                             return self.handler.mk_err(
@@ -290,7 +290,7 @@ impl<'a> Unifier<'a> {
                 self.unify_expr(callee, callee.ty)?;
                 let ty = self.tyctx.resolve_ty(callee.ty);
                 match ty {
-                    Ty::Struct(id, name, _generics) => match self.tyctx.get_method(id, method_name.symbol) {
+                    Ty::Struct(id, name, _) => match self.tyctx.get_method(id, method_name.symbol) {
                         Some(ty) => {
                             let method_ty = self.tyctx.resolve_ty(ty);
                             self.unify_fn_call(expr, Some(callee), args, &method_ty, method_name.span)?;

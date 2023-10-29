@@ -134,7 +134,9 @@ impl TyContext {
             }
         }
 
-        self.subst_ty(ty_var, &subst)
+        let new_ty = self.subst_ty(ty_var, &subst);
+        log::debug!("instantiate_generic_ty({:?}) = {:?}", ty_var, new_ty);
+        new_ty
     }
 
     pub fn subst_ty(&mut self, ty: TypeVar, subst: &HashMap<TypeVar, TypeVar>) -> TypeVar {
@@ -146,16 +148,13 @@ impl TyContext {
                 self.alloc_ty(Ty::Fn(params, ret))
             }
             Ty::Struct(id, name, generics) => {
-                dbg!(&generics);
                 let generics = generics.iter().map(|&ty| self.subst_ty(ty, subst)).collect();
-                dbg!(&generics);
                 let new_ty = self.alloc_ty(Ty::Struct(id, name, generics));
                 if let Some(fields) = self.fields.get(&ty).cloned() {
                     let fields = fields
                         .iter()
                         .map(|(name, ty)| (name, self.subst_ty(ty, subst)))
                         .collect();
-                    dbg!(subst);
                     self.add_fields(new_ty, fields);
                 }
                 new_ty
@@ -172,8 +171,16 @@ impl TyContext {
         }
     }
 
-    pub fn get_field(&self, struct_id: TypeVar, name: Symbol) -> Option<TypeVar> {
-        self.fields.get(&struct_id).and_then(|fields| fields.get(name))
+    pub fn get_field(&mut self, struct_id: TypeVar, name: Symbol) -> Option<TypeVar> {
+        log::info!("t10 unioned t15 = {}", self.table.unioned(TypeVar(10), TypeVar(15)));
+        log::trace!("get_field({:?}, {:?})", struct_id, name);
+        // self.fields.get(&struct_id).and_then(|fields| fields.get(name))
+        for (&id, fields) in self.fields.iter() {
+            if self.table.unioned(id, struct_id) {
+                return fields.get(name);
+            }
+        }
+        None
     }
 
     pub fn get_fields(&self, struct_id: TypeVar) -> Option<StructFields> {
@@ -181,7 +188,7 @@ impl TyContext {
     }
 
     pub fn add_fields(&mut self, struct_id: TypeVar, fields: StructFields) {
-        let existing = self.fields.insert(dbg!(struct_id), dbg!(fields));
+        let existing = self.fields.insert(struct_id, fields);
         debug_assert!(existing.is_none());
     }
 
@@ -209,6 +216,7 @@ impl TyContext {
 
     pub fn unify(&mut self, expected: TypeVar, actual: TypeVar, span: Span) -> Result<()> {
         self.done.clear();
+        log::debug!("unify {expected:?} = {actual:?}");
         self.unify_inner(expected, actual, span)
     }
 
@@ -265,11 +273,11 @@ impl TyContext {
         let a = self.resolve_ty(expected);
         let b = self.resolve_ty(actual);
 
-        log::trace!("Unify {:?} with {:?}", a, b);
+        log::trace!("Unify {:?} ({:?}) with {:?} ({:?})", expected, a, actual, b);
 
         match (a, b) {
             (Ty::Infer(a), Ty::Infer(b)) => self.table.union(a, b),
-            (Ty::Infer(v), other) | (other, Ty::Infer(v)) => self.table.union_value(v, TypeVarValue::Known(other)),
+            (Ty::Infer(_), _) | (_, Ty::Infer(_)) => self.table.union(expected, actual),
             (Ty::Fn(params, ret), Ty::Fn(params2, ret2)) => {
                 if params.len() != params2.len() {
                     return Err(());
