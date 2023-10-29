@@ -4,7 +4,7 @@ use crate::{
     err::{ErrHandler, Result},
     lex::Token,
     parse::ast::{self, GenericArgs, GenericParams},
-    symbol::{Symbol, SymbolTable},
+    symbol::SymbolTable,
 };
 
 use super::{
@@ -21,7 +21,6 @@ struct Annotate<'a> {
     bindings: SymbolTable<TypeVar>,
     functions: SymbolTable<TypeVar>,
     types: SymbolTable<TypeVar>,
-    methods: HashMap<TypeVar, HashMap<Symbol, TypeVar>>,
     handler: &'a ErrHandler,
     has_enclosing_fn: bool,
     has_enclosing_loop: bool,
@@ -35,7 +34,6 @@ impl<'a> Annotate<'a> {
             bindings: SymbolTable::new(),
             functions: SymbolTable::new(),
             types: SymbolTable::new(),
-            methods: HashMap::new(),
             handler,
             has_enclosing_fn: false,
             has_enclosing_loop: false,
@@ -424,7 +422,11 @@ impl<'a> Annotate<'a> {
                 let params = this.annotate_param_tys(&func.params)?;
                 let ret = this.ast_ty_to_ty(&func.ret)?;
                 let fn_ty = this.tyctx.alloc_ty(Ty::Fn(params, ret, generics));
-                this.methods.entry(ty).or_default().insert(func.name.symbol, fn_ty);
+                if this.tyctx.add_method(ty, func.name.symbol, fn_ty) {
+                    return this
+                        .handler
+                        .mk_err(func.name.span, "Function with same name already defined for this type");
+                }
             }
             Ok(())
         })
@@ -433,7 +435,7 @@ impl<'a> Annotate<'a> {
     fn annotate_methods(&mut self, ty: TypeVar, methods: &[ast::Function]) -> Result<Vec<hir::Function>> {
         let mut out = vec![];
         for method in methods {
-            let ty = *self.methods.get(&ty).unwrap().get(&method.name.symbol).unwrap();
+            let ty = self.tyctx.get_method(ty, method.name.symbol).unwrap();
             let func = self.annotate_fn(method, ty)?;
             out.push(func);
         }
@@ -515,16 +517,16 @@ impl<'a> Annotate<'a> {
     fn annotate_impls(&mut self, impls: &[ast::Impl]) -> Result<Vec<hir::Impl>> {
         let mut impl_with_tys = Vec::new();
         for i in impls {
-            let ty = self.enter_block_scope(|this| {
+            self.enter_block_scope(|this| {
                 for g in i.generics.params.iter() {
                     let ty = this.tyctx.new_generic(g.name.symbol);
                     this.types.insert(g.name.symbol, ty);
                 }
                 let impl_ty = this.ast_ty_to_ty(&i.ty)?;
                 this.annotate_method_headers(i, impl_ty)?;
-                Ok(impl_ty)
+                impl_with_tys.push((i, impl_ty));
+                Ok(())
             })?;
-            impl_with_tys.push((i, ty));
         }
 
         let mut hir_impls = Vec::new();

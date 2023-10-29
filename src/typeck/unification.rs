@@ -254,49 +254,45 @@ impl<'a> Unifier<'a> {
                     }
                 }
             }
-            ExprKind::AssocMethod { ty, name: method_name } => {
-                let ty = self.tyctx.resolve_ty(*ty);
-                match ty {
-                    Ty::Struct(id, name, ..) => {
-                        let method_ty = match self.tyctx.get_method(id, method_name.symbol) {
-                            Some(ty) => ty,
-                            None => {
-                                return self.handler.mk_err(
-                                    method_name.span,
-                                    &format!("Method `{}` not found on type `{}`", method_name.symbol, name),
-                                );
-                            }
-                        };
+            ExprKind::AssocMethod { ty, name: method_name } => match self.tyctx.resolve_ty(*ty) {
+                Ty::Struct(_, name, ..) => {
+                    let method_ty = match self.tyctx.get_method(*ty, method_name.symbol) {
+                        Some(ty) => ty,
+                        None => {
+                            return self.handler.mk_err(
+                                method_name.span,
+                                &format!("Method `{}` not found on type `{}`", method_name.symbol, name),
+                            );
+                        }
+                    };
 
-                        self.tyctx.unify(expected, method_ty, method_name.span)?;
-                    }
-                    Ty::Infer(_) => {
-                        return self
-                            .handler
-                            .mk_err(method_name.span, "Type cannot be inferred. Please add type annotations");
-                    }
-                    ty => {
-                        return self.handler.mk_err(
-                            method_name.span,
-                            &format!("Type error: Expected struct, Actual: `{}`", ty,),
-                        )
-                    }
+                    self.tyctx.unify(expected, method_ty, method_name.span)?;
                 }
-            }
+                Ty::Infer(_) => {
+                    return self
+                        .handler
+                        .mk_err(method_name.span, "Type cannot be inferred. Please add type annotations");
+                }
+                ty => {
+                    return self.handler.mk_err(
+                        method_name.span,
+                        &format!("Type error: Expected struct, Actual: `{}`", ty,),
+                    )
+                }
+            },
             ExprKind::MethodCall {
                 callee,
                 name: method_name,
                 args,
             } => {
                 self.unify_expr(callee, callee.ty)?;
-                let ty = self.tyctx.resolve_ty(callee.ty);
-                match ty {
-                    Ty::Struct(id, name, _) => match self.tyctx.get_method(id, method_name.symbol) {
+                match self.tyctx.resolve_ty(callee.ty) {
+                    Ty::Struct(_, name, _) => match self.tyctx.get_method(callee.ty, method_name.symbol) {
                         Some(ty) => {
                             let method_ty = self.tyctx.resolve_ty(ty);
                             self.unify_fn_call(expr, Some(callee), args, &method_ty, method_name.span)?;
                         }
-                        None => match self.tyctx.get_field(id, method_name.symbol) {
+                        None => match self.tyctx.get_field(callee.ty, method_name.symbol) {
                             Some(ty) => {
                                 let method_ty = self.tyctx.resolve_ty(ty);
                                 self.unify_fn_call(expr, None, args, &method_ty, method_name.span)?;
@@ -461,13 +457,6 @@ impl<'a> Unifier<'a> {
     }
 
     fn unify_impl(&mut self, i: &Impl) -> Result<()> {
-        for f in &i.functions {
-            if self.tyctx.add_method(i.ty, f.name.symbol, f.ty) {
-                return self
-                    .handler
-                    .mk_err(f.name.span, "Function with same name already defined for this type");
-            }
-        }
         self.unify_fns(&i.functions)?;
         Ok(())
     }

@@ -122,6 +122,13 @@ impl TyContext {
         }
     }
 
+    fn original_generic_ty(&mut self, ty: TypeVar) -> TypeVar {
+        match self.resolve_ty(ty) {
+            Ty::Struct(id, ..) => id,
+            _ => ty,
+        }
+    }
+
     pub fn instantiate_generic_ty(&mut self, ty_var: TypeVar) -> TypeVar {
         let generic_params = self.generic_params(ty_var);
         if generic_params.is_empty() {
@@ -151,15 +158,7 @@ impl TyContext {
             }
             Ty::Struct(id, name, generics) => {
                 let generics = generics.iter().map(|&ty| self.subst_ty(ty, subst)).collect();
-                let new_ty = self.alloc_ty(Ty::Struct(id, name, generics));
-                if let Some(fields) = self.fields.get(&ty).cloned() {
-                    let fields = fields
-                        .iter()
-                        .map(|(name, ty)| (name, self.subst_ty(ty, subst)))
-                        .collect();
-                    self.add_fields(new_ty, fields);
-                }
-                new_ty
+                self.alloc_ty(Ty::Struct(id, name, generics))
             }
             Ty::Tuple(tys) => {
                 let tys = tys.iter().map(|&ty| self.subst_ty(ty, subst)).collect();
@@ -173,9 +172,60 @@ impl TyContext {
         }
     }
 
+    fn maybe_instantiate_fields_and_methods(&mut self, ty: TypeVar) {
+        if self.fields.contains_key(&ty) {
+            return;
+        }
+
+        let original_ty = self.original_generic_ty(ty);
+        if original_ty == ty {
+            return;
+        }
+
+        let subst = self.get_subst_of_instantiated_ty(ty, original_ty);
+        log::debug!("get_subst_of_instantiated_ty({ty:?}, {original_ty:?}) = {subst:?}");
+
+        log::trace!(
+            "methods of original({original_ty:?}): {:?}",
+            self.methods.get(&original_ty)
+        );
+
+        if subst.is_empty() {
+            return;
+        }
+        if let Some(fields) = self.get_fields(original_ty) {
+            let fields = fields
+                .iter()
+                .map(|(name, ty)| (name, self.subst_ty(ty, &subst)))
+                .collect();
+            self.add_fields(ty, fields);
+        }
+        if let Some(methods) = self.get_methods(original_ty).cloned() {
+            for (name, method_ty) in methods {
+                let new_method_ty = self.subst_ty(method_ty, &subst);
+                self.add_method(ty, name, new_method_ty);
+            }
+        }
+    }
+
+    fn get_subst_of_instantiated_ty(&mut self, ty: TypeVar, original_ty: TypeVar) -> HashMap<TypeVar, TypeVar> {
+        let ty_params = self.generic_params(original_ty);
+        if ty_params.is_empty() {
+            return HashMap::new();
+        }
+        let instantiated_ty_params = self.generic_params(ty);
+        assert_eq!(ty_params.len(), instantiated_ty_params.len());
+
+        let mut subst = HashMap::new();
+        for (ty_param, instantiated_ty_param) in ty_params.iter().zip(instantiated_ty_params.iter()) {
+            subst.insert(*ty_param, *instantiated_ty_param);
+        }
+        subst
+    }
+
     pub fn get_field(&mut self, struct_id: TypeVar, name: Symbol) -> Option<TypeVar> {
         log::trace!("get_field({:?}, {:?})", struct_id, name);
-        // self.fields.get(&struct_id).and_then(|fields| fields.get(name))
+        self.maybe_instantiate_fields_and_methods(struct_id);
         for (&id, fields) in self.fields.iter() {
             if self.table.unioned(id, struct_id) {
                 return fields.get(name);
@@ -184,7 +234,8 @@ impl TyContext {
         None
     }
 
-    pub fn get_fields(&self, struct_id: TypeVar) -> Option<StructFields> {
+    pub fn get_fields(&mut self, struct_id: TypeVar) -> Option<StructFields> {
+        self.maybe_instantiate_fields_and_methods(struct_id);
         self.fields.get(&struct_id).cloned()
     }
 
@@ -193,10 +244,25 @@ impl TyContext {
         debug_assert!(existing.is_none());
     }
 
-    pub fn get_method(&self, struct_id: TypeVar, name: Symbol) -> Option<TypeVar> {
-        self.methods
-            .get(&struct_id)
-            .and_then(|methods| methods.get(&name).copied())
+    pub fn get_method(&mut self, struct_id: TypeVar, name: Symbol) -> Option<TypeVar> {
+        log::trace!("get_method({:?}, {:?})", struct_id, name);
+        self.maybe_instantiate_fields_and_methods(struct_id);
+        for (&id, methods) in self.methods.iter() {
+            if self.table.unioned(id, struct_id) {
+                return methods.get(&name).copied();
+            }
+        }
+        None
+    }
+
+    pub fn get_methods(&mut self, struct_id: TypeVar) -> Option<&HashMap<Symbol, TypeVar>> {
+        self.maybe_instantiate_fields_and_methods(struct_id);
+        for (&id, methods) in self.methods.iter() {
+            if self.table.unioned(id, struct_id) {
+                return Some(methods);
+            }
+        }
+        None
     }
 
     pub fn add_method(&mut self, struct_id: TypeVar, name: Symbol, ty: TypeVar) -> bool {
